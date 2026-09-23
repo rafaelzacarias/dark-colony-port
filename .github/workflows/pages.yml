@@ -1,0 +1,84 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: vars.PAGES_ASSET_URL != '' && vars.PAGES_ASSET_SHA256 != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Download authorized asset bundle
+        env:
+          ASSET_URL: ${{ vars.PAGES_ASSET_URL }}
+          ASSET_SHA256: ${{ vars.PAGES_ASSET_SHA256 }}
+        run: |
+          [[ "$ASSET_SHA256" =~ ^[0-9a-fA-F]{64}$ ]] || { echo 'Invalid asset SHA-256'; exit 1; }
+          curl --fail --location --retry 3 --proto '=https' --proto-redir '=https' "$ASSET_URL" --output "$RUNNER_TEMP/pages-assets.tar.gz"
+          printf '%s  %s\n' "$ASSET_SHA256" "$RUNNER_TEMP/pages-assets.tar.gz" | sha256sum --check --strict
+      - name: Extract asset bundle safely
+        run: |
+          python3 - <<'PY'
+          import os
+          import tarfile
+          from pathlib import PurePosixPath
+          archive = os.path.join(os.environ['RUNNER_TEMP'], 'pages-assets.tar.gz')
+          with tarfile.open(archive, 'r:gz') as bundle:
+              members = bundle.getmembers()
+              if not members or len(members) > 50000:
+                  raise ValueError('Invalid asset bundle entry count')
+              if sum(member.size for member in members) > 900 * 1024 * 1024:
+                  raise ValueError('Asset bundle exceeds Pages size budget')
+              for member in members:
+                  path = PurePosixPath(member.name)
+                  if path.is_absolute() or '..' in path.parts or path.parts[:2] != ('assets', 'generated'):
+                      raise ValueError('Unexpected asset path: ' + member.name)
+                  if not (member.isfile() or member.isdir()):
+                      raise ValueError('Only ordinary files and directories are allowed')
+              bundle.extractall('public', members=members, filter='data')
+          PY
+      - run: npm run pages:check
+      - run: npm run test:pages
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@v5
+      - name: Build repository-relative site
+        run: npm run build
+        env:
+          PAGES_BASE_PATH: ${{ steps.pages.outputs.base_path }}/
+      - name: Check published size
+        run: |
+          bytes=$(du -sb dist | cut -f1)
+          (( bytes < 1000000000 )) || { echo 'Published site exceeds 1 GB'; exit 1; }
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

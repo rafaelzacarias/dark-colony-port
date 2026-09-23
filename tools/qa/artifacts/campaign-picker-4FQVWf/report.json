@@ -1,0 +1,1004 @@
+{
+  "output": "/Users/rafael/Downloads/darkcolony/tools/qa/artifacts/campaign-picker-4FQVWf",
+  "errors": [],
+  "layouts": [
+    {
+      "name": "launcher-desktop",
+      "viewport": 1280,
+      "width": 1280,
+      "host": {
+        "left": 276,
+        "top": 138,
+        "right": 1280,
+        "bottom": 872
+      },
+      "controls": [
+        {
+          "left": 300,
+          "top": 250.5,
+          "right": 388,
+          "bottom": 294.5
+        },
+        {
+          "left": 388,
+          "top": 250.5,
+          "right": 476,
+          "bottom": 294.5
+        },
+        {
+          "left": 500,
+          "top": 250.5,
+          "right": 1204,
+          "bottom": 294.5
+        },
+        {
+          "left": 1212,
+          "top": 250.5,
+          "right": 1256,
+          "bottom": 294.5
+        },
+        {
+          "left": 301,
+          "top": 333.5,
+          "right": 777.5,
+          "bottom": 451.5
+        },
+        {
+          "left": 778.5,
+          "top": 333.5,
+          "right": 1255,
+          "bottom": 451.5
+        }
+      ],
+      "portraits": true
+    },
+    {
+      "name": "launcher-mobile-390",
+      "viewport": 390,
+      "width": 375,
+      "host": {
+        "left": 0,
+        "top": 294,
+        "right": 375,
+        "bottom": 846
+      },
+      "controls": [
+        {
+          "left": 16,
+          "top": 390.5,
+          "right": 104,
+          "bottom": 434.5
+        },
+        {
+          "left": 104,
+          "top": 390.5,
+          "right": 192,
+          "bottom": 434.5
+        },
+        {
+          "left": 16,
+          "top": 475,
+          "right": 307,
+          "bottom": 519
+        },
+        {
+          "left": 315,
+          "top": 475,
+          "right": 359,
+          "bottom": 519
+        },
+        {
+          "left": 17,
+          "top": 554,
+          "right": 358,
+          "bottom": 656.5
+        },
+        {
+          "left": 17,
+          "top": 657.5,
+          "right": 358,
+          "bottom": 760
+        }
+      ],
+      "portraits": true
+    },
+    {
+      "name": "launcher-mobile-320",
+      "viewport": 320,
+      "width": 320,
+      "host": {
+        "left": 0,
+        "top": 294,
+        "right": 320,
+        "bottom": 846
+      },
+      "controls": [
+        {
+          "left": 16,
+          "top": 390.5,
+          "right": 104,
+          "bottom": 434.5
+        },
+        {
+          "left": 104,
+          "top": 390.5,
+          "right": 192,
+          "bottom": 434.5
+        },
+        {
+          "left": 16,
+          "top": 475,
+          "right": 252,
+          "bottom": 519
+        },
+        {
+          "left": 260,
+          "top": 475,
+          "right": 304,
+          "bottom": 519
+        },
+        {
+          "left": 17,
+          "top": 554,
+          "right": 303,
+          "bottom": 656.5
+        },
+        {
+          "left": 17,
+          "top": 657.5,
+          "right": 303,
+          "bottom": 760
+        }
+      ],
+      "portraits": true
+    },
+    {
+      "name": "launcher-mobile-continue",
+      "viewport": 390,
+      "width": 375,
+      "host": {
+        "left": 0,
+        "top": 294,
+        "right": 375,
+        "bottom": 846
+      },
+      "controls": [
+        {
+          "left": 16,
+          "top": 390.5,
+          "right": 104,
+          "bottom": 434.5
+        },
+        {
+          "left": 104,
+          "top": 390.5,
+          "right": 192,
+          "bottom": 434.5
+        },
+        {
+          "left": 16,
+          "top": 475,
+          "right": 307,
+          "bottom": 519
+        },
+        {
+          "left": 315,
+          "top": 475,
+          "right": 359,
+          "bottom": 519
+        },
+        {
+          "left": 17,
+          "top": 554,
+          "right": 358,
+          "bottom": 656.5
+        },
+        {
+          "left": 17,
+          "top": 657.5,
+          "right": 358,
+          "bottom": 760
+        },
+        {
+          "left": 16,
+          "top": 773,
+          "right": 359,
+          "bottom": 817
+        }
+      ],
+      "portraits": true
+    }
+  ],
+  "missions": [
+    {
+      "sourceId": "HUMAN07",
+      "source": "HUMAN/HUMAN07.SCN",
+      "diagnostic": null,
+      "profile": "browser-adapted",
+      "construction": {
+        "kind": "browser-construction-source-v1",
+        "runtimeProfile": "browser-adapted",
+        "sourceId": "8b1968c00cff131e8832bcbbff46e92e7945d3616fe9d15641ec94f346c09567:547dc37143a8b889ca6bf963043da6f9afc2fb1b065fb965ef4a28ffd277a794:a5d620693198f650a4bcc265d5908de2a6e31241611d43907c138833420410ec:74dd47384e33bcaff77e24804550a576bc9ad338d01b03a14ea00260c99e9729:7d9c8bced65eac807b722d43beed5e1acf1da3b3ada15628a410f4c42aaea441:fixed-slots-v2:1,2,3,4:120:actions:purchase,upgrade:preserve-hp-v1",
+        "team": 0,
+        "race": 0,
+        "dependency": 0,
+        "cost": 2000,
+        "configurationVersion": 2,
+        "supportedSlots": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "buildings": [
+          {
+            "dependency": 0,
+            "cost": 2000,
+            "prerequisites": [],
+            "level": 0,
+            "maximumLevel": 0,
+            "building": {
+              "nativeId": 0,
+              "team": 0,
+              "slot": 0,
+              "unitType": 16,
+              "sprite": "EXCOPOD",
+              "health": 4800,
+              "maxHealth": 4800,
+              "nativeState": 1,
+              "nativePosition": {
+                "x": 5632,
+                "y": 2168
+              },
+              "position": {
+                "x": 22,
+                "y": 8.46875
+              },
+              "footprint": [
+                {
+                  "x": 21,
+                  "y": 8
+                },
+                {
+                  "x": 22,
+                  "y": 8
+                },
+                {
+                  "x": 21,
+                  "y": 9
+                },
+                {
+                  "x": 22,
+                  "y": 9
+                }
+              ]
+            }
+          },
+          {
+            "dependency": 1,
+            "cost": 1000,
+            "prerequisites": [
+              0
+            ],
+            "level": 0,
+            "maximumLevel": 0,
+            "building": {
+              "nativeId": 1,
+              "team": 0,
+              "slot": 1,
+              "unitType": 17,
+              "sprite": "BRRKPOD",
+              "health": 2400,
+              "maxHealth": 2400,
+              "nativeState": 1,
+              "nativePosition": {
+                "x": 6144,
+                "y": 2048
+              },
+              "position": {
+                "x": 24,
+                "y": 8
+              },
+              "footprint": [
+                {
+                  "x": 23,
+                  "y": 7
+                },
+                {
+                  "x": 24,
+                  "y": 7
+                },
+                {
+                  "x": 23,
+                  "y": 6
+                },
+                {
+                  "x": 24,
+                  "y": 6
+                }
+              ]
+            }
+          },
+          {
+            "dependency": 2,
+            "cost": 2000,
+            "prerequisites": [
+              0
+            ],
+            "level": 0,
+            "maximumLevel": 1,
+            "building": {
+              "nativeId": 3,
+              "team": 0,
+              "slot": 3,
+              "unitType": 20,
+              "sprite": "SCNCPOD",
+              "health": 2400,
+              "maxHealth": 2400,
+              "nativeState": 1,
+              "nativePosition": {
+                "x": 6656,
+                "y": 2128
+              },
+              "position": {
+                "x": 26,
+                "y": 8.3125
+              },
+              "footprint": [
+                {
+                  "x": 25,
+                  "y": 8
+                },
+                {
+                  "x": 26,
+                  "y": 8
+                },
+                {
+                  "x": 25,
+                  "y": 9
+                },
+                {
+                  "x": 26,
+                  "y": 9
+                }
+              ]
+            }
+          },
+          {
+            "dependency": 3,
+            "cost": 2000,
+            "prerequisites": [
+              2,
+              1
+            ],
+            "level": 0,
+            "maximumLevel": 1,
+            "building": {
+              "nativeId": 2,
+              "team": 0,
+              "slot": 2,
+              "unitType": 18,
+              "sprite": "ROBOPOD",
+              "health": 2400,
+              "maxHealth": 2400,
+              "nativeState": 1,
+              "nativePosition": {
+                "x": 6400,
+                "y": 2560
+              },
+              "position": {
+                "x": 25,
+                "y": 10
+              },
+              "footprint": [
+                {
+                  "x": 24,
+                  "y": 10
+                },
+                {
+                  "x": 25,
+                  "y": 10
+                },
+                {
+                  "x": 24,
+                  "y": 11
+                },
+                {
+                  "x": 25,
+                  "y": 11
+                }
+              ]
+            }
+          },
+          {
+            "dependency": 4,
+            "cost": 2000,
+            "prerequisites": [
+              2
+            ],
+            "level": 1,
+            "maximumLevel": 1,
+            "building": {
+              "nativeId": 3,
+              "team": 0,
+              "slot": 3,
+              "unitType": 21,
+              "sprite": "SCNCPOD2",
+              "health": 3600,
+              "maxHealth": 3600,
+              "nativeState": 1,
+              "nativePosition": {
+                "x": 6656,
+                "y": 2128
+              },
+              "position": {
+                "x": 26,
+                "y": 8.3125
+              },
+              "footprint": [
+                {
+                  "x": 25,
+                  "y": 8
+                },
+                {
+                  "x": 26,
+                  "y": 8
+                },
+                {
+                  "x": 25,
+                  "y": 9
+                },
+                {
+                  "x": 26,
+                  "y": 9
+                }
+              ]
+            }
+          },
+          {
+            "dependency": 5,
+            "cost": 2000,
+            "prerequisites": [
+              3,
+              2
+            ],
+            "level": 1,
+            "maximumLevel": 1,
+            "building": {
+              "nativeId": 2,
+              "team": 0,
+              "slot": 2,
+              "unitType": 19,
+              "sprite": "ROBOPOD2",
+              "health": 3600,
+              "maxHealth": 3600,
+              "nativeState": 1,
+              "nativePosition": {
+                "x": 6400,
+                "y": 2560
+              },
+              "position": {
+                "x": 25,
+                "y": 10
+              },
+              "footprint": [
+                {
+                  "x": 24,
+                  "y": 10
+                },
+                {
+                  "x": 25,
+                  "y": 10
+                },
+                {
+                  "x": 24,
+                  "y": 11
+                },
+                {
+                  "x": 25,
+                  "y": 11
+                }
+              ]
+            }
+          },
+          {
+            "dependency": 6,
+            "cost": 3000,
+            "prerequisites": [
+              4
+            ],
+            "level": 0,
+            "maximumLevel": 0,
+            "building": {
+              "nativeId": 4,
+              "team": 0,
+              "slot": 4,
+              "unitType": 22,
+              "sprite": "RSCHPOD",
+              "health": 3600,
+              "maxHealth": 3600,
+              "nativeState": 1,
+              "nativePosition": {
+                "x": 5888,
+                "y": 2568
+              },
+              "position": {
+                "x": 23,
+                "y": 10.03125
+              },
+              "footprint": [
+                {
+                  "x": 23,
+                  "y": 10
+                },
+                {
+                  "x": 23,
+                  "y": 11
+                },
+                {
+                  "x": 22,
+                  "y": 10
+                },
+                {
+                  "x": 22,
+                  "y": 11
+                }
+              ]
+            }
+          }
+        ],
+        "supportedActions": [
+          "purchase",
+          "upgrade"
+        ],
+        "home": {
+          "x": 24,
+          "y": 8
+        },
+        "building": {
+          "nativeId": 0,
+          "team": 0,
+          "slot": 0,
+          "unitType": 16,
+          "sprite": "EXCOPOD",
+          "health": 4800,
+          "maxHealth": 4800,
+          "nativeState": 1,
+          "nativePosition": {
+            "x": 5632,
+            "y": 2168
+          },
+          "position": {
+            "x": 22,
+            "y": 8.46875
+          },
+          "footprint": [
+            {
+              "x": 21,
+              "y": 8
+            },
+            {
+              "x": 22,
+              "y": 8
+            },
+            {
+              "x": 21,
+              "y": 9
+            },
+            {
+              "x": 22,
+              "y": 9
+            }
+          ]
+        },
+        "policy": {
+          "timing": "adapted-not-native",
+          "completionVisits": 120,
+          "placement": "original-scn-home-only",
+          "health": "source-max-at-receipt",
+          "upgradeHealth": "adapted-preserve-hp-capped-new-max"
+        }
+      },
+      "colored": 74531,
+      "tick": 4
+    },
+    {
+      "sourceId": "ALIEN15",
+      "source": "ALIEN/ALIEN15.SCN",
+      "diagnostic": null,
+      "profile": "browser-adapted",
+      "construction": {
+        "kind": "browser-construction-source-v1",
+        "runtimeProfile": "browser-adapted",
+        "sourceId": "770a8dcbcdc009e69c913d6c0a8972137ded9b7fa600bfb87cd22c3acd500758:547dc37143a8b889ca6bf963043da6f9afc2fb1b065fb965ef4a28ffd277a794:a5d620693198f650a4bcc265d5908de2a6e31241611d43907c138833420410ec:545cf41821d231c815305f3d96f096450221492a461d684c4fb3bfc2c9363de1:38d097477228baf52838e2dc91b50ef64f70e9a65030941869f3d31b96d4b8f7:fixed-slots-v2:1,2,3,4:120:actions:purchase,upgrade:preserve-hp-v1",
+        "team": 0,
+        "race": 1,
+        "dependency": 14,
+        "cost": 2000,
+        "configurationVersion": 2,
+        "supportedSlots": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "buildings": [
+          {
+            "dependency": 14,
+            "cost": 2000,
+            "prerequisites": [],
+            "level": 0,
+            "maximumLevel": 0,
+            "building": {
+              "nativeId": 0,
+              "team": 0,
+              "slot": 0,
+              "unitType": 28,
+              "sprite": "BIOHIV",
+              "health": 4800,
+              "maxHealth": 4800,
+              "nativeState": 1,
+              "nativePosition": {
+                "x": 23808,
+                "y": 11896
+              },
+              "position": {
+                "x": 93,
+                "y": 46.46875
+              },
+              "footprint": [
+                {
+                  "x": 92,
+                  "y": 46
+                },
+                {
+                  "x": 93,
+                  "y": 46
+                },
+                {
+                  "x": 92,
+                  "y": 47
+                },
+                {
+                  "x": 93,
+                  "y": 47
+                }
+              ]
+            }
+          },
+          {
+            "dependency": 15,
+            "cost": 1000,
+            "prerequisites": [
+              14
+            ],
+            "level": 0,
+            "maximumLevel": 0,
+            "building": {
+              "nativeId": 1,
+              "team": 0,
+              "slot": 1,
+              "unitType": 29,
+              "sprite": "WARHIVE",
+              "health": 2400,
+              "maxHealth": 2400,
+              "nativeState": 1,
+              "nativePosition": {
+                "x": 24320,
+                "y": 11776
+              },
+              "position": {
+                "x": 95,
+                "y": 46
+              },
+              "footprint": [
+                {
+                  "x": 94,
+                  "y": 45
+                },
+                {
+                  "x": 95,
+                  "y": 45
+                },
+                {
+                  "x": 94,
+                  "y": 44
+                },
+                {
+                  "x": 95,
+                  "y": 44
+                }
+              ]
+            }
+          },
+          {
+            "dependency": 16,
+            "cost": 2000,
+            "prerequisites": [
+              14
+            ],
+            "level": 0,
+            "maximumLevel": 1,
+            "building": {
+              "nativeId": 3,
+              "team": 0,
+              "slot": 3,
+              "unitType": 32,
+              "sprite": "MINDHIV",
+              "health": 2400,
+              "maxHealth": 2400,
+              "nativeState": 1,
+              "nativePosition": {
+                "x": 24832,
+                "y": 11856
+              },
+              "position": {
+                "x": 97,
+                "y": 46.3125
+              },
+              "footprint": [
+                {
+                  "x": 96,
+                  "y": 46
+                },
+                {
+                  "x": 97,
+                  "y": 46
+                },
+                {
+                  "x": 96,
+                  "y": 47
+                },
+                {
+                  "x": 97,
+                  "y": 47
+                }
+              ]
+            }
+          },
+          {
+            "dependency": 17,
+            "cost": 2000,
+            "prerequisites": [
+              16,
+              15
+            ],
+            "level": 0,
+            "maximumLevel": 1,
+            "building": {
+              "nativeId": 2,
+              "team": 0,
+              "slot": 2,
+              "unitType": 30,
+              "sprite": "BRDRHIV",
+              "health": 2400,
+              "maxHealth": 2400,
+              "nativeState": 1,
+              "nativePosition": {
+                "x": 24576,
+                "y": 12288
+              },
+              "position": {
+                "x": 96,
+                "y": 48
+              },
+              "footprint": [
+                {
+                  "x": 95,
+                  "y": 48
+                },
+                {
+                  "x": 96,
+                  "y": 48
+                },
+                {
+                  "x": 95,
+                  "y": 49
+                },
+                {
+                  "x": 96,
+                  "y": 49
+                }
+              ]
+            }
+          },
+          {
+            "dependency": 18,
+            "cost": 2000,
+            "prerequisites": [
+              16
+            ],
+            "level": 1,
+            "maximumLevel": 1,
+            "building": {
+              "nativeId": 3,
+              "team": 0,
+              "slot": 3,
+              "unitType": 33,
+              "sprite": "MNDHIV2",
+              "health": 3600,
+              "maxHealth": 3600,
+              "nativeState": 1,
+              "nativePosition": {
+                "x": 24832,
+                "y": 11856
+              },
+              "position": {
+                "x": 97,
+                "y": 46.3125
+              },
+              "footprint": [
+                {
+                  "x": 96,
+                  "y": 46
+                },
+                {
+                  "x": 97,
+                  "y": 46
+                },
+                {
+                  "x": 96,
+                  "y": 47
+                },
+                {
+                  "x": 97,
+                  "y": 47
+                }
+              ]
+            }
+          },
+          {
+            "dependency": 19,
+            "cost": 2000,
+            "prerequisites": [
+              17,
+              14
+            ],
+            "level": 1,
+            "maximumLevel": 1,
+            "building": {
+              "nativeId": 2,
+              "team": 0,
+              "slot": 2,
+              "unitType": 31,
+              "sprite": "BRDRHIV2",
+              "health": 3600,
+              "maxHealth": 3600,
+              "nativeState": 1,
+              "nativePosition": {
+                "x": 24576,
+                "y": 12288
+              },
+              "position": {
+                "x": 96,
+                "y": 48
+              },
+              "footprint": [
+                {
+                  "x": 95,
+                  "y": 48
+                },
+                {
+                  "x": 96,
+                  "y": 48
+                },
+                {
+                  "x": 95,
+                  "y": 49
+                },
+                {
+                  "x": 96,
+                  "y": 49
+                }
+              ]
+            }
+          },
+          {
+            "dependency": 20,
+            "cost": 3000,
+            "prerequisites": [
+              18
+            ],
+            "level": 0,
+            "maximumLevel": 0,
+            "building": {
+              "nativeId": 4,
+              "team": 0,
+              "slot": 4,
+              "unitType": 34,
+              "sprite": "RSCHIV",
+              "health": 3600,
+              "maxHealth": 3600,
+              "nativeState": 1,
+              "nativePosition": {
+                "x": 24064,
+                "y": 12296
+              },
+              "position": {
+                "x": 94,
+                "y": 48.03125
+              },
+              "footprint": [
+                {
+                  "x": 94,
+                  "y": 48
+                },
+                {
+                  "x": 94,
+                  "y": 49
+                },
+                {
+                  "x": 93,
+                  "y": 48
+                },
+                {
+                  "x": 93,
+                  "y": 49
+                }
+              ]
+            }
+          }
+        ],
+        "supportedActions": [
+          "purchase",
+          "upgrade"
+        ],
+        "home": {
+          "x": 95,
+          "y": 46
+        },
+        "building": {
+          "nativeId": 0,
+          "team": 0,
+          "slot": 0,
+          "unitType": 28,
+          "sprite": "BIOHIV",
+          "health": 4800,
+          "maxHealth": 4800,
+          "nativeState": 1,
+          "nativePosition": {
+            "x": 23808,
+            "y": 11896
+          },
+          "position": {
+            "x": 93,
+            "y": 46.46875
+          },
+          "footprint": [
+            {
+              "x": 92,
+              "y": 46
+            },
+            {
+              "x": 93,
+              "y": 46
+            },
+            {
+              "x": 92,
+              "y": 47
+            },
+            {
+              "x": 93,
+              "y": 47
+            }
+          ]
+        },
+        "policy": {
+          "timing": "adapted-not-native",
+          "completionVisits": 120,
+          "placement": "original-scn-home-only",
+          "health": "source-max-at-receipt",
+          "upgradeHealth": "adapted-preserve-hp-capped-new-max"
+        }
+      },
+      "colored": 215933,
+      "tick": 4
+    }
+  ],
+  "clock": "Controlled normal MissionView updates; not an FPS test",
+  "continueExact": true,
+  "quickStart": {
+    "source": "ALIEN/ALIEN01.SCN"
+  },
+  "passed": true
+}

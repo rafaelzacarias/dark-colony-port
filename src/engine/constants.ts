@@ -1,0 +1,2 @@
+export const SIMULATION_TICKS_PER_SECOND = 20;
+export const SUBCELLS_PER_CELL = 1024;

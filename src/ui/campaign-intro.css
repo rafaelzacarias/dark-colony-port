@@ -1,0 +1,122 @@
+.campaign-intro {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 12px;
+  border: 0;
+  background: #000;
+  color: #95dc41;
+  font: 14px/1.5 "Lucida Console", "Courier New", monospace;
+  letter-spacing: 0;
+  overflow: auto;
+}
+.campaign-intro[open] { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+.campaign-intro::backdrop { background: #000; }
+.campaign-intro * { box-sizing: border-box; letter-spacing: 0; }
+.campaign-intro-scene {
+  position: relative;
+  width: min(100%, 960px, calc((100dvh - 96px) * 4 / 3));
+  flex: 0 0 auto;
+  aspect-ratio: 4 / 3;
+  background: #000 url("/assets/generated/interface/STORY.GIF") center / 100% 100% no-repeat;
+  image-rendering: pixelated;
+}
+.campaign-intro-scene[data-stage="briefing"] { background-image: url("/assets/generated/interface/SHUMAN.GIF"); }
+.campaign-intro-text {
+  position: absolute;
+  inset: 5% 9% 10% 4%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: #799c47 #101610;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 4px;
+  background: #000;
+}
+.campaign-intro-scene[data-stage="briefing"] .campaign-intro-text { inset: 42% 5.5% 9% 48%; }
+.campaign-intro-ink-1 { color: #7e9cff; }
+.campaign-intro-ink-2 { color: #b9f763; }
+.campaign-intro-ink-4 { color: #92c850; }
+.campaign-intro-readable { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: pre-wrap; }
+.campaign-intro-globe, .campaign-intro-portrait, .campaign-intro-title,
+.campaign-intro-location, .campaign-intro-speaker { display: none; }
+.campaign-intro-scene[data-stage="briefing"] .campaign-intro-globe {
+  display: block;
+  position: absolute;
+  left: 4%;
+  top: 5%;
+  width: 40%;
+  aspect-ratio: 244 / 235;
+  background: #000 url("/assets/generated/sprites/INTRFACE/GLOBEG.png") 94.219653% 100% / 312.704918% 485.106383% no-repeat;
+}
+.campaign-intro-scene[data-stage="briefing"] .campaign-intro-portrait {
+  display: block;
+  position: absolute;
+  left: 47.8%;
+  top: 5%;
+  width: 12.5%;
+  aspect-ratio: 2 / 3;
+  background: #000 url("/assets/generated/sprites/INTRFACE/HCOM.png") 50% 0 / 302.5% 301.666667% no-repeat;
+}
+.campaign-intro-scene[data-stage="briefing"] .campaign-intro-speaker {
+  display: block;
+  position: absolute;
+  margin: 0;
+  top: 4.5%;
+  left: 62%;
+  right: 2%;
+  background: #000;
+  font-size: 12px;
+}
+.campaign-intro-scene[data-stage="briefing"] .campaign-intro-title {
+  display: block;
+  position: absolute;
+  top: 33%;
+  left: 48%;
+  right: 2%;
+  margin: 0;
+  font: bold 18px/1.4 "Lucida Console", "Courier New", monospace;
+  text-align: center;
+  color: #b9f763;
+  background: #000;
+}
+.campaign-intro-scene[data-stage="briefing"] .campaign-intro-location {
+  display: block;
+  position: absolute;
+  top: 65%;
+  left: 4%;
+  width: 40%;
+  margin: 0;
+  padding: 8px 0;
+  font-size: 12px;
+  text-align: center;
+  background: #000;
+}
+.campaign-intro-controls { display: flex; flex: 0 0 auto; gap: 8px; width: min(100%, 960px); justify-content: space-between; flex-wrap: wrap; }
+.campaign-intro-controls button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 8px 12px; border: 1px solid #64665b; border-radius: 0; color: #d9e4c2; background: #151914; font: inherit; cursor: pointer; }
+.campaign-intro-controls button:last-child { min-width: 170px; color: #b9f763; }
+.campaign-intro-controls svg { width: 18px; height: 18px; flex: 0 0 18px; }
+.campaign-intro :focus-visible { outline: 2px solid #c5ee81; outline-offset: 2px; }
+.campaign-intro-controls button:hover { background: #283322; }
+@media (max-width: 640px), (max-height: 540px) {
+  .campaign-intro[open] { justify-content: flex-start; }
+  .campaign-intro-scene { width: 100%; min-height: 0; flex: 1 1 auto; aspect-ratio: auto; background-size: 100% 100%; }
+  .campaign-intro-text { inset: 5% 7% 9% 4%; font-size: 14px; }
+  .campaign-intro-scene[data-stage="briefing"] { background-size: 100% 100%; }
+  .campaign-intro-scene[data-stage="briefing"] .campaign-intro-text { inset: 194px 5% 12px; }
+  .campaign-intro-scene[data-stage="briefing"] .campaign-intro-globe { left: 16px; top: 16px; width: 122px; }
+  .campaign-intro-scene[data-stage="briefing"] .campaign-intro-portrait { left: auto; right: 16px; top: 16px; width: 60px; }
+  .campaign-intro-scene[data-stage="briefing"] .campaign-intro-speaker { left: auto; right: 16px; top: 110px; font-size: 12px; }
+  .campaign-intro-scene[data-stage="briefing"] .campaign-intro-title { top: 142px; left: 5%; right: 5%; font-size: 16px; }
+  .campaign-intro-scene[data-stage="briefing"] .campaign-intro-location { top: 166px; left: 5%; width: 90%; padding: 0; }
+  .campaign-intro-controls { gap: 6px; }
+  .campaign-intro-controls button { flex: 1 1 auto; font-size: 12px; padding: 6px 8px; }
+  .campaign-intro-controls button:last-child { min-width: 150px; }
+}
+@media (max-height: 540px) {
+  .campaign-intro-scene { flex-basis: 380px; }
+}

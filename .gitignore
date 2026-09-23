@@ -1,0 +1,17 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.DS_Store
+
+# User-supplied disc media and derived raw trees are never source-controlled.
+Dark Colony ISO/
+Dark-Colony_Win_EN_ISO-Version.zip
+raw_cd/
+iso_mount/
+
+# Generated web assets will be reproducible from user-owned media.
+public/assets/generated/
+
+# Local GitHub Pages release bundles (publish separately only with permission).
+pages-assets.tar.gz
+pages-assets.tar.gz.sha256
