@@ -1,0 +1,58 @@
+# Full-Game Independent Judge
+
+Audit: 2026-09-23. **Full game: NOT ACCEPTED.** Six historical original-mission WIN proofs are supported by saved evidence; HUMAN04-15 and ALIEN04-15 (24 missions) remain completion-unverified by this audit. Unverified does not mean unplayed or impossible. The [30-mission opening census](campaign-openings-judge-20260922.md) certifies neither original mission completion nor full-game functionality.
+
+Read-only review of current code, original mission data, latest relevant reports and existing artifacts. Only this report was added. No agents, runtime edits, gameplay replays, long tests or browser launches. Hashing/JSON inspection is not a fresh restore test. Shared-terminal output was sometimes unrelated; only identified, persisted audit logs were used.
+
+## Six Proofs
+
+All six report original ready WIN result/reason **0/1**, not a synthetic predicate or census PASS. M01 uses the default strict route; M02/M03 use original-script browser-adapted MissionView. All use Node rendering stubs, not browser pixels or native timing parity.
+
+| Mission | Actual saved outcome | Restoration evidence | Artifact root / source report |
+| --- | --- | --- | --- |
+| HUMAN01 | Ready 5177 | Tick1000 JSON restoration; fresh public-command replay, matching final digest | `/tmp/dc-stationary-human-win-OewBBU/trace.jsonl`; [report](stationary-fire-playthrough-20260921.md) |
+| ALIEN01 | Ready 6945 | Tick1000 JSON restoration; fresh public-command replay, matching final digest | `/tmp/dc-stationary-alien-win-5BdXa6/trace.jsonl`; [report](stationary-fire-playthrough-20260921.md) |
+| HUMAN02 | Pending21064 -> ready21265; original casualty goal27 | Exact whole pending restore +201 updates; independent verifier exit0 | `/tmp/dc-human02-final-assault-xg3kSr/`; verifier `/tmp/dc-human02-pending-ready-verify-74yiQk/`; [report](human02-pending-ready-verification-20260922.md) |
+| ALIEN02 | Pending32488 -> ready32689; original type86 losses6 | Exact whole pending restore +201 updates; proof-phase exit0 | `/tmp/dc-al02-finish-20260922-r05/`; [report](alien02-final-assault-20260922.md) |
+| HUMAN03 | Pending6512 -> ready6713; enemy City zero, protected cities survive | Exact whole pending restore +201 updates; proof exit0 | `/tmp/dc-m03-human-b1/human/`; [report](mission03-playthrough-20260922.md) |
+| ALIEN03 | Pending12432 -> ready12633; trip8/type94 preserved, enemy City zero | Exact whole pending restore +201 updates; exit0 | `/tmp/dc-artifact-al03-win-1790144281382/`; [report](browser-artifacts-20260922.md) |
+| HUMAN04-15 / ALIEN04-15 | **24 completion gates unverified** | No promotion from startup, controlled predicates, partial rescue, or source LOSS | [M04 attempts](mission04-playthrough-20260922.md) have no wins and exceeded their requested stepping budget |
+
+Independent recomputation matched both complete M01 trace-file SHA256s and all four serialized ready MissionView checkpoint SHA256s:
+
+| Artifact | SHA256 |
+| --- | --- |
+| HUMAN01 trace | `cebcc273f217a19ac5ad88ea3b21e40d825b3fc5eb96e04381e4504f52cc3212` |
+| ALIEN01 trace | `0104fd9e28e621f1eba0dd73831a286e66b8d1b32fb6fafff70b42f758c242ea` |
+| HUMAN02 ready view | `d11d9953ed5f00b7ea8ce1e8285389c8bda9446fadfdf17efe7fb0126f041c34` |
+| ALIEN02 ready view | `dd06165505d48ebabb8527b58bed88c4a7ff6ab794ee704bcb696d0e5b24a01d` |
+| HUMAN03 ready view | `ca43a92265d677cfa0f98c5af27538ea5992e746fe3e6230953eb4dc98fd373e` |
+| ALIEN03 ready view | `b92a9ce36bbc1c1da36e9090407c1216f69d2a1884d5dc1d748becbc5ee44574` |
+
+M01 final-state digests are different from trace-file hashes: HUMAN `90194db14c5db4ccbd299ad40a56110a44e5116dd4a5f1bc0bb0861b1c0de9fc`, ALIEN `2bdf8c2d9a79296397dd9afc45a70d8287299bcf54f69bc378101e4cca6b4198`. Saved `repeat-verified` and `suite-complete` records agree; the four-route test log records four passes, no skips/failures.
+
+Original SCN/TRO/MAP/MTG/PTH hashes independently match both M01 and both M03 records; HUMAN02's six raw files, including TXT, also match. ALIEN02's proof/acceptance receipts agree on loader hash `c0f75714432dcd1f06779303361997426f386984ce226f49e92a740646e6e003`; its [driver](../tools/qa/alien02-final-assault.ts#L84) checks the saved loader identity, original SCN hash and complete parsed TRO before restoration. This audit did not rerun that loader or independently reconstruct the entire ALIEN02 resumed ancestry. The winning continuation starts at a legitimate documented r03 save, not tick0.
+
+**These are historical proofs, not six fresh current-tree passes.** Current simulation hash `0657e610c1e0f99c8c1536d77622ea79ac714c12ac27b2bc6db212a8dae90a0d` differs from M01's recorded `2703fae82c3859704a9bed84f718a52c225a21c6f21fd8461563a51a0282759c`. HUMAN02's view/loader/session fingerprints changed. HUMAN03's session/view/production-panel changed; ALIEN03's view/production-panel changed. Historical within-run integrity does not authenticate today's revision. Cheap audit receipts: `/tmp/dc-fullgame-judge-j04.log`, `j05.log`, `j06.log`, `j10.log`, `j11.log`, `j12.log` (same prefix for each).
+
+## Prioritized Feature Findings
+
+| Priority | Verified current defect | Authored mission need and qualification |
+| --- | --- | --- |
+| P1 | **Player construction is unavailable.** [constructionMenu](../src/mission-view.ts#L1101) hardcodes `requestEnabled:false`; [productionChoices](../src/engine/campaign-production.ts#L432) admits units only under sourceProfiles. The [default factory](../src/engine/source-production-options.ts#L236) returns no-owned-factory when all relevant producers are absent; it supplies no construction owner. A bounded native science host is not a player build workflow. | [ALIEN10 briefing](../public/assets/generated/data/briefings/ALIEN/ALIEN10.json) explicitly orders a replacement hive. [Original SCN](../raw_cd/DC/SCENARIO/ALIEN/ALIEN10.SCN#L26) starts team0 with empty City; [TRO block0](../raw_cd/DC/SCENARIO/ALIEN/ALIEN10.TRO#L1) loses after `c>180` while all five slots remain zero. This blocks the intended recovery route, not a proof that every alternate fast-win strategy is impossible. |
+| P1 | **Research/spy-enabled artifact discovery and excavation cannot activate in the live view.** [MissionView](../src/mission-view.ts#L1537) throws for any true spy flag and supplies eight false flags; [registration](../src/mission-view.ts#L1318) rejects spy-visible POOP art. The type37 FIFO/collector owner exists, but its live enabling condition is unavailable. | [HUMAN07 briefing](../public/assets/generated/data/briefings/HUMAN/HUMAN07.json) explicitly requires research-center discovery followed by EXPLOITER excavation. Original type37 markers occur in 12 campaigns. This is an authored gameplay feature, not an asserted mandatory WIN predicate in all 12. Type94 DOTT support in AL03 does **not** implement these artifacts. |
+| P1 | **S.A.R.G.E. income interception is absent from the adapted economy.** [observe](../src/engine/browser-campaign-economy.ts#L214) deducts reserve and credits the entire amount to the collector's team; its admitted harvesters are types6/14, with no deployment/diversion owner. Type4 receives ordinary mobile weapon behavior. | [HUMAN10 original briefing](../raw_cd/DC/SCENARIO/HUMAN/HUMAN10.TXT#L7) says exploiter production is offline and directs deployed S.A.R.G.E.S to intercept 50% of enemy mining income. Later supplied collectors do not implement that promised ability; no claim that their alternative route cannot win. |
+| P2 | **Player building-level and weapon/armor upgrades are excluded.** [productionChoices/actionable](../src/engine/campaign-production.ts#L432) filters/rejects non-unit actions with sourceProfiles. Source seeds load initial levels, but no supported live purchase raises them. | [Source production contracts](../src/engine/campaign-production.ts#L53) require dependencies5/4 for type3 and19/18 for type11, etc. Higher-tier choices are available only if their prerequisites already exist. This is a concrete tech-tree gap; no inspected original WIN predicate was shown to demand a weapon upgrade, and training missions are outside the requested30. |
+| P2 | **Zero-effective-damage target lock: bogus attacks, not fabricated positive damage.** [guardCommands](../src/engine/guard-ai.ts#L22) retains a living hostile target without testing damage compatibility; [adapted AI](../src/engine/browser-campaign-ai.ts#L291) tests positive base weapon damage but not the chosen target's coefficient. [fireWeapon](../src/engine/simulation.ts#L2081) can emit zero-damage shots and reset cooldown indefinitely. | AL03's earlier run stalled on type84/class8; [winning QA strategy](../tools/qa/mission03-playthrough.ts#L266) filters zero matrix coefficients. That workaround is not in the shared runtime selectors. [Damage arithmetic](../src/engine/legacy-balance.ts#L191) correctly preserves zero; no evidence of a minimum-one damage bug or a mobile zero-base-damage roster was found. |
+
+Current production is **not infantry-only**: [loader](../src/game-data.ts#L369) opts adapted M03+ into types2/3/4/5 and10/11/12/13, plus collectors6/14 and source infantry0/8, subject to real prerequisites. Those adapted additions use120 completion visits, not native FIN timing. Mobile deployers1/9 and healers49/50 are absent from that admitted roster; this review does not claim a particular one is required to satisfy an original campaign WIN predicate. Do not equate purchase/spawn support with special-effect support.
+
+Do not repeat obsolete missing-type94, missing-H05-message, H07 opening collision, or missing-all-mines findings as current. [Mines now exist](browser-mines-20260922.md), but use explicit radius1/full-damage adaptation, not the original BOOM2 weighted7x7 splash; deployment and native visual fidelity remain outside that support. The AL03 tick518 production-exit collision is historical evidence, not independently reproduced against the concurrently changing current tree.
+
+## Exact Next Acceptance Gate
+
+1. Freeze and fingerprint one runtime/assets/QA revision. Revalidate the six saved proof packages on that revision: unmodified original loader, complete guarded JSON restoration, original ready result/reason, exact pending-to-ready continuation where recorded, and no hash drift. Preserve the old artifacts; do not rewrite expected hashes to accept changed behavior. This audit's hash-only checks do not satisfy that gate.
+2. Next new completion gate: **HUMAN04 and ALIEN04 natural ready WIN**, separately budgeted. H04 must naturally execute commander rescue/extraction and clear the original enemy City; A04 must reach the authored trip/relocation/City-clear/full type94+commander rescue/extraction chain. Public commands only, no forced counters/predicates/HP/funds/fog, null diagnostic; persist original hashes, command/source-event journal, pending and ready saves, exact whole-checkpoint pending restore plus201 normal updates, exit0 and no deadline expiry. First verify supervisor deadline enforcement and repair the documented non-winning QA strategies; do not relabel the previous over-budget M04 attempts as accepted.
+3. On the same revision, demonstrate real browser results/progression03 ->04 ->05 and persistent save/load for both factions. Node WIN proofs alone do not certify launcher progression, pixels, input, audio, or persistent storage. Keep all remaining22 completion gates and the feature findings open afterward.
+
+No full-game PASS, no native-parity PASS, and no mission certification from census counts.

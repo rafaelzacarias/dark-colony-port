@@ -15,3 +15,16 @@ public/assets/generated/
 # Local GitHub Pages release bundles (publish separately only with permission).
 pages-assets.tar.gz
 pages-assets.tar.gz.sha256
+
+# Generated QA evidence: keep locally or publish separately as release/CI artifacts.
+/docs/adapted-tro-census-20260922.json
+/docs/adapted-tro-openings-20260922.json
+/docs/browser-adapted-performance-20260922.json
+/docs/browser-production-destruction-results-20260922.json
+/docs/browser-type37-census-20260922.json
+/docs/campaign-adapted-census-20260922.json
+/docs/campaign-adapted-census-latest-20260922.json
+/docs/campaign-openings-judge-20260922.json
+/docs/m02-endjudge-results-20260922.json
+/docs/m02-rerun-results-20260922.json
+/docs/sarge-partner-range-20260923.json

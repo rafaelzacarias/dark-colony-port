@@ -1,0 +1,37 @@
+# Explicit Adapted Mines 45/46
+
+## Contract
+
+[browser-mines.ts](../src/engine/browser-mines.ts) exports `BrowserMineOptions`, `BrowserMineSource`, `browserMineOptions(source, unit)` and `validateBrowserMineOptions`.
+The factory returns options only for `runtimeProfile: "browser-adapted"` and source type45/46. Other profiles/types remain unchanged. It requires a stationary source actor, all three source weapon slots38, WEAPSTAT class6/BOOM2, and the source class6 damage row. Options contain source type, weapon38, BOOM2, initiallyArmed=true, triggerRange, splashRange, explicit radius/relations/falloff policies, and a detached source-damage weapon profile.
+
+[simulation.ts](../src/engine/simulation.ts) accepts optional `AddStaticTargetOptions.mine`; snapshots/checkpoints retain the same option object. Mine options cannot coexist with a turret weapon, vision, cooldown/target state, or footprint. Owner must be explicit0..8; owner8 mines remain inert. There is no global mine registry or timer array. Positive health means armed; zero health prevents every subsequent detonation, including after JSON restore. Present malformed/unknown option fields, wrong source type, and incompatible static state reject. MissionView additionally recomputes options from mission source data during restore; a structurally valid substituted damage row rejects there. Simulation alone is not a source-authentication boundary.
+
+## Source Evidence And Limits
+
+- Original GAMESTAT type45 and46 both use HMINE, speed0, weapons38/38/38, target class7, maxHP800; counterparts are46/45. Owner comes from the initialized SCN actor, never sprite or faction guessing.
+- Original WEAPSTAT38: class6, rate150, damage1300, range1, `shots=2`. Here shots selects BOOM2; it is neither a burst count nor a radius.
+- Original BOOMSTAT2 is labeled Mine, names NUKE, and contains a 7x7 percentage grid (center100, cardinal neighbor90, outer corner5), followed by a center-only3x3 spread grid. The native table is13 records of136 bytes. Existing ordinary native projectile support admits BOOM0 only; its private serializer handles width1 and does not prove mine distance conversion or area-hit behavior.
+- No verified physical distance/Q8 conversion for BOOM2 was established in this slice. The explicit `weapon-range-fallback` therefore uses WEAPSTAT range1 for BOTH trigger and splash radius. This is deliberately NOT source-exact BOOM2 splash, not a claimed radius2/3/4, and does not apply its7x7 weights.
+- Aircraft are excluded by movement plane, not damage class. GAMESTAT movement-class byte1 identifies aircraft; target damage class1 also belongs to ground units, and actual type5/13 aircraft have target class2.
+
+## Adaptation Policy
+
+Source-placed mines arm immediately; rate150 is retained as source metadata but imposes no arming delay or repeat timer. Mines are stationary, nonblocking auxiliaries. After mobile updates, armed statics run in stable ID order. A live hostile ground mobile within the inclusive Euclidean trigger radius causes one detonation. The same observer-row alliance helper used elsewhere applies, including live alliance changes. Team8, absent-team actors, allies, friends and aircraft neither trigger nor take blast damage. Resource-host-owned actors remain outside generic combat ownership.
+
+Each eligible ground mobile inside the inclusive radius receives full `calculateLegacyDamage(1300, class6 profile, target defense)`: coefficient Q8, callerFactor256, armor Q8, specialFlag=false. Distance is a hard cutoff with no falloff. Generic actors lacking source defense receive base damage, as existing generic combat does; campaign actors carry source defense. Static targets/buildings/mines are not blast victims, so there is no chain reaction. These relation, falloff and target rules are explicit adaptation choices, not native friendly-fire proof.
+
+One existing `shot` event is emitted per victim; self-health damage joins the same pending-damage map. Stable ID-ordered resolution emits one mine `death`, even if another weapon lethally hits it on that update. Mobile attacks already committed that tick still resolve. Existing view/source bindings publish the mine casualty once without allocating a replacement identity. Static movement commands remain ignored by execution and disallowed as pending checkpoint commands, as before.
+
+The only MissionView changes are adapted option/weapon38 registration and source-option restore validation. Existing HMINE visibility and Die presentation remain in use. There is no stealth/spy/cloak parity, arming blink implementation, engineer deployment ability, new NUKE atlas effect, fabricated audio cue, or native mine task claim. Existing per-victim shot presentation is unchanged; mine audio/explosion visual fidelity was not verified.
+
+## Verification
+
+- [browser-mines.test.ts](../tools/qa/browser-mines.test.ts): strict opt-out/source-type guards, detached profile, legal movement, simultaneous splash/self-death, stationary audit, nonblocking/no-chain behavior, source armor damage, before/after JSON replay over155ticks, neutral owner46, air/ally/friendly/neutral/absent-team/range controls, live observer alliances, class1 ground hits, simultaneous lethal incoming fire, malformed checkpoint/admission rejection.
+- [browser-mines-view.test.ts](../tools/qa/browser-mines-view.test.ts): unchanged original ALIEN05 initializes with four type45 mines, slots153/154/155 team1 HP800 and slot169 team2 HP500. All source keys/types/owners/health and weapon38 mappings are preserved. Initial mobiles are allied; normal startup200ticks delivers player mobiles. Original mobile52 follows a99-cell legal route to mine4 near(6,71). Isolated simulation detonates at tick755 (556updates after the saved tick200); pre-trigger replay and155post-trigger updates match exactly.
+- The same test issues the public MissionView move command. Mine death is observed at view tick756, source health reaches0, statistic `1,0,45` increments once, full view save/restore and four continuation updates match. Original mission data remains byte-for-byte equivalent under JSON serialization. Log: `/tmp/dc-mines-al05-public-17.log`.
+- [armed-static-view.test.ts](../tools/qa/armed-static-view.test.ts) controlled projection now expects explicit mine options for45/46 and source weapon38; type42 turret behavior remains separate.
+- [source-fire-movement-audit.ts](../tools/qa/fixtures/source-fire-movement-audit.ts) accepts armed static shooters only when both frames preserve their fixed position/profile and have no movement reservation. Existing mobile stationary-fire checks remain unchanged; mine displacement is rejected.
+- Final focused set:51 mine/checkpoint/air/diplomacy/combat-movement/fire-audit tests pass (`/tmp/dc-mines-final-neighbors-19.log`). Controlled mine/turret view projection passes (`/tmp/dc-mines-projection-20260922-09.log`); original ALIEN05 public-order test passes as above. Default HUMAN01/ALIEN01 legacy admission and checkpoint control passes (`/tmp/dc-mines-default01-23.log`). Total54 focused tests, with no full-suite run. Strict TypeScript with noUnusedLocals/noUnusedParameters passes for the touched runtime/view/tests through their imports (`/tmp/dc-mines-types-22.log`). Editor diagnostics are clean.
+
+No agents, browser launches, full suite, package changes, asset/source edits, census rewrites, or native executable probes were used. This is bounded adapted-runtime evidence, not completed ALIEN05 gameplay or native mine parity.
