@@ -16,6 +16,9 @@ jobs:
   build:
     if: vars.PAGES_ASSET_URL != '' && vars.PAGES_ASSET_SHA256 != ''
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
