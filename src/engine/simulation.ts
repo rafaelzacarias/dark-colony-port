@@ -376,6 +376,7 @@ interface BuildingState {
 }
 
 export interface SimulationCheckpoint {
+  readonly groundMovement?: "eight-way-v1";
   readonly version: 1 | 2;
   readonly grid: { readonly width: number; readonly height: number; readonly costs: readonly number[] };
   readonly tick: number;
@@ -617,7 +618,8 @@ function validateSimulationCheckpoint(input: unknown): asserts input is Simulati
     deathEvents: checkpointArray(checkpointObject({ type: checkpointChoice("death"), tick: integer, targetId: positive })),
     sourceDamageDiagnostics: checkpointArray(checkpointObject({ tick: integer, attackerId: positive, targetId: positive, reason: (value) => checkpointRequire(typeof value === "string") })),
     reservationEvents: checkpointArray(checkpointObject({ unitId: positive, tileX: integer, tileY: integer })),
-  }, { movementFinishedEvents: checkpointArray(checkpointObject({ unitId: positive, tick: integer,
+  }, { groundMovement: checkpointChoice("eight-way-v1"),
+    movementFinishedEvents: checkpointArray(checkpointObject({ unitId: positive, tick: integer,
     finalXQ8: integer, finalYQ8: integer }, { nativeIdentity: checkpointObject(resourceIdentityChecks) })),
     resourceActors: checkpointArray(checkpointObject({ ...resourceIdentityChecks,
       owner: checkpointChoice("simulation", "resource", "pending-return", "removed"),
@@ -862,6 +864,7 @@ function validateSimulationCheckpoint(input: unknown): asserts input is Simulati
 }
 
 export interface SimulationOptions {
+  readonly groundMovement?: "eight-way-v1";
   readonly seed?: number;
   readonly teamAlliances?: TeamAlliances;
   readonly dayNightCycleTicks?: number;
@@ -939,6 +942,7 @@ export class DeterministicSimulation implements Simulation {
   readonly #movementReservations = new Map<number, Set<number>>();
   readonly #airMovementReservations = new Map<number, Set<number>>();
   readonly #airGrid: NavigationGrid;
+  #diagonalGround = false;
   #tick = 0;
   #nextEntityId = 1;
   #nextCommandSequence = 0;
@@ -952,6 +956,10 @@ export class DeterministicSimulation implements Simulation {
   #adaptedInspireRandomIndex = 0;
 
   constructor(grid: NavigationGrid, options: SimulationOptions = {}) {
+    if (options.groundMovement !== undefined && options.groundMovement !== "eight-way-v1") {
+      throw new RangeError("Unsupported ground movement policy");
+    }
+    this.#diagonalGround = options.groundMovement === "eight-way-v1";
     this.grid = grid;
     this.#airGrid = new NavigationGrid(grid.width, grid.height);
     this.#teamAlliances = copyTeamAlliances(options.teamAlliances);
@@ -980,6 +988,10 @@ export class DeterministicSimulation implements Simulation {
     this.#teamAlliances = copyTeamAlliances(alliances);
   }
 
+  enableDiagonalGroundMovement(): void {
+    this.#diagonalGround = true;
+  }
+
   checkpoint(): SimulationCheckpoint {
     const checkpoint = this.#capture();
     validateSimulationCheckpoint(checkpoint);
@@ -996,6 +1008,7 @@ export class DeterministicSimulation implements Simulation {
     if (this.#nativeInspire) throw new RangeError("Cannot checkpoint external nativeInspire: no verified adapter state export/import contract");
     return structuredClone({
       version: (this.#resourceActors.size ? 2 : 1) as 1 | 2,
+      ...(this.#diagonalGround ? { groundMovement: "eight-way-v1" as const } : {}),
       grid: { width: this.grid.width, height: this.grid.height, costs: includeCosts ? Array.from(this.grid.costs) : [] },
       tick: this.#tick, nextEntityId: this.#nextEntityId, nextCommandSequence: this.#nextCommandSequence,
       randomState: this.random.state, dayNightCycleTicks: this.dayNightCycleTicks,
@@ -1039,6 +1052,7 @@ export class DeterministicSimulation implements Simulation {
   static #fromCheckpoint(saved: SimulationCheckpoint, costs?: ArrayLike<number>): DeterministicSimulation {
     const simulation = new DeterministicSimulation(new NavigationGrid(saved.grid.width, saved.grid.height, Uint16Array.from(costs ?? saved.grid.costs)), {
       seed: saved.randomState, dayNightCycleTicks: saved.dayNightCycleTicks,
+      groundMovement: saved.groundMovement,
       teamAlliances: saved.teamAlliances, initialResources: saved.resources,
     });
     simulation.#tick = saved.tick;
@@ -2081,7 +2095,7 @@ export class DeterministicSimulation implements Simulation {
 
   #findMovementPath(grid: NavigationGrid, start: GridPoint, goal: GridPoint,
     blocked?: ReadonlySet<number>): readonly GridPoint[] | null {
-    if (grid !== this.#airGrid) return findPath(grid, start, goal, { blocked });
+    if (grid !== this.#airGrid) return findPath(grid, start, goal, { blocked, diagonal: this.#diagonalGround });
     if (!grid.contains(start.x, start.y) || !grid.contains(goal.x, goal.y)) return null;
     const direct = [start];
     let current = start;
@@ -2208,8 +2222,9 @@ export class DeterministicSimulation implements Simulation {
     while (movement > 0 && unit.pathIndex < unit.path.length) {
       const target = unit.path[unit.pathIndex];
       const targetIndex = this.grid.index(target.x, target.y);
-      const swept = unit.movementPlane === "air" ? this.#airStepCells(this.#unitCell(unit), target) : [targetIndex];
-      if (!grid.isPassable(target.x, target.y) || swept.some(index => blocked.has(index))) {
+      const diagonal = unit.movementPlane === "air" || this.#diagonalGround;
+      const swept = diagonal ? this.#airStepCells(this.#unitCell(unit), target) : [targetIndex];
+      if (swept.some(index => grid.costs[index] === 0 || blocked.has(index))) {
         const start = this.#unitCell(unit);
         if (unit.xSubcells !== cellCenter(start.x) || unit.ySubcells !== cellCenter(start.y)) return false;
         const goal = unit.path[unit.path.length - 1];
@@ -2247,14 +2262,14 @@ export class DeterministicSimulation implements Simulation {
       const targetY = cellCenter(target.y);
       const deltaX = targetX - unit.xSubcells;
       const deltaY = targetY - unit.ySubcells;
-      const distance = unit.movementPlane === "air" ? Math.hypot(deltaX, deltaY) : Math.abs(deltaX) + Math.abs(deltaY);
+      const distance = diagonal ? Math.hypot(deltaX, deltaY) : Math.abs(deltaX) + Math.abs(deltaY);
       if (distance <= movement) {
         unit.xSubcells = targetX;
         unit.ySubcells = targetY;
         movement -= distance;
         unit.pathIndex += 1;
         unit.reservedDestination = null;
-      } else if (unit.movementPlane === "air") {
+      } else if (diagonal) {
         unit.xSubcells += Math.round(deltaX * movement / distance);
         unit.ySubcells += Math.round(deltaY * movement / distance);
         movement = 0;

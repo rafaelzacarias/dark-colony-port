@@ -55,6 +55,7 @@ class MinHeap {
 }
 
 export interface PathfindingOptions {
+  readonly diagonal?: boolean;
   readonly blocked?: ReadonlySet<number>;
   readonly maximumVisited?: number;
 }
@@ -78,7 +79,8 @@ export function findPath(
   const open = new MinHeap();
   const heuristic = (index: number) => {
     const point = grid.point(index);
-    return Math.abs(point.x - goal.x) + Math.abs(point.y - goal.y);
+    const dx = Math.abs(point.x - goal.x), dy = Math.abs(point.y - goal.y);
+    return dx + dy + (options.diagonal ? (Math.SQRT2 - 2) * Math.min(dx, dy) : 0);
   };
   costs[startIndex] = 0;
   open.push({ index: startIndex, cost: 0, heuristic: heuristic(startIndex) });
@@ -98,9 +100,14 @@ export function findPath(
       indices.reverse();
       return indices.map((index) => grid.point(index));
     }
-    for (const neighbor of grid.neighbors(current.index)) {
+    const from = grid.point(current.index);
+    for (const neighbor of grid.neighbors(current.index, options.diagonal)) {
       if (closed[neighbor] || (neighbor !== startIndex && options.blocked?.has(neighbor))) continue;
-      const nextCost = current.cost + grid.costs[neighbor];
+      const to = grid.point(neighbor);
+      const diagonal = from.x !== to.x && from.y !== to.y;
+      if (diagonal && (options.blocked?.has(grid.index(from.x, to.y)) ||
+        options.blocked?.has(grid.index(to.x, from.y)))) continue;
+      const nextCost = current.cost + grid.costs[neighbor] * (diagonal ? Math.SQRT2 : 1);
       if (nextCost >= costs[neighbor]) continue;
       costs[neighbor] = nextCost;
       previous[neighbor] = current.index;

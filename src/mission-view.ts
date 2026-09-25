@@ -2461,6 +2461,13 @@ export class MissionView {
   }
 
   get orderMode(): string { return this.#orderMode; }
+  enableDiagonalGroundMovement(): void {
+    if (this.mission.sourceNativeCombat || sourceConstructionSources(this.mission)) {
+      throw new TypeError("Native-owned missions cannot change their ground movement policy");
+    }
+    this.simulation.enableDiagonalGroundMovement();
+  }
+
   get movementStance(): "move" | "assault" { return this.#movementStance; }
   get plottedWaypoints(): readonly { x: number; y: number }[] {
     return this.#waypointDraft?.points.map((point) => ({ ...point })) ?? [];

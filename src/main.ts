@@ -15,6 +15,7 @@ import { createMobileControls, isPhoneUserAgent } from "./ui/mobile-controls";
 import { createMobileMissionMenu, type MobileMissionMenuState } from "./ui/mobile-mission-menu";
 import { createMissionSaveMenu } from "./ui/mission-save-menu";
 import { createCameraPan } from "./ui/camera-pan";
+import { createFrameStatistics } from "./ui/frame-statistics";
 import { createCampaignMissionPicker } from "./ui/campaign-mission-picker";
 import { cancelCampaignIntro, shouldShowCampaignIntro, showCampaignIntro, type CampaignLaunchReason } from "./ui/campaign-intro";
 import { cancelCinematic, INTRO_CINEMATIC, outcomeCinematic, playCinematic } from "./ui/cinematics";
@@ -281,7 +282,8 @@ app.innerHTML = `
               <button id="mission-result-exit" type="button">MISSIONS</button>
             </section>
             <div class="legacy-status-strip">
-              <span id="legacy-mission-name" style="position:absolute;right:100%;width:128px;padding-right:8px;text-align:right;white-space:nowrap" hidden>HUMAN01</span>
+              <span id="legacy-mission-name" hidden>HUMAN01</span>
+              <span id="frame-statistics" aria-label="Frame-rate statistics">FPS -- AVG -- LOW --</span>
               <span id="legacy-tick">TICK 0</span>
             </div>
           </div>
@@ -386,6 +388,8 @@ const missionOptionsMenu = element<HTMLElement>("#mission-options-menu");
 const commandGrid = element<HTMLElement>(".legacy-command-grid");
 const legacyMissionName = element<HTMLSpanElement>("#legacy-mission-name");
 const legacyTick = element<HTMLSpanElement>("#legacy-tick");
+const frameStatisticsLabel = element<HTMLSpanElement>("#frame-statistics");
+const frameStatistics = createFrameStatistics();
 const stopUnits = element<HTMLButtonElement>("#stop-units");
 const deployUnits = element<HTMLButtonElement>("#deploy-units");
 const inspireUnits = element<HTMLButtonElement>("#inspire-units");
@@ -494,6 +498,8 @@ function activeMission(): MissionView | null {
 }
 
 function resetMissionControls(): void {
+  frameStatistics.reset();
+  frameStatisticsLabel.textContent = "FPS -- AVG -- LOW --";
   cameraPan.cancel();
   mobileControls?.cancel();
   mobileMenu?.close();
@@ -1320,6 +1326,7 @@ async function startCampaign(faction: Faction, missionNumber = 1, checkpoint?: u
     await nextSkirmish.initialize();
     if (token !== loadingToken) { nextSkirmish.dispose(); return; }
     if (nextSkirmish.missionDiagnostic) throw new Error(nextSkirmish.missionDiagnostic);
+    nextSkirmish.enableDiagonalGroundMovement();
     pendingMission = null;
     skirmish = nextSkirmish;
     gameSessionMode = "campaign";
@@ -1556,6 +1563,15 @@ function animate(time: number): void {
       if (saveMenu.isOpen) skirmish?.resetClock();
       else skirmish?.update(time);
   const mission = activeMission();
+  if (mission && !document.hidden && !saveMenu.isOpen) {
+    const stats = frameStatistics.sample(time);
+    if (stats) {
+      frameStatisticsLabel.textContent = `FPS ${Math.round(stats.fps)} AVG ${Math.round(stats.averageFps)} LOW ${Math.round(stats.lowFps)}`;
+      const detail = `FPS: last second. Average and 1% low: last 5 seconds. Frame time: ${stats.frameMilliseconds.toFixed(1)} ms.`;
+      frameStatisticsLabel.title = detail;
+      frameStatisticsLabel.setAttribute("aria-label", `${frameStatisticsLabel.textContent}. ${detail}`);
+    }
+  } else frameStatistics.reset();
   const musicEnabled = mission !== null && missionResult.hidden && !mission.missionDiagnostic && !mission.missionOutcome?.ready;
   if (musicEnabled) missionMusic?.update(time);
   missionMusicControl.dataset.state = missionMusic?.state ?? "idle";
@@ -1692,6 +1708,7 @@ missionCanvas.addEventListener("lostpointercapture", event => {
 });
 window.addEventListener("blur", cancelMissionDrag);
 document.addEventListener("visibilitychange", () => {
+  frameStatistics.reset();
   if (document.hidden) { cancelMissionDrag(); mobileControls?.cancel(); }
 });
 missionCanvas.addEventListener("pointerleave", () => {

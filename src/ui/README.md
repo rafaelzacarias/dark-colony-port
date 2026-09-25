@@ -153,6 +153,12 @@ playback, empty slots, overwrite cancellation, storage failures/retry, page
 reloads, and exact saved checkpoint/control-group restoration on desktop and
 phone layouts.
 
+`frame-statistics.ts` samples animation-frame timestamps independently of the
+20 Hz simulation. It publishes at most four times per second: one-second FPS,
+five-second average and 1% low, and frame time. Samples are bounded and reset
+on mission changes, hidden pages, and the paused save/load dialog. The footer
+does not announce each update through an ARIA live region.
+
 ## Integration Sketch
 
 This sketch uses explicit **orchestrator-provided adapters**, not methods that

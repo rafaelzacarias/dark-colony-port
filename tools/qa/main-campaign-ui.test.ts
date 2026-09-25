@@ -160,6 +160,7 @@ function harness() {
     async initialize() { await this.initialization?.promise; }
     dispose() { this.disposals += 1; }
     resetClock() {}
+    enableDiagonalGroundMovement() {}
     render() { this.callbacks.onStats(this.stats()); }
     stats() { return { tick: 16, selectedCell: "1,1", daylight: "DAY", selectedState: "IDLE",
       healthAndResources: "100", selectedCount: 1, missionDiagnostic: this.missionDiagnostic }; }
@@ -191,6 +192,7 @@ function harness() {
     window: { confirm: () => true }, indexedDB: {},
     mobileControls: null, mobileMenu: null, saveMenu: { isOpen: false, open() {} },
     cameraPan: { cancel() {}, keyDown() { return false; } },
+    frameStatistics: { reset() {} }, frameStatisticsLabel: node(),
     baseMenu: { reset() {} }, unitMenuRequested: true, unitMenuJump: false,
     missionOptionsMenu: node(), commandGrid: node(),
     lastProductionKey: "", lastRadarKey: "", lastUiTick: -1, uiDeferrals: 0, uiRefreshDue: true,

@@ -659,7 +659,7 @@ h1 {
   position: absolute;
   left: 132px;
   top: 460px;
-  width: 298px;
+  width: 120px;
   height: 16px;
   margin: 0;
   text-overflow: ellipsis;
@@ -890,20 +890,24 @@ h1 {
 .legacy-status-strip {
   position: absolute;
   z-index: 3;
-  left: 440px;
+  left: 258px;
   top: 460px;
   display: flex;
-  width: 72px;
+  width: 254px;
   height: 16px;
   align-items: center;
   justify-content: space-between;
-  padding: 0 6px;
+  padding: 0 4px;
+  gap: 6px;
   color: #969f94;
-  font-size: 8px;
+  font-size: 7px;
   font-weight: 800;
   pointer-events: none;
 }
 
+#legacy-mission-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#legacy-tick, #frame-statistics { flex-shrink: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#frame-statistics { color: #c6c5b9; font-family: ui-monospace, monospace; pointer-events: auto; }
 .asset-lab.mission-running {
   height: 100vh;
   grid-template-rows: minmax(0, 1fr);

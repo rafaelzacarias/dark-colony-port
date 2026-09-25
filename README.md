@@ -106,6 +106,19 @@ than only its ground position, including when the viewport is scaled on a
 phone. Living player commanders always have a gold star above their heads,
 independent of selection or Inspire recharge.
 
+The bottom mission strip displays **FPS** (last second), **AVG** and **LOW**
+(rolling five-second average and 1% low FPS), beside the simulation tick.
+Hover the statistics for average frame time in milliseconds. These count
+rendered animation frames, not simulation ticks; loading and hidden-tab time
+are excluded.
+
+Playable campaign ground units use eight-direction pathfinding and normalized
+diagonal movement. Routes cannot cut blocked corners, and diagonal movement
+reserves its swept cells against other units. Loading an older save preserves
+its existing path and enables diagonal routing for subsequent orders. The
+movement policy is stored in new saves; native-owned research fixtures retain
+their original movement semantics.
+
 Camera panning is continuous: hold the arrow keys or rest the mouse at a
 battlefield edge. The phone direction pad uses the same frame-timed speed;
 diagonal movement is normalized and does not snap to tile rows or columns.

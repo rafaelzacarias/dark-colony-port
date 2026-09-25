@@ -42,7 +42,7 @@ export class NavigationGrid {
     return this.contains(x, y) && this.costs[y * this.width + x] > 0;
   }
 
-  neighbors(index: number): readonly number[] {
+  neighbors(index: number, diagonal = false): readonly number[] {
     const { x, y } = this.point(index);
     const result: number[] = [];
     for (const [offsetX, offsetY] of [
@@ -54,6 +54,11 @@ export class NavigationGrid {
       const nextX = x + offsetX;
       const nextY = y + offsetY;
       if (this.isPassable(nextX, nextY)) result.push(nextY * this.width + nextX);
+    }
+    if (diagonal) for (const [dx, dy] of [[1, -1], [1, 1], [-1, 1], [-1, -1]] as const) {
+      if (this.isPassable(x + dx, y + dy) && this.isPassable(x + dx, y) && this.isPassable(x, y + dy)) {
+        result.push((y + dy) * this.width + x + dx);
+      }
     }
     return result;
   }
