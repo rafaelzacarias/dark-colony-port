@@ -1,5 +1,30 @@
 # GitHub Pages
 
+## Configured Two-Repository Deployment
+
+The playable site is configured at
+`https://rafaelzacarias.github.io/darkcolony-assets/`.
+The private `rafaelzacarias/darkcolony-assets` repository owns the deployment
+workflow and the generated `assets/generated/` tree. Its workflow checks out
+this public game repository at a pinned commit, copies the assets into
+`public/assets/generated/`, runs `npm ci`, validates assets and URL handling,
+and builds/uploads the complete site.
+
+Set **Settings > Pages > Source: GitHub Actions** in `darkcolony-assets`.
+No additional token is required: that workflow can read its own private
+repository and check out the public game source. The resulting Pages site
+and deployed assets are public even though the asset repository is private.
+
+To release a source update, advance the game source `ref` in the assets
+repository's `.github/workflows/pages.yml` and its README together. Update
+the generated assets if needed, then push to `main` or run **Deploy Dark Colony**
+manually. Keep this project's package lock synchronized with `package.json`;
+deployment installs through `npm ci`, not existing local dependencies.
+
+The instructions below describe the alternative public-bundle deployment
+owned by this source repository. Its `PAGES_ASSET_URL` and
+`PAGES_ASSET_SHA256` variables are not needed for the two-repository setup.
+
 ## What You Need
 
 - A GitHub repository with Pages available for your account/repository type.

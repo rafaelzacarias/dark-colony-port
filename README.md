@@ -24,9 +24,15 @@ remains ignored and must be produced from a user-owned disc.
 ## GitHub Pages
 
 The game runs as a static site; no application server or database is required.
-An Actions deployment is included. See [the deployment guide](docs/github-pages.md)
+The configured playable site is
+**https://rafaelzacarias.github.io/darkcolony-assets/**.
+It is built by the `darkcolony-assets` repository's Actions workflow, combining
+its generated assets with a pinned commit from this public source repository.
+
+An alternative single-repository Actions deployment is also included here.
+See [the deployment guide](docs/github-pages.md)
 for repository setup, the separately supplied game-asset bundle, and testing a
-repository-prefix URL. The workflow stays disabled until its asset URL and
+repository-prefix URL. This repository's alternative workflow stays disabled until its asset URL and
 SHA-256 repository variables are configured. Do not publish the original game
 assets unless you have permission to redistribute them.
 
