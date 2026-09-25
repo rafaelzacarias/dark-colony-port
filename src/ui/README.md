@@ -159,6 +159,22 @@ five-second average and 1% low, and frame time. Samples are bounded and reset
 on mission changes, hidden pages, and the paused save/load dialog. The footer
 does not announce each update through an ARIA live region.
 
+Build/research HUD reads use `MissionView`'s bounded current-state projection,
+including the empty construction fallback in Human/Alien 2. Do not use the full
+`CampaignSession.snapshot` for routine HUD or upgrade-level queries: it copies
+the accumulated replay history and becomes progressively more expensive.
+Keep that complete history for saves and explicit diagnostics instead.
+`mission-hud-performance.test.ts` guards against full-session copies during
+repeated HUD reads. To profile a real saved mission through the Vite app:
+
+```sh
+node tools/qa/late-mission-browser.mjs /path/to/saved-mission.json /tmp/dc-late
+```
+
+The input is a saved-mission envelope with `faction`, `missionNumber`, and
+`checkpoint`. The runner records frame intervals, update/render work, full
+snapshot counts, a CPU profile, and a screenshot without inventing game state.
+
 ## Integration Sketch
 
 This sketch uses explicit **orchestrator-provided adapters**, not methods that

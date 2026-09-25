@@ -112,12 +112,18 @@ Hover the statistics for average frame time in milliseconds. These count
 rendered animation frames, not simulation ticks; loading and hidden-tab time
 are excluded.
 
+HUD refreshes use bounded current-state data instead of copying accumulated
+replay history, so the status/build menus do not slow down as a mission's tick
+count grows. Full history is retained for saving and replay validation.
+
 Playable campaign ground units use eight-direction pathfinding and normalized
 diagonal movement. Routes cannot cut blocked corners, and diagonal movement
 reserves its swept cells against other units. Loading an older save preserves
 its existing path and enables diagonal routing for subsequent orders. The
 movement policy is stored in new saves; native-owned research fixtures retain
 their original movement semantics.
+Reinforcements may leave an already shared spawn tile; blocked routes cannot
+enter an unbounded same-frame replanning loop.
 
 Camera panning is continuous: hold the arrow keys or rest the mouse at a
 battlefield edge. The phone direction pad uses the same frame-timed speed;

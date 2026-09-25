@@ -2219,14 +2219,19 @@ export class DeterministicSimulation implements Simulation {
     const hadPath = unit.pathIndex < unit.path.length;
     let movement = unit.speedSubcellsPerTick;
     const blocked = this.#movementBlocked(unit);
+    let replannedFrom: number | undefined;
     while (movement > 0 && unit.pathIndex < unit.path.length) {
       const target = unit.path[unit.pathIndex];
       const targetIndex = this.grid.index(target.x, target.y);
+      const origin = this.#unitCell(unit), originIndex = this.grid.index(origin.x, origin.y);
       const diagonal = unit.movementPlane === "air" || this.#diagonalGround;
-      const swept = diagonal ? this.#airStepCells(this.#unitCell(unit), target) : [targetIndex];
-      if (swept.some(index => grid.costs[index] === 0 || blocked.has(index))) {
-        const start = this.#unitCell(unit);
+      const swept = diagonal ? this.#airStepCells(origin, target) : [targetIndex];
+      // Source reinforcements can share their origin with a partly moved unit; allow them to leave it.
+      if (swept.some(index => index !== originIndex && (grid.costs[index] === 0 || blocked.has(index)))) {
+        const start = origin;
         if (unit.xSubcells !== cellCenter(start.x) || unit.ySubcells !== cellCenter(start.y)) return false;
+        if (replannedFrom === originIndex) return false;
+        replannedFrom = originIndex;
         const goal = unit.path[unit.path.length - 1];
         let path = this.#findMovementPath(grid, start, goal, blocked);
         if (!path) {

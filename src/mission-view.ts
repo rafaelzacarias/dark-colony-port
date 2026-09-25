@@ -1502,7 +1502,8 @@ export class MissionView {
           timing: configuration.policy.timing, requestEnabled: reason === "" && option.requestEnabled, reason };
       });
     }
-    return (this.#session?.snapshot.production?.constructionHosts ?? []).map(host => ({
+    // This fallback is also visited in missions without construction; never copy replay history for a HUD read.
+    return (this.#sessionViewSnapshot?.production?.constructionHosts ?? []).map(host => ({
       team: host.configuration.team, dependency: host.configuration.race === 0 ? 2 : 16,
       unitType: host.configuration.race === 0 ? 20 : 32,
       status: host.ready ? "complete" as const : host.receiptId ? "constructing" as const : "unbuilt" as const,
@@ -1796,7 +1797,7 @@ export class MissionView {
     const positionSubcells = { x: host.position.x * SUBCELLS_PER_CELL / 256, y: host.position.y * SUBCELLS_PER_CELL / 256 };
     const faction: Faction = entity.team === 8 ? this.mission.faction : this.mission.scenario.teams[entity.team].race === 1 ? "alien" : "human";
     const cell = { x: entity.tileX, y: entity.tileY };
-    const production = this.mission.sourceProduction?.production?.adaptedUpgrades ? this.#session?.snapshot.production : undefined;
+    const production = this.mission.sourceProduction?.production?.adaptedUpgrades ? this.#sessionViewSnapshot?.production : undefined;
     const levels = currentUpgradeLevels(this.mission, production, entity.team, stat.index);
     const defense = (this.mission.damageMatrix || sourceConstructionSources(this.mission)) && !adapted && !nativeHarvester && !browserHarvester && !vent && !this.mission.sourceNativeCombat ? verifiedNativeDefenseFromLegacy(stat, levels) : null;
     if (defense && !defense.supported) throw new Error(`Source defense type ${stat.index}: ${defense.diagnostic}`);
@@ -2047,7 +2048,7 @@ export class MissionView {
     const upgrades = "productionRequests" in frame.entry
       ? frame.entry.productionRequests?.filter(request => request.type === "upgrade-applied") ?? [] : [];
     if (upgrades.length) {
-      const production = this.#session?.snapshot.production;
+      const production = this.#sessionViewSnapshot?.production;
       for (const request of upgrades) {
         const levels = sourceProductionUpgradeLevels(production, request.team, request.unitType);
         if (this.mission.runtimeProfile !== "browser-adapted" || !levels
@@ -2187,7 +2188,7 @@ export class MissionView {
             || effect.unitType !== stat.index || effect.maxHealth !== entity.maxHealth || effect.health !== entity.health
             || this.mission.browserConstruction?.policy.upgradeHealth !== "adapted-preserve-hp-capped-new-max"
             || !this.#visuals.has(stat.sprite)) throw new TypeError("Building upgrade requires authenticated construction completion and art");
-          const levels = currentUpgradeLevels(this.mission, this.#session!.snapshot.production, entity.team, stat.index);
+          const levels = currentUpgradeLevels(this.mission, this.#sessionViewSnapshot?.production, entity.team, stat.index);
           this.simulation.updateStaticSourceDefense(binding.simulationId,
             { ...defenseOptionsFromLegacy(stat, levels.armorLevel), sourceTypeIndex: stat.index }, entity.maxHealth);
         } else {

@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { NavigationGrid } from "../../src/engine/grid";
 import { findPath } from "../../src/engine/pathfinding";
 import { DeterministicSimulation } from "../../src/engine/simulation";
@@ -105,6 +107,23 @@ test("retargeting a partly completed diagonal recenters without cutting a blocke
   simulation.queue({ type: "move", unitIds: [id], target: { x: 0, y: 1 } });
   for (let tick = 0; tick < 40; tick++) { simulation.advance(); separated(simulation); }
   assert.deepEqual([simulation.snapshot.units[0].cellX, simulation.snapshot.units[0].cellY], [0, 1]);
+});
+
+test("a reinforced unit can leave an already shared origin without an infinite replan loop", () => {
+  const result = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", `
+    import { NavigationGrid } from "./src/engine/grid.ts";
+    import { DeterministicSimulation } from "./src/engine/simulation.ts";
+    const simulation = new DeterministicSimulation(new NavigationGrid(5, 4), { groundMovement: "eight-way-v1" });
+    simulation.addUnit({ faction: "human", cell: { x: 1, y: 1 }, positionSubcells: { x: 1536, y: 1736 } });
+    const mover = simulation.addUnit({ faction: "human", cell: { x: 1, y: 1 }, speedSubcellsPerTick: 100 });
+    simulation.queue({ type: "move", unitIds: [mover], target: { x: 3, y: 1 } });
+    for (let tick = 0; tick < 30; tick++) simulation.advance();
+    console.log(JSON.stringify(simulation.snapshot.units.find(unit => unit.id === mover)));
+  `], { cwd: fileURLToPath(new URL("../../", import.meta.url)), timeout: 5000, encoding: "utf8" });
+  assert.equal(result.error, undefined, "pathfinding must not trap the entire frame in a synchronous loop");
+  assert.equal(result.status, 0, result.stderr);
+  const unit = JSON.parse(result.stdout);
+  assert.deepEqual([unit.cellX, unit.cellY, unit.activity], [3, 1, "idle"]);
 });
 
 test("diagonal terrain detours, stopped mid-tile bodies, and formation destinations do not overlap", () => {
