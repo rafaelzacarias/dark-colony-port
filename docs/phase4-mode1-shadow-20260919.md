@@ -38,6 +38,36 @@ metadata on their existing cached color canvases. The existing
 no MissionView, main, engine, generated asset or source-data edit is needed.
 The existing caller already chooses these palette images for modes 0 and 1.
 
+## Per-Frame Body Buffer
+
+The live Canvas path now keeps registered indexed bodies in the same RGBA
+buffer used by shadows/effects. `drawMirroredPaletteBody` applies the original
+bank-2 palette lookup, SPR coverage, horizontal mirroring, and the complete
+integer clip spans supplied by the scene adapter, then writes the affected
+region without invalidating that buffer. A later shadow no longer needs to
+read back a body that the renderer just drew.
+
+The fast path requires an active, initialized frame buffer, registered immutable
+palette data, supported mode-0/1 geometry, and the same identity/source-over/
+opaque Canvas state. The caller must supply the complete clip mask and have no
+additional external Canvas clip. Unsupported states retain the existing draw
+path. Unregistered RGB draws still mark their regions dirty and are synchronized
+before another indexed operation. No shadows or effects are omitted, and native
+admission/global-order limitations are unchanged.
+
+`setPaletteBodyMirror(false)` is a QA-only reference switch. The browser runner
+compares complete frames with the switch off/on, including camera offsets, and
+checks masked/mirrored palette fixtures, transparent holes, foreign RGB draws,
+viewport edges, and conservative fallback guards:
+
+```sh
+node tools/qa/renderer-budget-browser.mjs /path/to/saved-mission.json /tmp/dc-render
+```
+
+It also measures sustained frame work, 95th/99th percentiles, readback counts,
+panning, and a real formation order. A frame-budget result on one machine is
+not a guarantee for all devices or browser scheduling conditions.
+
 ## Native Evidence
 
 [Probe](../tools/research/mode1-shadow-20260919.py) executes DC.EXE SHA-256

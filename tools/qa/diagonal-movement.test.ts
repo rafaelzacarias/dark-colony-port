@@ -45,6 +45,14 @@ test("diagonal A* cannot cut impassable or occupied corners and respects terrain
   assert.ok(!path.some(point => point.x === 1 && point.y === 1));
 });
 
+test("a boxed-in endpoint is rejected without searching the whole open map", context => {
+  const grid = new NavigationGrid(100, 100);
+  const blocked = new Set([[49, 50], [51, 50], [50, 49], [50, 51]].map(([x, y]) => grid.index(x, y)));
+  const neighbors = context.mock.method(grid, "neighbors");
+  assert.equal(findPath(grid, { x: 1, y: 1 }, { x: 50, y: 50 }, { diagonal: true, blocked }), null);
+  assert.equal(neighbors.mock.callCount(), 1);
+});
+
 for (const [dx, dy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
   test(`ground units move simultaneously on both axes (${dx},${dy}), with normalized speed`, () => {
     const simulation = create();
@@ -139,6 +147,25 @@ test("diagonal terrain detours, stopped mid-tile bodies, and formation destinati
   simulation.advance();
   simulation.queue({ type: "stop", unitIds: [ids[0]] });
   for (let tick = 0; tick < 150; tick++) { simulation.advance(); separated(simulation); }
+});
+
+test("nearby squad orders do not flood the entire map for every formation slot", context => {
+  const grid = new NavigationGrid(100, 100), simulation = create(grid);
+  const ids = Array.from({ length: 20 }, (_, index) => simulation.addUnit({
+    faction: "human", cell: { x: 45 + index % 4, y: 45 + Math.floor(index / 4) }, speedSubcellsPerTick: 100,
+  }));
+  const neighbors = grid.neighbors.bind(grid);
+  let visits = 0;
+  context.mock.method(grid, "neighbors", (index: number, diagonal = false) => {
+    visits++;
+    return neighbors(index, diagonal);
+  });
+  simulation.queue({ type: "move", unitIds: ids, target: { x: 55, y: 55 } });
+  simulation.advance();
+  const goals = simulation.checkpoint().units.map(unit => unit.path.at(-1));
+  assert.ok(goals.every(Boolean), "every squad member receives a route");
+  assert.equal(new Set(goals.map(goal => `${goal!.x},${goal!.y}`)).size, ids.length);
+  assert.ok(visits < 40_000, `${visits} neighbor expansions; nearby commands must not do 200,000 full-map visits`);
 });
 
 test("legacy saved paths round-trip exactly and opt into diagonal routing without losing progress", () => {

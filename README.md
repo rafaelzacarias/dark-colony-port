@@ -115,6 +115,11 @@ are excluded.
 HUD refreshes use bounded current-state data instead of copying accumulated
 replay history, so the status/build menus do not slow down as a mission's tick
 count grows. Full history is retained for saving and replay validation.
+Indexed unit bodies and shadows share a per-frame pixel buffer instead of
+reading the canvas back for each overlapping sprite. Formation orders use
+incremental reachability searches and reuse valid routes, avoiding full-map
+searches for every nearby destination. Neither optimization skips simulation
+ticks, reduces visual effects, or changes formation destinations.
 
 Playable campaign ground units use eight-direction pathfinding and normalized
 diagonal movement. Routes cannot cut blocked corners, and diagonal movement

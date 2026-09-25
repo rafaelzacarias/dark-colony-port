@@ -1,7 +1,7 @@
 import type { FinCompositionPart } from "./fin-composition";
 import { composeNativeMode1, type NativeIndexedSprite } from "./mode1-shadow";
 import type { RemapTable } from "./palette";
-import type { NativeScenePosition, SceneTerrainCommand } from "./scene-composition";
+import type { NativeScenePosition, SceneTerrainCommand, SceneSpriteCommand } from "./scene-composition";
 
 export interface NativePaletteAtlas extends NativeIndexedSprite {
   readonly palette: Uint8Array;
@@ -11,6 +11,7 @@ export interface NativePaletteAtlas extends NativeIndexedSprite {
 
 const images = new WeakMap<CanvasImageSource, NativePaletteAtlas>();
 const shadeMaps = new WeakMap<RemapTable, WeakMap<Uint8Array, ReadonlyMap<number, number>>>();
+const bodyColors = new WeakMap<NativePaletteAtlas, Uint32Array>();
 export const MODE1_CANVAS_PIXEL_BUDGET = 128 * 1024;
 
 type Rect = { x: number; y: number; width: number; height: number };
@@ -18,9 +19,12 @@ interface ShadowSurface { active: boolean; image: ImageData | null; dirty: Rect[
 const surfaces = new WeakMap<CanvasRenderingContext2D, ShadowSurface>();
 const prototype = typeof CanvasRenderingContext2D === "undefined" ? undefined : CanvasRenderingContext2D.prototype;
 let mirrorEnabled = true;
+let bodyMirrorEnabled = true;
 
 /** QA switch: false restores one readback per shadow so the two paths can be compared pixel for pixel. */
 export function setMode1ShadowMirror(enabled: boolean): void { mirrorEnabled = enabled; }
+/** QA switch for pixel-by-pixel comparison with the previous Canvas body path. */
+export function setPaletteBodyMirror(enabled: boolean): void { bodyMirrorEnabled = enabled; }
 
 // A getImageData call costs ~0.2 ms however small; a frame with ten shadows spent 5 ms reading back. One mirror of the
 // canvas is read per frame and only rectangles drawn since the last shadow are re-read, so results stay pixel-identical.
@@ -106,6 +110,69 @@ export function mirroredRegion(context: CanvasRenderingContext2D, region: Rect):
 /** Writes a mirror rectangle back without invalidating the mirror (the written pixels are the mirror's own). */
 export function writeMirroredRegion(context: CanvasRenderingContext2D, mirror: ImageData, region: Rect): void {
   prototype!.putImageData.call(context, mirror, 0, 0, region.x, region.y, region.width, region.height);
+}
+
+/** Draw an indexed body into the mirror. Caller supplies the full clip mask; no external Canvas clip may be active. */
+export function drawMirroredPaletteBody(input: {
+  readonly context: CanvasRenderingContext2D;
+  readonly image?: CanvasImageSource;
+  readonly part: FinCompositionPart;
+  readonly body: Pick<SceneSpriteCommand, "topLeft" | "clips">;
+}): boolean {
+  const { context, part, body } = input, surface = surfaces.get(context);
+  if (!mirrorEnabled || !bodyMirrorEnabled || !surface?.active || !surface.image || !input.image || !body.clips) return false;
+  const atlas = images.get(input.image), frame = part.frame;
+  if (!atlas || !frame || frame.empty || ![0, 1].includes(part.child.valueA ?? -1) || part.child.flags !== 16 ||
+    ![0, 1].includes(part.child.valueB ?? -1) || part.mirrored !== Boolean(part.child.valueB) ||
+    ![frame.x, frame.y, frame.width, frame.height, body.topLeft.x, body.topLeft.y].every(Number.isInteger) ||
+    frame.x < 0 || frame.y < 0 || frame.width < 1 || frame.height < 1 ||
+    frame.x + frame.width > atlas.width || frame.y + frame.height > atlas.height ||
+    frame.width * frame.height > MODE1_CANVAS_PIXEL_BUDGET) return false;
+  const transform = context.getTransform();
+  if (transform.a !== 1 || transform.b !== 0 || transform.c !== 0 || transform.d !== 1 ||
+    transform.e !== 0 || transform.f !== 0 || context.globalAlpha !== 1 || context.globalCompositeOperation !== "source-over" ||
+    context.filter !== "none" || context.shadowBlur !== 0 || context.shadowOffsetX !== 0 || context.shadowOffsetY !== 0) return false;
+  let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
+  for (const span of body.clips) {
+    if (![span.x, span.y, span.width, span.height].every(Number.isInteger) || span.x < 0 || span.y < 0 ||
+      span.width < 1 || span.height < 1 || span.x + span.width > frame.width || span.y + span.height > frame.height) return false;
+    left = Math.min(left, body.topLeft.x + span.x); top = Math.min(top, body.topLeft.y + span.y);
+    right = Math.max(right, body.topLeft.x + span.x + span.width); bottom = Math.max(bottom, body.topLeft.y + span.y + span.height);
+  }
+  left = Math.max(0, left); top = Math.max(0, top);
+  right = Math.min(context.canvas.width, right); bottom = Math.min(context.canvas.height, bottom);
+  if (right <= left || bottom <= top) return true;
+  const region = { x: left, y: top, width: right - left, height: bottom - top };
+  const mirror = mirroredRegion(context, region);
+  if (!mirror) return false;
+  let colors = bodyColors.get(atlas);
+  if (!colors) {
+    const rgba = new Uint8Array(256 * 4);
+    for (let index = 0; index < 256; index++) {
+      const mapped = atlas.remap.lookup(2, 128 + atlas.selector, index) * 3;
+      rgba[index * 4] = atlas.palette[mapped];
+      rgba[index * 4 + 1] = atlas.palette[mapped + 1];
+      rgba[index * 4 + 2] = atlas.palette[mapped + 2];
+      rgba[index * 4 + 3] = 255;
+    }
+    colors = new Uint32Array(rgba.buffer);
+    bodyColors.set(atlas, colors);
+  }
+  const output = new Uint32Array(mirror.data.buffer, mirror.data.byteOffset, mirror.data.byteLength / 4);
+  for (const span of body.clips) {
+    const x0 = Math.max(left, body.topLeft.x + span.x), x1 = Math.min(right, body.topLeft.x + span.x + span.width);
+    const y0 = Math.max(top, body.topLeft.y + span.y), y1 = Math.min(bottom, body.topLeft.y + span.y + span.height);
+    for (let y = y0; y < y1; y++) {
+      const sourceRow = (frame.y + y - body.topLeft.y) * atlas.width + frame.x;
+      for (let x = x0; x < x1; x++) {
+        const column = x - body.topLeft.x;
+        const source = sourceRow + (part.mirrored ? frame.width - 1 - column : column);
+        if (atlas.coverage[source]) output[y * mirror.width + x] = colors[atlas.indices[source]];
+      }
+    }
+  }
+  writeMirroredRegion(context, mirror, region);
+  return true;
 }
 
 export function registerNativePaletteImage(image: CanvasImageSource, atlas: NativePaletteAtlas): void {

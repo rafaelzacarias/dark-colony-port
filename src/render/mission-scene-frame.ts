@@ -1,6 +1,6 @@
 import type { FinPoint, FinSample } from "./fin-animation";
 import { drawFinComposition, type FinCompositionPart } from "./fin-composition";
-import { drawNativeMode1CanvasShadow } from "./mode1-canvas";
+import { drawMirroredPaletteBody, drawNativeMode1CanvasShadow } from "./mode1-canvas";
 import { drawNativeMode2Canvas } from "./mode2-canvas";
 import { drawNativeMode5Canvas } from "./mode5-canvas";
 import { MODE5_PIXEL_BUDGET } from "./mode5-effect";
@@ -377,6 +377,7 @@ export function createMissionSceneFrame(input: {
           if ("plan" in result && result.plan) {
             const body = clippedCommand({ ...result.plan.body, source: command.source }, camera);
             mode1Results.set(key, { exact: true, readbackPixels: result.readbackPixels });
+            if (drawMirroredPaletteBody({ context, image, part, body })) continue;
             context.save();
             try {
               context.beginPath();
@@ -389,10 +390,14 @@ export function createMissionSceneFrame(input: {
           mode1Results.set(key, { exact: false, diagnostic: result.diagnostic });
         }
         if (command.clips === null) {
+          if (part.frame && drawMirroredPaletteBody({ context, image: imageLookup(part.child.sprite, part), part,
+            body: { topLeft: { x: Math.round(entity.fallbackOrigin.x + part.x), y: Math.round(entity.fallbackOrigin.y + part.y) },
+              clips: [{ x: 0, y: 0, width: part.frame.width, height: part.frame.height }] } })) continue;
           drawFinComposition(context, [part], imageLookup, entity.fallbackOrigin, 1);
           continue;
         }
         if (!command.clips.length) continue;
+        if (drawMirroredPaletteBody({ context, image: imageLookup(part.child.sprite, part), part, body: command })) continue;
         context.save();
         try {
           context.beginPath();

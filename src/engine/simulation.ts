@@ -2141,7 +2141,7 @@ export class DeterministicSimulation implements Simulation {
               - Math.abs(rightCell.x - target.x) - Math.abs(rightCell.y - target.y) || left - right;
           })
       : [];
-    const assigned: { start: GridPoint; goal: GridPoint }[] = [];
+    const assigned: { start: GridPoint; goal: GridPoint; routeCells?: ReadonlySet<number> }[] = [];
     for (const unit of units) {
       this.#clearOrders(unit);
       unit.activity = "idle";
@@ -2150,20 +2150,37 @@ export class DeterministicSimulation implements Simulation {
       if (units.length > 1) {
         const reachable = new Set<number>([this.grid.index(start.x, start.y)]);
         const frontier = [...reachable];
-        for (let cursor = 0; cursor < frontier.length; cursor += 1) {
-          for (const neighbor of grid.neighbors(frontier[cursor])) {
-            if (reachable.has(neighbor) || reserved.has(neighbor)) continue;
-            reachable.add(neighbor);
-            frontier.push(neighbor);
+        let cursor = 0;
+        const reaches = (candidate: number): boolean => {
+          // Nearby formation slots need only a local search, not a full-map flood for every selected unit.
+          while (!reachable.has(candidate) && cursor < frontier.length) {
+            for (const neighbor of grid.neighbors(frontier[cursor++])) {
+              if (reachable.has(neighbor) || reserved.has(neighbor)) continue;
+              reachable.add(neighbor);
+              frontier.push(neighbor);
+            }
           }
-        }
+          return reachable.has(candidate);
+        };
         const index = candidates.find((candidate) => {
-          if (reserved.has(candidate) || !reachable.has(candidate)) return false;
+          if (reserved.has(candidate) || !reaches(candidate)) return false;
           return assigned.every((assignment) => {
+            // A proven route remains usable until a newly reserved endpoint intersects its swept cells.
+            if (assignment.routeCells && !assignment.routeCells.has(candidate)) return true;
             const blocked = new Set(reserved);
             blocked.add(candidate);
             blocked.delete(this.grid.index(assignment.goal.x, assignment.goal.y));
-            return this.#findMovementPath(grid, assignment.start, assignment.goal, blocked) !== null;
+            blocked.delete(this.grid.index(assignment.start.x, assignment.start.y));
+            // Search out of the endpoint so a newly enclosed formation slot fails without scanning the map.
+            const route = this.#findMovementPath(grid, assignment.goal, assignment.start, blocked);
+            if (!route) return false;
+            const cells = new Set(route.map(point => this.grid.index(point.x, point.y)));
+            if (this.#diagonalGround || grid === this.#airGrid) for (let index = 1; index < route.length; index++) {
+              for (const cell of this.#airStepCells(route[index - 1], route[index])) cells.add(cell);
+            }
+            cells.delete(this.grid.index(assignment.start.x, assignment.start.y));
+            assignment.routeCells = cells;
+            return true;
           });
         });
         goal = index === undefined ? undefined : this.grid.point(index);

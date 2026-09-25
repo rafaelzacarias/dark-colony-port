@@ -71,6 +71,12 @@ export function findPath(
   const goalIndex = grid.index(goal.x, goal.y);
   if (options.blocked?.has(goalIndex)) return null;
   if (startIndex === goalIndex) return [start];
+  if (grid.neighbors(goalIndex, options.diagonal).every(index => {
+    if (index !== startIndex && options.blocked?.has(index)) return true;
+    const neighbor = grid.point(index);
+    return neighbor.x !== goal.x && neighbor.y !== goal.y &&
+      (options.blocked?.has(grid.index(neighbor.x, goal.y)) || options.blocked?.has(grid.index(goal.x, neighbor.y)));
+  })) return null;
 
   const maximumVisited = options.maximumVisited ?? grid.costs.length;
   const costs = new Float64Array(grid.costs.length).fill(Number.POSITIVE_INFINITY);
