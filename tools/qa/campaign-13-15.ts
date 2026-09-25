@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { appendFileSync, mkdirSync, readFileSync, readdirSync, existsSync, openSync, closeSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { loadCampaignMission } from "../../src/game-data";
+import { loadReleaseMission } from "./fixtures/release-mission";
 import { MissionView } from "../../src/mission-view";
 import { findPath } from "../../src/engine/pathfinding";
 import { areHostile } from "../../src/engine/diplomacy";
@@ -92,7 +92,9 @@ async function worker(id: Case, directory: string, allowance: number, proof: boo
     return new Response(bytes);
   };
   try {
-    const mission = await loadCampaignMission(contract.faction, contract.number, "browser-adapted");
+    const policyView = proof ? json<Saved>(directory, "pending-win").view
+      : resume ? (JSON.parse(readFileSync(resume, "utf8")) as Saved).view : undefined;
+    const mission = await loadReleaseMission(contract.faction, contract.number, policyView);
     assert.equal(mission.scenario.source.sha256, contract.sources.SCN);
     assert.deepEqual(mission.triggers, contract.triggers);
     const originalScn = Buffer.from(mission.scenario.rawScenario!, "base64");

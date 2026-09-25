@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { appendFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync, openSync, closeSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { loadCampaignMission } from "../../src/game-data";
+import { loadReleaseMission } from "./fixtures/release-mission";
 import { MissionView } from "../../src/mission-view";
 import { parseTriggerScript } from "../extractors/data/triggers";
 import { installSourceRender } from "./fixtures/source-render";
@@ -72,7 +72,8 @@ export async function replay(id: MissionId, output: string, budgetMs: number, pr
     JSON.stringify({ kind, tick: view?.simulation.snapshot.tick, elapsedMs: Date.now() - started, data }) + "\n");
   let result: Record<string, unknown> = { id, status: "RUNTIME_BLOCKER" };
   try {
-    const { faction, number } = identity(id), mission = await loadCampaignMission(faction, number, "browser-adapted");
+    const policyView = proof ? JSON.parse(readFileSync(`${output}/pending-win.json`, "utf8")).view : undefined;
+    const { faction, number } = identity(id), mission = await loadReleaseMission(faction, number, policyView);
     const contract = sourceContract(id), sourceHash = hash(JSON.stringify(mission));
     assert.equal(mission.scenario.source.sha256, contract.sources.SCN);
     assert.deepEqual(mission.triggers, contract.triggers);
@@ -179,7 +180,26 @@ export async function replay(id: MissionId, output: string, budgetMs: number, pr
         if (id === "A10" && state.snapshot.tick === 0) {
           emit("purchaseConstruction", { dependency: 14, menu: active.constructionMenu, accepted: active.purchaseConstruction(14) });
         }
-        for (const actor of state.owned.filter(actor => !collectors.includes(actor))) {
+        const reserved = new Set<number>();
+        if (id === "A10" && state.snapshot.tick > 0) {
+          const hive = active.constructionMenu.find(choice => choice.dependency === 14);
+          const stores = state.campaign.world.entities.filter(entity => entity.unitType === 90);
+          const commander = state.owned.find(actor => state.types.get(actor.id) === 73);
+          if (hive && "cost" in hive && hive.status === "unbuilt" && hive.requestEnabled) {
+            emit("purchaseConstruction", { dependency: 14, credits: hive.credits, accepted: active.purchaseConstruction(14) });
+          } else if (commander && stores.length) {
+            const store = stores.map(entity => ({ x: entity.tileX, y: entity.tileY }))
+              .sort((left, right) => distance(point(commander), left) - distance(point(commander), right))[0];
+            move(commander, store, "source-psy-energy-store");
+            reserved.add(commander.id);
+          } else if (commander) {
+            // Losing the commander loses the mission (TRO 1): keep him at the original city location.
+            const [homeX, homeY] = mission.scenario.teams[0].coordinateRows[1];
+            if (distance(point(commander), { x: homeX, y: homeY }) > 4) move(commander, { x: homeX, y: homeY }, "commander-home");
+            reserved.add(commander.id);
+          }
+        }
+        for (const actor of state.owned.filter(actor => !collectors.includes(actor) && !reserved.has(actor.id))) {
           const type = state.types.get(actor.id)!;
           if ([4, 12].includes(type)) {
             if (!stopped.has(actor.id)) { active.replaceSelection([actor.id]); active.stopSelected(); stopped.add(actor.id); emit("stopSelected", { id: actor.id }); continue; }

@@ -11,13 +11,15 @@ export const BROWSER_INCOME_INTERCEPTION_SOURCE = Object.freeze({
   gameStatSha256: "ed13afe21ffea368a5892b49de40ef063014c0a9376c5d5bb5abf1396cb27629",
   evidenceSha256: "b8990a2a38c8e913722570e7600a9b06696286fa2bd7502d754c444e78872246",
   liveVisibility: "adapted-team-fog/native-bit-layout",
+  // DC.EXE 0x417d0d-0x417d33 deploys 4->77 and 12->78 through the same completion; 0x417dfa/0x417dff scan for both.
+  alienMobileType: 12, alienDeployedType: 78, alienMobileSprite: "PSYC", alienDeployedSprite: "PSYCSTL",
 } as const);
 
 export interface BrowserIncomeCollector {
   readonly key: string; readonly slot: number; readonly generation: number; readonly team: number;
 }
 export interface BrowserIncomeInterceptor extends BrowserIncomeCollector {
-  readonly simulationId: number; readonly typeId: 4;
+  readonly simulationId: number; readonly typeId: 4 | 12;
 }
 export type BrowserIncomeInterceptionAction =
   | { readonly type: "deploy"; readonly actor: BrowserIncomeInterceptor }
@@ -75,10 +77,10 @@ export function activateBrowserIncomeInterception(state: BrowserIncomeIntercepti
   requireInterception(action.type === "deploy", "unknown deployment action");
   const actor = action.actor;
   const unit = snapshot.units.find(entry => entry.id === actor.simulationId);
-  requireInterception(identity(actor) && actor.typeId === 4 && integer(actor.simulationId)
-    && unit && unit.team === actor.team && unit.faction === "human" && unit.health > 0
+  requireInterception(identity(actor) && (actor.typeId === 4 || actor.typeId === 12) && integer(actor.simulationId)
+    && unit && unit.team === actor.team && unit.faction === (actor.typeId === 4 ? "human" : "alien") && unit.health > 0
     && unit.movementPlane !== "air" && !unit.resourceActor && unit.activity === "idle",
-  "deployment requires a live idle ground source SARGE");
+  "deployment requires a live idle ground source SARGE or PSYC");
   requireInterception(!state.deployments.some(entry => entry.key === actor.key
     || entry.slot === actor.slot || entry.simulationId === actor.simulationId), "duplicate deployment");
   return { ...state, deployments: [...state.deployments,
@@ -176,7 +178,7 @@ export function validateBrowserIncomeInterception(state: BrowserIncomeIntercepti
   const partners = new Set<number>();
   let previousSlot = -1;
   for (const actor of state.deployments) {
-    requireInterception(identity(actor) && actor.typeId === 4 && integer(actor.simulationId)
+    requireInterception(identity(actor) && (actor.typeId === 4 || actor.typeId === 12) && integer(actor.simulationId)
       && integer(actor.xSubcells) && integer(actor.ySubcells) && typeof actor.acquired === "boolean"
       && Object.hasOwn(earned, actor.team) && actor.slot > previousSlot
       && !collectors.some(collector => collector.key === actor.key || collector.slot === actor.slot),

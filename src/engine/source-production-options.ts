@@ -1,4 +1,5 @@
 import { assetUrl } from "../asset-url";
+import { sha256Hex as sha256 } from "../sha256";
 import type { CampaignMissionData } from "../game-data";
 import { finSourceDuration, type FinAnimationData } from "../render/fin-animation";
 import { parseScenario, type ScenarioDefinition } from "../../tools/extractors/data/scenario";
@@ -9,7 +10,7 @@ import type { CampaignWorld } from "./campaign-world";
 import { projectLegacyColony } from "./legacy-colony";
 import { sourceScenarioUpgradeLevels } from "./legacy-scenario-levels";
 import type { LegacyProductionSourceRecord } from "./legacy-production";
-import { transportHostState } from "./transport-host";
+import { readTransportHostState } from "./transport-host";
 
 export { productionUpgradeLevels as sourceProductionUpgradeLevels } from "./campaign-production";
 
@@ -44,11 +45,6 @@ function requireSource(condition: unknown, message: string): asserts condition {
 
 function integer(value: number, maximum: number): boolean {
   return Number.isInteger(value) && value >= 0 && value <= maximum;
-}
-
-async function sha256(bytes: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", Uint8Array.from(bytes).buffer);
-  return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, "0")).join("");
 }
 
 export function producerProfiles(metadata: Metadata, race: 0 | 1): readonly ProductionSourceProfile[] {
@@ -95,7 +91,7 @@ export function sourceProductionTeamSeeds(source: ScenarioDefinition, units: Mis
 
 export function sourceProductionPopulation(world: CampaignWorld, team: number): number {
   requireSource(integer(team, 7), "invalid census team");
-  const host = transportHostState(world);
+  const host = readTransportHostState(world);
   requireSource(host.slots.length === 800 && host.registry.length === 800, "require complete native registry");
   let population = 0;
   for (let slot = 152; slot < 800; slot += 1) {
@@ -119,7 +115,7 @@ export function sourceProductionPopulationLimit(world: CampaignWorld, ceiling: n
     requireSource(integer(count, 9), "invalid native RENAT reserve");
     reserve += count;
   }
-  const host = transportHostState(world);
+  const host = readTransportHostState(world);
   const colonies = Array.from({ length: 8 }, (_, team) => {
     return Array.from({ length: 5 }, (_, slot) => {
       const health = world.buildingSlots[`${team},${slot}`];

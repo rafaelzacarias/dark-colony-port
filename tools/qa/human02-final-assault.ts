@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { appendFileSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { loadCampaignMission } from "../../src/game-data";
+import { loadReleaseMission } from "./fixtures/release-mission";
 import { MissionView } from "../../src/mission-view";
 import { parseTriggerScript } from "../extractors/data/triggers";
 import { createBrowserCampaignPlaythrough, type BrowserPlaythroughCheckpoint, type BrowserPlaythroughEvent } from "./fixtures/browser-campaign-playthrough";
@@ -31,7 +31,7 @@ try {
   const saved = JSON.parse(savedBytes.toString()) as {
     sourceHash: string; view: ReturnType<MissionView["checkpoint"]>; strategy: BrowserPlaythroughCheckpoint;
   };
-  const mission = await loadCampaignMission("human", 2, "browser-adapted");
+  const mission = await loadReleaseMission("human", 2);
   const sourceHash = hash(JSON.stringify(mission));
   const raw = (extension: string) => read(`raw_cd/DC/SCENARIO/HUMAN/HUMAN02.${extension}`);
   assert.equal(mission.scenario.source.sha256, hash(raw("SCN")));

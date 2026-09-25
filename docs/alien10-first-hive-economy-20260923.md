@@ -1,5 +1,16 @@
 # ALIEN10 First Hive Economy: Blocked
 
+> **Superseded (2026-09-23, later):** the payer is the five SCN sixth-field-2
+> `FILL` psy-energy stores at (124..126,4..8). DC.EXE `4148b0` routes actors
+> whose `+0xcb` byte is 1/2 to `4140dc`; every fourth cycle it scans the 5x5
+> tiles around the object and, for state 2, adds the object's `+0xc` health
+> (800) to the first touching team's money without the central-slot income gate
+> (`414283..414296`) and removes it. State 1 converts the object to team 0 on
+> contact by a team-0 actor. Implemented as `src/engine/browser-contact-pickups.ts`
+> (browser-adapted sessions only); `tools/qa/browser-contact-pickups.test.ts`
+> walks the TRO-delivered commander to the stores, buys the Mind-Hive and
+> verifies exact checkpoint restore. The investigation below predates this.
+
 ## Decision
 
 **No authentic first-hive funding or free-base policy was established.** Keep

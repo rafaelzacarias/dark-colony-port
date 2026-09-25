@@ -178,6 +178,19 @@ for (const targetKind of ["mobile", "static"] as const) {
   });
 }
 
+test("automatic aim: native profiles do not auto-acquire a zero-damage TOWR once the phase is known", () => {
+  const simulation = new DeterministicSimulation(new NavigationGrid(6, 3), { sourceDayNightHeader: ["fixture", "0", "10", "4", "2"] });
+  const attacker = simulation.addUnit({ faction: "human", team: 0, cell: { x: 1, y: 1 },
+    weapon: { ...weapon, sourceDamage: { mode: "verified-native-ordinary", coefficients: VERIFIED_NATIVE_ORDINARY_COEFFICIENTS,
+      sourceTypeIndex: 0, sourceTypeFaction: 0, weaponId: 1 } } });
+  const towr = simulation.addStaticTarget({ faction: "alien", team: 1, cell: { x: 2, y: 1 }, maxHealth: 1,
+    sourceDefense: { targetClass: 8, armorFactor: 256, sourceTypeIndex: 81 } });
+  const building = simulation.addStaticTarget({ faction: "alien", team: 1, cell: { x: 3, y: 1 }, maxHealth: 800,
+    sourceDefense: { targetClass: 9, armorFactor: 256, sourceTypeIndex: 16 } });
+  assert.equal(simulation.canAutoTarget(attacker, towr), false, "class 8 takes zero, so it would pin the attacker forever");
+  assert.equal(simulation.canAutoTarget(attacker, building), true);
+});
+
 test("automatic aim: native profiles retain existing diagnostic and zero-damage eligibility", () => {
   const simulation = new DeterministicSimulation(new NavigationGrid(6, 3));
   const attacker = simulation.addStaticTarget({ faction: "human", team: 0, cell: { x: 1, y: 1 }, maxHealth: 100,

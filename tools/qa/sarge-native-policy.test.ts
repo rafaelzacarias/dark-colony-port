@@ -85,3 +85,21 @@ test("SARGE source scan: an occupied first target rejects without trying a free 
   assert.equal(state.deployments[0].partner?.key, "far");
   assert.equal(state.deployments[1].partner, undefined);
 });
+test("PSYC (alien 12->78, DC.EXE 0x417d18) uses the same interception; faction must match the interceptor type", () => {
+  const simulation = new DeterministicSimulation(new NavigationGrid(64, 64, new Uint16Array(4096).fill(1)));
+  const thief = simulation.addUnit({ faction: "alien", team: 0, cell: { x: 30, y: 30 } });
+  const prey = simulation.addUnit({ faction: "human", team: 1, cell: { x: 31, y: 30 } });
+  const collector = { key: "explorer", slot: 153, generation: 0, team: 1, simulationId: prey, currentType: 47 as const };
+  const groundWords = Array<number>(4096).fill(1023);
+  groundWords[30 * 64 + 31] = 0x40000000 | 153;
+  const frame = { tick: 0, width: 64, height: 64, groundWords, teamVisibilityMasks: [0x40000000, 0, 0, 0, 0, 0, 0, 0], collectors: [collector] };
+  let state = activateBrowserIncomeInterception(initializeBrowserIncomeInterception(), simulation.snapshot,
+    { type: "deploy", actor: { key: "psyc", slot: 154, generation: 0, simulationId: thief, team: 0, typeId: 12 } });
+  state = observeBrowserIncomeInterception(state, simulation.snapshot, frame);
+  assert.equal(state.deployments[0].partner?.key, "explorer");
+  const split = splitBrowserInterceptedIncome(state, simulation.snapshot, undefined, collector,
+    simulation.snapshot.units.find(unit => unit.id === prey)!, 40);
+  assert.deepEqual([split.retained, split.stolen, split.interceptorTeam], [20, 20, 0]);
+  assert.throws(() => activateBrowserIncomeInterception(initializeBrowserIncomeInterception(), simulation.snapshot,
+    { type: "deploy", actor: { key: "psyc", slot: 154, generation: 0, simulationId: thief, team: 0, typeId: 4 } }), /SARGE or PSYC/);
+});

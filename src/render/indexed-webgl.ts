@@ -164,10 +164,18 @@ export class IndexedWebGLRenderer {
   readonly #images = new Map<IndexedImage, ImageTextures>();
   #resources: Resources | null = null;
   #disposed = false;
+  #drawVerified = false;
+  #packBuffer: WebGLBuffer | null = null;
+  #packBytes = 0;
+  #pendingReadback: { sync: WebGLSync; width: number; height: number } | null = null;
 
   readonly #onLost = (event: Event): void => {
     event.preventDefault();
     this.#resources = null;
+    this.#drawVerified = false;
+    this.#pendingReadback = null;
+    this.#packBuffer = null;
+    this.#packBytes = 0;
     this.#images.clear();
   };
 
@@ -223,6 +231,7 @@ export class IndexedWebGLRenderer {
 
   reinitialize(tables: PaletteTables): void {
     const gl = this.#gl;
+    this.#drawVerified = false;
     if (this.#disposed || gl.isContextLost()) throw new IndexedWebGLUnavailableError("Cannot reinitialize disposed or lost context");
     const upload = preparePaletteUpload(tables);
     this.#release();
@@ -336,12 +345,67 @@ export class IndexedWebGLRenderer {
       gl.uniform1i(uniforms.mirrorX, Number(layer.mirrorX));
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }
-    if (gl.getError() !== gl.NO_ERROR || gl.isContextLost()) {
+    // getError blocks on the GPU (14% of a live H13 frame); after the first verified draw only context loss is polled.
+    if ((!this.#drawVerified && gl.getError() !== gl.NO_ERROR) || gl.isContextLost()) {
       throw new IndexedWebGLUnavailableError("Indexed draw failed; owner must select a fallback");
     }
+    this.#drawVerified = true;
+  }
+
+  /**
+   * Queues a non-blocking copy of the current drawing buffer. Copying the WebGL canvas into a 2D canvas right after a draw
+   * stalls on the GPU (~5 ms per tick frame); a pixel-pack buffer plus fence lets the copy be collected on a later frame.
+   */
+  queueReadback(): void {
+    const gl = this.#gl;
+    this.#requireReady();
+    this.cancelReadback();
+    const width = gl.drawingBufferWidth, height = gl.drawingBufferHeight, bytes = width * height * 4;
+    if (!this.#packBuffer || this.#packBytes !== bytes) {
+      if (this.#packBuffer) gl.deleteBuffer(this.#packBuffer);
+      this.#packBuffer = gl.createBuffer();
+      if (!this.#packBuffer) throw new IndexedWebGLUnavailableError("Readback buffer allocation failed");
+      gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this.#packBuffer);
+      gl.bufferData(gl.PIXEL_PACK_BUFFER, bytes, gl.STREAM_READ);
+      this.#packBytes = bytes;
+    } else gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this.#packBuffer);
+    gl.pixelStorei(gl.PACK_ALIGNMENT, 4);
+    gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, 0);
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+    const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    if (!sync) throw new IndexedWebGLUnavailableError("Readback fence allocation failed");
+    gl.flush();
+    this.#pendingReadback = { sync, width, height };
+  }
+
+  /** Returns the queued pixels (top row first, straight alpha) once the GPU finished, otherwise null without blocking. */
+  collectReadback(): ImageData | null {
+    const pending = this.#pendingReadback, gl = this.#gl;
+    if (!pending || !this.ready) return null;
+    if (gl.getSyncParameter(pending.sync, gl.SYNC_STATUS) !== gl.SIGNALED) return null;
+    const { width, height } = pending, row = width * 4;
+    const packed = new Uint8Array(row * height);
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this.#packBuffer);
+    gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, packed);
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+    this.cancelReadback();
+    const image = new ImageData(width, height);
+    for (let y = 0; y < height; y++) image.data.set(packed.subarray((height - 1 - y) * row, (height - y) * row), y * row);
+    return image;
+  }
+
+  get readbackPending(): boolean { return this.#pendingReadback !== null; }
+
+  cancelReadback(): void {
+    if (this.#pendingReadback) this.#gl.deleteSync(this.#pendingReadback.sync);
+    this.#pendingReadback = null;
   }
 
   #release(): void {
+    this.cancelReadback();
+    if (this.#packBuffer) this.#gl.deleteBuffer(this.#packBuffer);
+    this.#packBuffer = null;
+    this.#packBytes = 0;
     for (const image of this.#images.keys()) this.releaseImage(image);
     if (this.#resources) {
       this.#gl.deleteTexture(this.#resources.remap);

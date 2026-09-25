@@ -1,0 +1,22 @@
+{
+  "id": "A06",
+  "status": "WIN",
+  "tick": 39649,
+  "outcome": {
+    "resultCode": 0,
+    "reasonCode": 1,
+    "ready": true
+  },
+  "commands": 817,
+  "purchases": 2,
+  "proof": {
+    "id": "A06",
+    "status": "WIN",
+    "exact": true,
+    "fromTick": 39448,
+    "toTick": 39649,
+    "hash": "7ec30f4f7947ec11c7045e5cd68e04fc84033cd342e032a017f100c6d76b5190",
+    "sourceHash": "371df7929fdaceef6d01789212ddbab0bb502056536c08d1892ed27f40cc1d91",
+    "elapsedMs": 490315
+  }
+}

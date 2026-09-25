@@ -4,7 +4,7 @@ import { browserType37Presentation, type BrowserType37Frame } from "./browser-ty
 import { aiSelectorSourceCanonical } from "./ai-command-selector";
 import { SUBCELLS_PER_CELL } from "./constants";
 import type { ResourceActorIdentity, SimulationSnapshot } from "./simulation";
-import { transportHostState } from "./transport-host";
+import { readTransportHostState } from "./transport-host";
 import { observeBrowserResearch, type BrowserResearchConfiguration } from "./browser-research";
 
 export interface BrowserType37PresentationOwner {
@@ -56,7 +56,7 @@ export function browserType37PlacementHidden(world: CampaignWorld | undefined, s
 export function projectBrowserType37Presentation(world: CampaignWorld, owner: BrowserType37PresentationOwner, localTeam = 0) {
   requireOwner(world, owner);
   if (!Number.isInteger(localTeam) || localTeam < 0 || localTeam >= 8) throw new RangeError("Invalid type37 local team");
-  const host = transportHostState(world);
+  const host = readTransportHostState(world);
   const entries = world.scenarioMarkers!.map(marker => {
     const entity = world.entities.find(entry => entry.key === marker.key);
     if (!entity || !isBrowserScenarioMarker(entity, world)) throw new TypeError("Type37 presentation source marker mismatch");
@@ -85,7 +85,7 @@ export function observeBrowserType37Frame(world: CampaignWorld, owner: BrowserTy
   requireOwner(world, owner);
   const spyTeams = input.spyTeams ?? world.markerSpyTeams!;
   if (spyTeams.length !== 8 || spyTeams.some(value => typeof value !== "boolean")) throw new TypeError("Invalid type37 spy observation");
-  const host = transportHostState(world);
+  const host = readTransportHostState(world);
   const idleHarvesterSlots: number[] = [];
   const observedIds = new Set<number>();
   const observedSlots = new Set<number>();

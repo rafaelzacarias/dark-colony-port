@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { fork } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { loadCampaignMission } from "../../src/game-data";
+import { loadReleaseMission } from "./fixtures/release-mission";
 import { MissionView } from "../../src/mission-view";
 import { areHostile } from "../../src/engine/diplomacy";
 import { findPath } from "../../src/engine/pathfinding";
@@ -80,7 +80,7 @@ try {
   const proofDirectory = process.argv.find(argument => argument.startsWith("--proof="))?.slice("--proof=".length);
   const path = process.env.DC_FINAL_RESUME ?? "/tmp/dc-m02-alien-win-SptQgw/checkpoint.json";
   const saved = JSON.parse(readFileSync(path, "utf8"));
-  const mission = await loadCampaignMission("alien", 2, "browser-adapted");
+  const mission = await loadReleaseMission("alien", 2);
   inspectMission02(mission);
   const sourceHash = hash(JSON.stringify(mission));
   assert.equal(saved.sourceHash, sourceHash);

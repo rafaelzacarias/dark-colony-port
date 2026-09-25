@@ -5,7 +5,7 @@ import { appendFileSync, closeSync, mkdtempSync, openSync, readFileSync, readdir
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
-import { loadCampaignMission } from "../../src/game-data";
+import { loadReleaseMission } from "./fixtures/release-mission";
 import { MissionView } from "../../src/mission-view";
 import { parseTriggerScript } from "../extractors/data/triggers";
 import { installSourceRender } from "./fixtures/source-render";
@@ -75,7 +75,7 @@ async function verify(directory: string) {
     return new Response(bytes);
   };
   try {
-    const mission = await loadCampaignMission("human", 2, "browser-adapted");
+    const mission = await loadReleaseMission("human", 2);
     const sourceHash = sha256(JSON.stringify(mission));
     assert.equal(sourceHash, pending.sourceHash);
     assert.equal(sourceHash, ready.sourceHash);

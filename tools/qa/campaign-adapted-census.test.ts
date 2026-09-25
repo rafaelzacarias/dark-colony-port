@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import test from "node:test";
 import { loadCampaignMission } from "../../src/game-data";
+import { loadReleaseMission } from "./fixtures/release-mission";
 import { MissionView, missionVisualSprites, missionAnimationArchives } from "../../src/mission-view";
 import { parseScenario } from "../extractors/data/scenario";
 import { parseTriggerScript } from "../extractors/data/triggers";
@@ -377,7 +378,7 @@ test("campaign adapted census: all 30 original missions, strict 01, real initial
             visual: auditVisual(unit.sprite, manifestPaths) };
         });
         stage = "loader";
-        mission = await loadCampaignMission(faction, number, number === 1 ? undefined : "browser-adapted");
+        mission = await loadReleaseMission(faction, number);
         row.load = true;
         row.phases.loader = { completed: true, firstThrow: null, entityCount: null,
           statistics: null, reason: "Loader returns mission configuration; live entities/statistics begin at constructor",

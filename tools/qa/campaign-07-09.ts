@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { appendFileSync, closeSync, mkdirSync, openSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { loadCampaignMission } from "../../src/game-data";
+import { loadReleaseMission } from "./fixtures/release-mission";
 import { MissionView } from "../../src/mission-view";
 import { areHostile } from "../../src/engine/diplomacy";
 import { findPath } from "../../src/engine/pathfinding";
@@ -90,7 +90,8 @@ export async function play(id: MissionId, output: string, maxTicks: number, budg
   const emit = (kind: string, data: unknown) => appendFileSync(`${output}/journal.jsonl`, JSON.stringify({
     kind, tick: view?.simulation.snapshot.tick ?? 0, elapsedMs: Math.round(performance.now() - started), data }) + "\n");
   try {
-    const mission = await loadCampaignMission(contract.faction, contract.number, "browser-adapted");
+    const policyView = proof ? (json(`${proof}/pending.json`) as Saved).view : resume ? (json(resume) as Saved).view : undefined;
+    const mission = await loadReleaseMission(contract.faction, contract.number, policyView);
     loaded = true;
     assert.equal(mission.scenario.source.sha256, contract.sources.SCN);
     assert.deepEqual(mission.triggers, contract.triggers);

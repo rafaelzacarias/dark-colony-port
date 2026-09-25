@@ -1,11 +1,12 @@
 import { assetUrl } from "../asset-url";
+import { sha256Hex as digest } from "../sha256";
 import type { CampaignMissionData } from "../game-data";
 import { parseScenario, type ScenarioDefinition } from "../../tools/extractors/data/scenario";
 import type { CampaignWorld } from "./campaign-world";
 import { projectLegacyColony, type LegacyColonyBuilding } from "./legacy-colony";
 import { createLegacyProductionCatalog, type LegacyProductionSourceRecord } from "./legacy-production";
 import { createLegacyInfantryFamilyMask } from "./legacy-navigation";
-import { transportHostState } from "./transport-host";
+import { readTransportHostState, transportHostState } from "./transport-host";
 import { sourceBuildingOptions, sourceBuildingRequirements, type SourceBuildingOption } from "./source-building-options";
 
 export interface BrowserConstructionPolicy {
@@ -123,11 +124,6 @@ function freeze<Value>(value: Value): Value {
     Object.freeze(value);
   }
   return value;
-}
-
-async function digest(bytes: Uint8Array): Promise<string> {
-  const hash = await crypto.subtle.digest("SHA-256", Uint8Array.from(bytes).buffer);
-  return Array.from(new Uint8Array(hash), value => value.toString(16).padStart(2, "0")).join("");
 }
 
 export async function createBrowserConstructionConfiguration(input: {
@@ -268,7 +264,7 @@ export function validateBrowserConstruction(configuration: BrowserConstructionCo
     validateFixedSlots(configuration, state, world, journaledCombat);
     return;
   }
-  const source = sourceOf(configuration), host = transportHostState(world);
+  const source = sourceOf(configuration), host = readTransportHostState(world);
   const slot = configuration.building.slot;
   requireConstruction(!state.slots && !state.upgrades, "unexpected nested slot state");
   requireConstruction(state.kind === "browser-construction-state-v1" && state.sourceId === configuration.sourceId
@@ -503,7 +499,7 @@ function upgradeEffect(configuration: BrowserConstructionConfiguration, slot: nu
 
 function validateFixedSlots(configuration: BrowserConstructionConfiguration, state: BrowserConstructionState,
   world: CampaignWorld, journaledCombat: boolean): void {
-  const source = sourceOf(configuration), host = transportHostState(world);
+  const source = sourceOf(configuration), host = readTransportHostState(world);
   requireConstruction(world.browserCasualtyPickup?.runtimeProfile === "browser-adapted" && !host.nativeAiTasks
     && !host.nativeCombat && !host.resourceLifecycle
     && !host.slots.some(actor => actor?.nativeConstruction || actor?.nativeAiTask || actor?.pendingNativeAi || actor?.resourceTask),

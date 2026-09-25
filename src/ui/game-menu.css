@@ -1,0 +1,194 @@
+:root {
+  --game-black: #080808;
+  --game-panel: #202020;
+  --game-steel: #777570;
+  --game-edge: #4b4945;
+  --game-text: #e7e3d9;
+  --game-muted: #aaa69c;
+  --game-accent: #ce573a;
+  --game-highlight: #f0b47e;
+  --game-button: linear-gradient(#383735, #222221);
+}
+
+.asset-lab.main-menu-active {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr);
+  background: var(--game-black);
+  overflow: hidden;
+}
+.main-menu-active .topbar,
+.main-menu-active .archive-panel,
+.main-menu-active .preview-heading,
+.main-menu-active .transport,
+.main-menu-active .frame-data,
+.main-menu-active .statusbar,
+.main-menu-active #sprite-canvas,
+.main-menu-active .frame-watermark { display: none; }
+.main-menu-active .workbench,
+.main-menu-active .preview-panel {
+  display: block;
+  height: 100%;
+  min-height: 0;
+}
+.main-menu-active .preview-stage { width: 100%; height: 100%; min-height: 0; background: #000; }
+
+.main-menu-active .campaign-launcher {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(20px, 4vh, 40px);
+  padding: max(32px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
+    max(24px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  color: var(--game-text);
+  background: linear-gradient(0deg, #000 12%, transparent 28%), url("/assets/generated/interface/INTRO.GIF") center top / cover #000;
+  scrollbar-color: var(--game-steel) #101010;
+}
+.main-menu-active .campaign-launcher[hidden] { display: none; }
+.campaign-launcher .start-menu-brand {
+  flex: none;
+  align-self: center;
+  margin-top: auto;
+  padding: 0;
+  border: 0;
+  text-align: center;
+  text-shadow: 0 3px 12px #000;
+}
+.campaign-launcher .start-menu-brand p { color: #e1ab7b; font: 700 10px/1.5 ui-monospace, monospace; letter-spacing: 0.28em; }
+.start-menu-brand h2 {
+  margin: 12px 0 6px;
+  color: #e2dfd8;
+  font: 700 clamp(38px, 7vw, 80px)/0.95 "Copperplate", "Bank Gothic", Georgia, serif;
+  letter-spacing: -0.035em;
+  text-transform: uppercase;
+}
+.start-menu-brand h2 span { color: #da543b; }
+.start-menu-brand small { color: var(--game-muted); font: 10px/1.5 ui-monospace, monospace; letter-spacing: 0.25em; }
+.start-menu-panel {
+  width: min(480px, 100%);
+  flex: none;
+  padding: 22px;
+  border: 1px solid var(--game-steel);
+  border-top: 3px solid var(--game-accent);
+  border-radius: 3px;
+  background: linear-gradient(135deg, #323130e8, #101010f5 55%);
+  box-shadow: inset 0 0 0 3px #080808, inset 0 0 0 4px #494744, 0 12px 50px #000;
+}
+.start-menu-actions { display: grid; gap: 10px; }
+.campaign-launcher .start-menu-panel button,
+.game-dialog button,
+.main-menu-active .load-state button {
+  min-height: 48px;
+  padding: 12px 16px;
+  border: 1px solid var(--game-steel);
+  border-radius: 2px;
+  color: var(--game-text);
+  background: var(--game-button);
+  box-shadow: inset 1px 1px #a09c8e35, inset -1px -1px #0008;
+  font: 700 15px/1.25 "Avenir Next Condensed", "Arial Narrow", sans-serif;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.campaign-launcher .start-menu-actions > button { text-transform: uppercase; }
+.campaign-launcher .start-menu-panel button:hover,
+.game-dialog button:enabled:hover { border-color: var(--game-highlight); background: linear-gradient(#4a3932, #302521); }
+.campaign-launcher .start-menu-panel button:focus-visible,
+.game-dialog button:focus-visible,
+.mission-select-details summary:focus-visible { outline: 2px solid var(--game-highlight); outline-offset: 3px; }
+.campaign-launcher .start-menu-panel button:disabled,
+.game-dialog button:disabled { cursor: not-allowed; opacity: 0.5; }
+.start-menu-panel [hidden],
+.game-dialog [hidden] { display: none !important; }
+.campaign-launcher .start-menu-panel h3 { margin: 0 0 12px; color: var(--game-text); font: 600 24px/1.2 "Copperplate", Georgia, serif; }
+.start-menu-panel .start-menu-hint,
+.save-menu-hint,
+.save-menu-note { color: var(--game-muted); font: 13px/1.5 system-ui, sans-serif; }
+.start-menu-hint { margin: 12px 0; }
+.start-menu-panel .faction-selector { min-height: 100px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; border: 0; background: none; }
+.campaign-launcher .start-menu-panel .faction-selector button { min-height: 110px; padding: 14px 10px 14px 70px; }
+.start-menu-panel .faction-selector button::after { height: 2px; background: var(--game-steel); }
+.start-menu-panel .faction-selector button.alien::after { background: var(--game-accent); }
+.start-menu-panel .faction-selector strong { font-size: 18px; color: var(--game-text); }
+.start-menu-panel .faction-selector small { color: var(--game-muted); font-size: 11px; letter-spacing: 0; line-height: 1.4; }
+.start-menu-panel .mission-picker-portrait { left: 12px; }
+.mission-select-details { margin-top: 18px; border-top: 1px solid var(--game-edge); }
+.mission-select-details summary { padding: 14px 0; min-height: 48px; color: var(--game-muted); font-size: 14px; cursor: pointer; }
+.start-menu-panel .campaign-mission-picker { gap: 14px; }
+.start-menu-panel .mission-picker-factions label,
+.start-menu-panel .mission-picker-launch select { background: #171717; border-color: var(--game-steel); color: var(--game-text); }
+.start-menu-panel .mission-picker-factions label:has(:checked) { background: #49332b; color: #fff; }
+.start-menu-panel .mission-picker-choice output { color: var(--game-muted); }
+.campaign-launcher .start-menu-panel .mission-picker-launch button { min-height: 44px; padding: 8px; }
+.campaign-launcher #menu-back { margin-top: 18px; width: 100%; background: #111; color: var(--game-muted); font-size: 13px; }
+.campaign-launcher #continue-status { margin-top: 12px; color: #f3a98c; font-size: 13px; }
+.start-menu-footer { margin-top: auto; color: var(--game-muted); font: 10px/1.7 ui-monospace, monospace; text-align: center; text-transform: uppercase; letter-spacing: 0.1em; }
+.start-menu-footer span { display: block; color: #77736b; letter-spacing: 0; }
+.main-menu-active .load-state {
+  z-index: 10;
+  inset: auto auto max(20px, env(safe-area-inset-bottom)) 50%;
+  transform: translateX(-50%);
+  width: min(440px, calc(100% - 32px));
+  padding: 16px;
+  border: 1px solid var(--game-accent);
+  color: var(--game-text);
+  background: #151311;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.main-menu-active .load-state button { display: block; width: 100%; margin-top: 12px; }
+
+.game-dialog {
+  width: min(540px, calc(100% - 24px));
+  max-width: none;
+  max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  padding: 22px;
+  border: 1px solid var(--game-steel);
+  border-top: 3px solid var(--game-accent);
+  border-radius: 3px;
+  color: var(--game-text);
+  background: linear-gradient(135deg, #30302f, #101010 60%);
+  box-shadow: 0 24px 80px #000b;
+  overscroll-behavior: contain;
+}
+.game-dialog::backdrop { background: #000c; }
+.game-dialog header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.game-dialog header p { margin-bottom: 6px; color: var(--game-highlight); font: 10px/1.2 ui-monospace, monospace; letter-spacing: 0.2em; }
+.game-dialog h2 { font: 600 26px/1.2 "Copperplate", Georgia, serif; }
+.save-slots { display: grid; gap: 10px; margin: 18px 0; }
+.game-dialog .save-slots button { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 4px 12px; text-align: left; }
+.save-slot-number { grid-row: span 2; align-self: center; color: var(--game-highlight); font: 24px/1 ui-monospace, monospace; }
+.save-slots strong { font-size: 15px; }
+.save-slots small { color: var(--game-muted); font-size: 12px; }
+.save-menu-status { font: 14px/1.4 system-ui, sans-serif; overflow-wrap: anywhere; }
+.save-menu-status[data-error="true"] { color: #f3a98c; }
+.save-menu-note { margin-top: 18px; font-size: 12px; }
+.game-dialog [data-save-retry] { margin-top: 12px; }
+#load-mission { left: 577px; top: 193px; padding: 2px; }
+
+@media (max-width: 480px) {
+  .start-menu-panel { padding: 18px; }
+  .start-menu-panel .faction-selector { grid-template-columns: minmax(0, 1fr); }
+  .campaign-launcher .start-menu-panel .faction-selector button { min-height: 92px; }
+  .start-menu-brand h2 { font-size: clamp(32px, 10vw, 48px); }
+  .game-dialog { padding: 16px; }
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  .main-menu-active .campaign-launcher {
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(240px, 1.1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    padding: 16px max(20px, env(safe-area-inset-right)) 16px max(20px, env(safe-area-inset-left));
+    gap: 12px 20px;
+  }
+  .campaign-launcher .start-menu-brand { margin-top: 0; grid-area: 1 / 1; }
+  .start-menu-brand h2 { font-size: 34px; margin: 6px 0; }
+  .start-menu-brand small { display: none; }
+  .start-menu-panel { grid-area: 1 / 2; width: 100%; max-height: 100%; overflow-y: auto; padding: 14px; }
+  .start-menu-actions { gap: 6px; }
+  .campaign-launcher .start-menu-actions > button { min-height: 44px; padding: 8px; }
+  .start-menu-footer { grid-area: 2 / 1 / 3 / -1; margin-top: 0; }
+}

@@ -1,4 +1,5 @@
 import { legacyHarvesterMotionTables } from "./legacy-harvester-movement";
+import { sha256Hex as digest } from "../sha256";
 
 export interface LegacyNativeGroundRouteTables {
   readonly costs: readonly number[];
@@ -239,8 +240,6 @@ export async function createLegacyNativeGroundRouteSource(input: {
 }): Promise<LegacyNativeGroundRouteSource> {
   const executable = Uint8Array.from(input.executable), map = Uint8Array.from(input.map), pth = Uint8Array.from(input.pth);
   const mission = input.mission;
-  const digest = async (bytes: Uint8Array) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", Uint8Array.from(bytes).buffer))]
-    .map(value => value.toString(16).padStart(2, "0")).join("");
   requireRoute(await digest(executable) === "65028ee7dca7db0fffd32160e282a5b360d8cf505fd55b53d1002063357a582b",
     "Unauthenticated native ground-route executable");
   requireRoute(missionHashes[mission] && await digest(map) === missionHashes[mission].map

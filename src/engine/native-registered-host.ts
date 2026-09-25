@@ -1,4 +1,5 @@
 import { parseFin } from "../../tools/extractors/animations/fin";
+import { sha256Hex as digest } from "../sha256";
 import { parseDependencies, parseWeaponStats } from "../../tools/extractors/data/tables";
 import { parseScenario } from "../../tools/extractors/data/scenario";
 import { finSourceDuration } from "../render/fin-animation";
@@ -66,10 +67,6 @@ function privateState(value: unknown, seen = new Set<object>()): void {
     requireValue("value" in descriptor, "Native state accessors unsupported");
     privateState(descriptor.value, seen);
   }
-}
-async function digest(bytes: Uint8Array): Promise<string> {
-  return [...new Uint8Array(await crypto.subtle.digest("SHA-256", Uint8Array.from(bytes).buffer))]
-    .map(value => value.toString(16).padStart(2, "0")).join("");
 }
 
 export interface NativeRegisteredAssets {

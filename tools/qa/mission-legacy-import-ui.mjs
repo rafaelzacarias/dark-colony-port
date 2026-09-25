@@ -20,7 +20,7 @@ try {
   const url = process.env.LIVE_QA_URL ?? "http://127.0.0.1:5173/";
   const rawSave = () => page.evaluate(async () => {
     const database = await new Promise((resolve, reject) => {
-      const request = indexedDB.open("dark-colony-mission-save", 1);
+      const request = indexedDB.open("dark-colony-mission-save");
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
@@ -34,7 +34,7 @@ try {
     } finally { database.close(); }
   });
   await page.goto(url);
-  await page.locator("[data-campaign-faction]").first().waitFor();
+  await page.waitForFunction(() => !document.querySelector("#campaign-launcher").inert);
   await page.evaluate(async () => {
     const { loadCampaignMission } = await import("/src/game-data.ts");
     const { MissionView } = await import("/src/mission-view.ts");
@@ -86,13 +86,17 @@ try {
     await dialog.accept();
   });
   await page.getByRole("button", { name: "Import legacy save", exact: true }).click();
+  await page.locator('[data-original-tab="options"]').click();
   await page.getByText("IMPORTED / UNSAVED", { exact: true }).waitFor();
   assert.match(report.acceptWarning, /stored save stays unchanged until I choose Save/);
   assert.equal(await rawSave(), original);
   assert.match(await page.locator("#save-mission-status").getAttribute("title"), /Explicit legacy import/);
   report.checks.push("confirmed import succeeds; notice exposed; raw save still unchanged");
   await page.screenshot({ path: join(directory, "imported-unsaved.png") });
+  await page.locator('[data-original-tab="options"]').click();
   await page.locator("#save-mission").click();
+  page.once("dialog", dialog => dialog.accept());
+  await page.locator('[data-save-slot="slot-1"]').click();
   await page.getByText("SAVED", { exact: true }).waitFor();
   const current = JSON.parse(await rawSave());
   assert.equal(current.checkpoint.session.replayPolicy, "current-population-v1");

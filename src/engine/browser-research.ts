@@ -1,7 +1,7 @@
 import type { DependencyRecord, UnitStatRecord } from "../../tools/extractors/data/tables";
 import { aiSelectorSourceCanonical } from "./ai-command-selector";
 import type { CampaignWorld } from "./campaign-world";
-import { transportHostState } from "./transport-host";
+import { readTransportHostState } from "./transport-host";
 
 export interface BrowserResearchConfiguration {
   readonly kind: "browser-research-source-v1";
@@ -79,7 +79,7 @@ export function observeBrowserResearch(world: CampaignWorld, configuration: Brow
   scienceOwner: string): BrowserResearchState {
   validateBrowserResearchConfiguration(world.source, configuration);
   requireResearch(scienceOwner === configuration.scienceOwner, "science owner mismatch");
-  const host = transportHostState(world);
+  const host = readTransportHostState(world);
   const teams = Array.from({ length: 8 }, (_, team) => {
     const sourceTeams = world.source.teams.filter(entry => entry.index === team), race = sourceTeams[0]?.race;
     requireResearch(sourceTeams.length === 1 && (race === 0 || race === 1), "source team/race mismatch");

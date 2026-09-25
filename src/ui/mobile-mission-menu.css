@@ -1,0 +1,63 @@
+.phone-controls-enabled .mobile-mission-menu {
+  width: min(620px, calc(100% - 24px));
+  max-width: none;
+  max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  padding: 0;
+  border: 1px solid var(--game-steel);
+  border-top: 3px solid var(--game-accent);
+  border-radius: 3px;
+  color: var(--game-text);
+  background: linear-gradient(135deg, #30302f, #101010 60%);
+  box-shadow: 0 24px 80px #000b;
+  font: 500 15px/1.4 "Avenir Next Condensed", sans-serif;
+}
+
+.phone-controls-enabled .mobile-mission-menu[open] { display: flex; flex-direction: column; }
+.phone-controls-enabled .mobile-mission-menu::backdrop { background: #000b; }
+.phone-controls-enabled .mobile-menu-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px; }
+.phone-controls-enabled .mobile-menu-heading p { color: var(--game-highlight); font-size: 10px; letter-spacing: 2px; }
+.phone-controls-enabled .mobile-menu-heading h2 { font-size: 22px; line-height: 1.2; }
+.phone-controls-enabled .mobile-mission-menu button {
+  min-height: 44px;
+  border: 1px solid var(--game-steel);
+  border-radius: 2px;
+  padding: 10px 14px;
+  color: var(--game-text);
+  background: var(--game-button);
+  box-shadow: inset 1px 1px #bcb7a833, inset -1px -1px #0008;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.phone-controls-enabled .mobile-mission-menu button:disabled { opacity: 0.6; cursor: not-allowed; }
+.phone-controls-enabled .mobile-mission-menu button:focus-visible { outline: 2px solid var(--game-highlight); outline-offset: -3px; }
+.phone-controls-enabled .mobile-mission-menu button:active:not(:disabled) { background: #49332b; }
+.phone-controls-enabled .mobile-menu-resources { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px; padding: 0 16px 12px; color: var(--game-muted); font-size: 12px; }
+.phone-controls-enabled [data-mobile-credits] { color: var(--game-highlight); font-weight: 700; }
+.phone-controls-enabled .mobile-menu-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 0 16px 12px; }
+.phone-controls-enabled .mobile-menu-tabs button[aria-pressed="true"] { color: var(--game-text); border-color: var(--game-accent); background: #49332b; }
+.phone-controls-enabled .mobile-menu-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 16px 16px; }
+.phone-controls-enabled .mobile-menu-hint, .phone-controls-enabled .mobile-menu-empty { margin: 0 0 12px; color: var(--game-muted); font-size: 13px; }
+.phone-controls-enabled .mobile-build-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.phone-controls-enabled .mobile-build-cards button { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; gap: 3px; text-align: left; }
+.phone-controls-enabled .mobile-build-kind { color: var(--game-muted); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+.phone-controls-enabled .mobile-build-icon { flex: none; background-repeat: no-repeat; image-rendering: pixelated; }
+.phone-controls-enabled .mobile-build-cards strong { font-size: 17px; }
+.phone-controls-enabled .mobile-build-cost { color: var(--game-highlight); font-size: 13px; }
+.phone-controls-enabled .mobile-build-cards small { font-size: 12px; color: var(--game-muted); overflow-wrap: anywhere; }
+.phone-controls-enabled .mobile-mission-options h3 { margin: 0; font-size: 16px; }
+.phone-controls-enabled .mobile-objectives { margin: 12px 0 20px; padding-left: 20px; }
+.phone-controls-enabled .mobile-objectives li + li { margin-top: 8px; }
+.phone-controls-enabled .mobile-option-buttons { display: grid; gap: 8px; }
+.phone-controls-enabled [data-mobile-option="exit"] { border-color: var(--game-accent); }
+.phone-controls-enabled .mobile-order-status { padding: 0 16px 12px; color: var(--game-highlight); font-size: 14px; }
+.phone-controls-enabled .mobile-order-status[data-error="true"] { color: #f1b68e; }
+.phone-controls-enabled .mobile-save-status { display: block; margin-top: 10px; }
+.phone-controls-enabled .mobile-order-status:empty,
+.phone-controls-enabled .mobile-menu-body [hidden] { display: none; }
+
+@media (max-height: 480px) {
+  .phone-controls-enabled .mobile-menu-heading { padding: 10px 16px; }
+  .phone-controls-enabled .mobile-menu-heading p { display: none; }
+  .phone-controls-enabled .mobile-menu-resources { padding-bottom: 6px; }
+  .phone-controls-enabled .mobile-menu-tabs { padding-bottom: 8px; }
+}

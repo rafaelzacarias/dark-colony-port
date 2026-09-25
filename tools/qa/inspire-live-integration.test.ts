@@ -243,7 +243,8 @@ test("verified base hit reads retained caster record, then new generation at the
 test("missing adapter/order, stale generation, unsupported FIN/actions and foreign selection fail closed", () => {
   const plain = new DeterministicSimulation(new NavigationGrid(2, 2));
   plain.queue({ type: "inspire", unitIds: [], team: 1 });
-  assert.throws(() => plain.advance(), /adapter/);
+  plain.advance();
+  assert.equal(Object.hasOwn(plain.checkpoint(), "adaptedInspire"), false, "adapter-less Inspire uses the adapted no-op path");
   const absent = fixture();
   absent.order.length = 0;
   assert.throws(() => absent.sim.advance(), /incomplete/);

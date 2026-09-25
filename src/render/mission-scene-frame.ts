@@ -336,7 +336,8 @@ export function createMissionSceneFrame(input: {
       } catch (error) { return reject(error instanceof Error ? error.message : String(error)); }
     },
     drawEntity(context: CanvasRenderingContext2D, rawSlot: number,
-      imageLookup: (sprite: string, part: FinCompositionPart) => CanvasImageSource | undefined): void {
+      imageLookup: (sprite: string, part: FinCompositionPart) => CanvasImageSource | undefined,
+      drawEffect?: (part: FinCompositionPart, origin: FinPoint, scale: number) => boolean): void {
       if (!slots.has(rawSlot)) throw new RangeError("Entity was not captured in this scene frame");
       bodiesStarted = true;
       for (const command of bySlot.get(rawSlot) ?? []) {
@@ -361,6 +362,7 @@ export function createMissionSceneFrame(input: {
             && issue !== "native-draw-mode:5" && issue !== "scene-mode-unverified");
           if (result.exact) continue;
           command.diagnostics.push("native-draw-mode:5", "scene-mode-unverified", result.diagnostic);
+          if (drawEffect?.(part, entity.fallbackOrigin, 1)) continue;
         }
         if (part.child.valueA === 1 && mode3AllocatedPixels) {
           const diagnostic = "mode1-shadow-shared-budget-unverified";

@@ -6,6 +6,7 @@ import { MissionView } from "../../src/mission-view";
 import { createFinSelector, createFinSourceSampler, TRSC_GRAY_VISUAL_DIRECTIONS,
   type FinAnimationData, type FinAtlasFrame } from "../../src/render";
 import { nativePaletteImage } from "../../src/render/mode1-canvas";
+import { composeFinSample, finBodyBounds } from "../../src/render/fin-composition";
 import { installSourceRender } from "./fixtures/source-render";
 
 test("corpse overlay: combat death draws original Die FIN frames, hides bars and selection, leaves saves unchanged", async context => {
@@ -63,14 +64,22 @@ test("corpse overlay: combat death draws original Die FIN frames, hides bars and
       assert.deepEqual(view!.checkpoint(), before, "repeated drawing leaves the full save unchanged");
       return before;
     };
-    present();
+    const living = present();
     const camera = view.cameraView;
     const screenX = (victim.xSubcells / 1024 - camera.x) * 32;
     const screenY = (camera.y + camera.height - victim.ySubcells / 1024) * 32;
-    const victimBars = () => bars.filter(bar => bar.rectangle[0] === screenX - 12 && bar.rectangle[1] === screenY - 22.4);
+    const livingState = living.state.animationStates.find(state => state.id === victim.id)!;
+    const livingSelection = createFinSelector(animation, { prefix: "GRAY", directions: TRSC_GRAY_VISUAL_DIRECTIONS,
+      layerOrder: "source" }).select(livingState.action, livingState.facing)!;
+    const livingSample = createFinSourceSampler(animation)(livingSelection, living.simulation.tick - livingState.since);
+    const body = finBodyBounds(composeFinSample(livingSample, (sprite, frame) =>
+      sprite.toUpperCase() === "GRAY" ? atlas.frames.find(entry => entry.index === frame) : undefined),
+    { x: screenX, y: screenY })!;
+    const barY = Math.round(body.top) - 5;
+    const victimBars = () => bars.filter(bar => bar.rectangle[0] === screenX - 12 && bar.rectangle[1] === barY);
     assert.deepEqual(victimBars(), [
-      { style: "rgba(0,0,0,.72)", rectangle: [screenX - 12, screenY - 22.4, 24, 3] },
-      { style: "#d45a4d", rectangle: [screenX - 12, screenY - 22.4, 24 * victim.health / victim.maxHealth, 2] },
+      { style: "rgba(0,0,0,.72)", rectangle: [screenX - 12, barY, 24, 3] },
+      { style: "#d45a4d", rectangle: [screenX - 12, barY, 24 * victim.health / victim.maxHealth, 2] },
     ]);
     assert.ok(rings.some(ring => ring[0] === screenX && ring[1] === screenY + 4));
     const livingBars = bars.filter(bar => !victimBars().includes(bar));

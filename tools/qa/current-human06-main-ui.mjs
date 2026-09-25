@@ -28,7 +28,10 @@ try {
   page = await context.newPage();
   page.setDefaultTimeout(30000);
   page.on("pageerror", error => report.errors.push(error.message));
-  page.on("dialog", dialog => { report.errors.push("Unexpected dialog: " + dialog.message()); void dialog.dismiss(); });
+  page.on("dialog", dialog => {
+    if (/^Overwrite save slot|^Return to the main menu/.test(dialog.message())) void dialog.accept();
+    else { report.errors.push("Unexpected dialog: " + dialog.message()); void dialog.dismiss(); }
+  });
   await page.goto("http://127.0.0.1:5173/");
   await page.locator("#campaign-launcher").waitFor({ state: "visible" });
   assert.equal(await page.evaluate(async () => (await import("/src/mission-save.ts")).readMissionSave()), null);
@@ -90,7 +93,9 @@ try {
   assert.equal(launched.diagnostic, null);
   assert.ok(launched.construction.length > 0);
   await record("Main NEXT MISSION loaded original H07 with construction", { ...launched, checkpoint: hash(launched.checkpoint) });
+  await page.locator('[data-original-tab="options"]').click();
   await page.locator("#save-mission").click();
+  await page.locator('[data-save-slot="slot-1"]').click();
   await page.waitForFunction(() => document.querySelector("#save-mission-status").textContent === "SAVED");
   const saved = await page.evaluate(async () => (await import("/src/mission-save.ts")).readMissionSave());
   assert.equal(saved.missionNumber, 7);

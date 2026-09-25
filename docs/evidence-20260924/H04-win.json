@@ -1,0 +1,26 @@
+{
+  "id": "H04",
+  "status": "WIN",
+  "tick": 35801,
+  "outcome": {
+    "resultCode": 0,
+    "reasonCode": 1,
+    "ready": true
+  },
+  "commands": 788,
+  "purchases": 76,
+  "settings": {
+    "DC_ARMY_WAVE": 40,
+    "DC_ARMY_HOLD_UNTIL": 22000
+  },
+  "proof": {
+    "id": "H04",
+    "status": "WIN",
+    "exact": true,
+    "fromTick": 35600,
+    "toTick": 35801,
+    "hash": "0091fcef123172490dc05baad4460bedfdd19bc3a66ab73e2d11697383de4665",
+    "sourceHash": "6255a32fe1a407b87f2bf8334c67f262b3f8c6f3c08505b15817d23801e4b8c7",
+    "elapsedMs": 354820
+  }
+}

@@ -7,7 +7,6 @@ import { MissionView, missionAnimationArchives, missionMiningVisualType, mission
 import { composeFinSample, createFinFrameLookup, createFinSelector, createFinSourceSampler,
   TRSC_GRAY_VISUAL_DIRECTIONS, type FinAnimationData, type FinAtlasFrame } from "../../src/render";
 import { nativePaletteImage } from "../../src/render/mode1-canvas";
-import { adaptedGoldExtractorIndices } from "../../src/render/mission-sprites";
 import { installSourceRender } from "./fixtures/source-render";
 
 const read = (path: string) => readFileSync(new URL(`../../public/assets/generated/${path}`, import.meta.url));
@@ -82,9 +81,7 @@ for (const faction of ["human", "alien"] as const) {
       context.mock.method(drawing, "drawImage", (image: CanvasImageSource, ...coordinates: number[]) => {
         if (!matching.has(image)) {
           const atlas = nativePaletteImage(image);
-          const expectedIndices = atlas && faction === "human"
-            ? Buffer.from(adaptedGoldExtractorIndices(indices, atlas.palette, atlas.remap)) : indices;
-          matching.set(image, !!atlas && expectedIndices.equals(atlas.indices) && coverage.equals(atlas.coverage));
+          matching.set(image, !!atlas && indices.equals(atlas.indices) && coverage.equals(atlas.coverage));
         }
         if (!matching.get(image)) return;
         selectors.add(nativePaletteImage(image)!.selector);
@@ -176,7 +173,7 @@ for (const faction of ["human", "alien"] as const) {
       assert.deepEqual(economy, originalEconomy);
       assert.deepEqual(live, originalUnit);
       assert.ok(render().some(frame => source.frames.has(frame)), `${sprite} Stand child reaches drawImage`);
-      if (faction === "human") assert.deepEqual([...selectors], [2], "player extractor uses original gold palette ramp");
+      assert.equal(selectors.size, 1, "player extractor uses one unaltered team palette selector");
       const saved = view.checkpoint();
       const restored = MissionView.restore(renderer.canvas(), {} as HTMLElement, callbacks, mission,
         JSON.parse(JSON.stringify(saved)));

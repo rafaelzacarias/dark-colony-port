@@ -13,6 +13,101 @@ const images = new WeakMap<CanvasImageSource, NativePaletteAtlas>();
 const shadeMaps = new WeakMap<RemapTable, WeakMap<Uint8Array, ReadonlyMap<number, number>>>();
 export const MODE1_CANVAS_PIXEL_BUDGET = 128 * 1024;
 
+type Rect = { x: number; y: number; width: number; height: number };
+interface ShadowSurface { active: boolean; image: ImageData | null; dirty: Rect[] }
+const surfaces = new WeakMap<CanvasRenderingContext2D, ShadowSurface>();
+const prototype = typeof CanvasRenderingContext2D === "undefined" ? undefined : CanvasRenderingContext2D.prototype;
+let mirrorEnabled = true;
+
+/** QA switch: false restores one readback per shadow so the two paths can be compared pixel for pixel. */
+export function setMode1ShadowMirror(enabled: boolean): void { mirrorEnabled = enabled; }
+
+// A getImageData call costs ~0.2 ms however small; a frame with ten shadows spent 5 ms reading back. One mirror of the
+// canvas is read per frame and only rectangles drawn since the last shadow are re-read, so results stay pixel-identical.
+export function beginMode1ShadowFrame(context: CanvasRenderingContext2D): void {
+  if (!prototype || !(context instanceof CanvasRenderingContext2D)) return;
+  let surface = surfaces.get(context);
+  if (!surface) {
+    surface = { active: false, image: null, dirty: [] };
+    surfaces.set(context, surface);
+    const state = surface;
+    const all = () => { if (state.active) { state.image = null; state.dirty.length = 0; } };
+    const mark = (x: number, y: number, width: number, height: number) => {
+      if (!state.active || !state.image) return;
+      const t = context.getTransform();
+      if (!Number.isFinite(x + y + width + height)) { all(); return; }
+      const xs = [x, x + width], ys = [y, y + height];
+      const px = xs.flatMap(cx => ys.map(cy => t.a * cx + t.c * cy + t.e)), py = xs.flatMap(cx => ys.map(cy => t.b * cx + t.d * cy + t.f));
+      const left = Math.floor(Math.min(...px)) - 1, top = Math.floor(Math.min(...py)) - 1;
+      state.dirty.push({ x: left, y: top, width: Math.ceil(Math.max(...px)) + 2 - left, height: Math.ceil(Math.max(...py)) + 2 - top });
+    };
+    const wrap = <Name extends keyof CanvasRenderingContext2D>(name: Name, dirty: (...args: any[]) => void) => {
+      const original = prototype[name] as unknown as (...args: unknown[]) => unknown;
+      Object.defineProperty(context, name, { configurable: true, writable: true,
+        value(...args: unknown[]) { dirty(...args); return original.apply(context, args); } });
+    };
+    wrap("drawImage", (image: CanvasImageSource & { width?: number; height?: number }, ...rest: number[]) => {
+      if (rest.length === 2) mark(rest[0], rest[1], Number(image.width), Number(image.height));
+      else if (rest.length === 4) mark(rest[0], rest[1], rest[2], rest[3]);
+      else if (rest.length === 8) mark(rest[4], rest[5], rest[6], rest[7]);
+      else all();
+    });
+    for (const name of ["fillRect", "strokeRect", "clearRect"] as const) {
+      wrap(name, (x: number, y: number, width: number, height: number) => mark(x - 2, y - 2, width + 4, height + 4));
+    }
+    for (const name of ["fill", "stroke", "fillText", "strokeText", "putImageData", "reset"] as const) {
+      if (name in prototype) wrap(name, all);
+    }
+  }
+  surface.active = true; surface.image = null; surface.dirty.length = 0;
+}
+
+export function endMode1ShadowFrame(context: CanvasRenderingContext2D): void {
+  const surface = surfaces.get(context);
+  if (surface) { surface.active = false; surface.image = null; surface.dirty.length = 0; }
+}
+
+/** Canvas-sized mirror whose pixels inside `region` match the canvas, or undefined outside a shadow frame. */
+export function mirroredRegion(context: CanvasRenderingContext2D, region: Rect): ImageData | undefined {
+  const surface = surfaces.get(context);
+  if (!surface?.active || !prototype || !mirrorEnabled) return undefined;
+  const width = context.canvas.width, height = context.canvas.height;
+  // The first shadow of a frame reads the whole canvas once; later shadows only re-read what was drawn since.
+  if (!surface.image || surface.image.width !== width || surface.image.height !== height) {
+    surface.image = prototype.getImageData.call(context, 0, 0, width, height);
+    surface.dirty.length = 0;
+    return surface.image;
+  }
+  const image = surface.image;
+  // One read covers every stale rectangle the region touches; clean pixels inside that box already match the canvas.
+  let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
+  for (const rect of surface.dirty) {
+    const l = Math.max(0, rect.x, region.x), t = Math.max(0, rect.y, region.y);
+    const r = Math.min(width, rect.x + rect.width, region.x + region.width), b = Math.min(height, rect.y + rect.height, region.y + region.height);
+    if (r <= l || b <= t) continue;
+    left = Math.min(left, l); top = Math.min(top, t); right = Math.max(right, r); bottom = Math.max(bottom, b);
+  }
+  if (right <= left || bottom <= top) return image;
+  surface.dirty = surface.dirty.flatMap(rect => {
+    const l = Math.max(rect.x, left), t = Math.max(rect.y, top), r = Math.min(rect.x + rect.width, right), b = Math.min(rect.y + rect.height, bottom);
+    if (r <= l || b <= t) return [rect];
+    return [{ x: rect.x, y: rect.y, width: rect.width, height: t - rect.y },
+      { x: rect.x, y: b, width: rect.width, height: rect.y + rect.height - b },
+      { x: rect.x, y: t, width: l - rect.x, height: b - t },
+      { x: r, y: t, width: rect.x + rect.width - r, height: b - t }].filter(part => part.width > 0 && part.height > 0);
+  });
+  const fresh = prototype.getImageData.call(context, left, top, right - left, bottom - top);
+  for (let row = 0; row < bottom - top; row++) {
+    image.data.set(fresh.data.subarray(row * (right - left) * 4, (row + 1) * (right - left) * 4), ((top + row) * width + left) * 4);
+  }
+  return image;
+}
+
+/** Writes a mirror rectangle back without invalidating the mirror (the written pixels are the mirror's own). */
+export function writeMirroredRegion(context: CanvasRenderingContext2D, mirror: ImageData, region: Rect): void {
+  prototype!.putImageData.call(context, mirror, 0, 0, region.x, region.y, region.width, region.height);
+}
+
 export function registerNativePaletteImage(image: CanvasImageSource, atlas: NativePaletteAtlas): void {
   if (!Number.isInteger(atlas.width) || !Number.isInteger(atlas.height) || atlas.width < 1 || atlas.height < 1
     || atlas.indices.length !== atlas.width * atlas.height || atlas.coverage.length !== atlas.indices.length
@@ -87,10 +182,32 @@ export function drawNativeMode1CanvasShadow(input: {
   }
   const width = right - left + 1, height = bottom - top + 1;
   if (width * height > MODE1_CANVAS_PIXEL_BUDGET) return { diagnostic: "mode1-shadow-readback-budget" } as const;
+  const colors = shadeMap(atlas);
+  let mirror: ImageData | undefined;
+  try { mirror = mirroredRegion(context, { x: left - camera.x, y: top - camera.y, width, height }); }
+  catch { return { diagnostic: "mode1-shadow-readback-unavailable" } as const; }
+  if (mirror) {
+    const stride = mirror.width, targets = new Int32Array(pixels.length), shades = new Int32Array(pixels.length);
+    for (let index = 0; index < pixels.length; index++) {
+      const target = ((pixels[index].y - camera.y) * stride + pixels[index].x - camera.x) * 4;
+      const source = mirror.data[target] * 65536 + mirror.data[target + 1] * 256 + mirror.data[target + 2];
+      const shade = colors.get(source);
+      if (mirror.data[target + 3] !== 255 || shade === undefined || shade < 0) {
+        return { diagnostic: "mode1-shadow-destination-palette-ambiguous" } as const;
+      }
+      targets[index] = target; shades[index] = shade;
+    }
+    for (let index = 0; index < targets.length; index++) {
+      mirror.data[targets[index]] = shades[index] >>> 16;
+      mirror.data[targets[index] + 1] = (shades[index] >>> 8) & 255;
+      mirror.data[targets[index] + 2] = shades[index] & 255;
+    }
+    prototype!.putImageData.call(context, mirror, 0, 0, left - camera.x, top - camera.y, width, height);
+    return { plan, readbackPixels: width * height } as const;
+  }
   let imageData: ImageData;
   try { imageData = context.getImageData(left - camera.x, top - camera.y, width, height); }
   catch { return { diagnostic: "mode1-shadow-readback-unavailable" } as const; }
-  const colors = shadeMap(atlas);
   for (const pixel of pixels) {
     const target = ((pixel.y - top) * width + pixel.x - left) * 4;
     const source = imageData.data[target] * 65536 + imageData.data[target + 1] * 256 + imageData.data[target + 2];

@@ -1,4 +1,5 @@
 import type { CampaignWorld } from "./campaign-world";
+import { sha256Hex } from "../sha256";
 import { SUBCELLS_PER_CELL } from "./constants";
 import type { LegacyUnitStat } from "./legacy-balance";
 import { initializeLegacyResource } from "./legacy-resource";
@@ -87,7 +88,6 @@ export async function createBrowserCampaignEconomyProfile(input: {
     initialCredits: Object.fromEntries(teams.map(team => [team.index, team.money])), nodes, harvesters, dropoffs,
   };
   const bytes = new TextEncoder().encode(JSON.stringify({ source: world.source, configuration }));
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  const profileId = Array.from(new Uint8Array(digest), value => value.toString(16).padStart(2, "0")).join("");
+  const profileId = await sha256Hex(bytes);
   return { ...configuration, profileId };
 }

@@ -17,6 +17,25 @@ export interface FinCompositionPart extends FinPoint {
   readonly diagnostics: readonly string[];
 }
 
+export interface FinBodyBounds {
+  readonly left: number;
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+}
+
+export function finBodyBounds(parts: readonly FinCompositionPart[], origin: FinPoint, scale = 1): FinBodyBounds | undefined {
+  const body = parts.filter(part => part.frame && !part.frame.empty && part.frame.width > 0 && part.frame.height > 0
+    && (part.child.valueA === 0 || part.child.valueA === 1));
+  if (!body.length) return undefined;
+  return {
+    left: origin.x + Math.min(...body.map(part => part.x)) * scale,
+    top: origin.y + Math.min(...body.map(part => part.y)) * scale,
+    right: origin.x + Math.max(...body.map(part => part.x + part.frame!.width)) * scale,
+    bottom: origin.y + Math.max(...body.map(part => part.y + part.frame!.height)) * scale,
+  };
+}
+
 export function composeFinSample(
   sample: FinSample,
   lookup: (sprite: string, frame: number) => FinAtlasFrame | undefined,
@@ -71,8 +90,10 @@ export function drawFinComposition(
   imageLookup: (sprite: string, part: FinCompositionPart) => CanvasImageSource | undefined,
   origin: FinPoint,
   scale: number,
+  drawEffect?: (part: FinCompositionPart, origin: FinPoint, scale: number) => boolean,
 ): void {
   for (const part of parts) {
+    if (part.child.valueA === 5 && drawEffect?.(part, origin, scale)) continue;
     const image = imageLookup(part.child.sprite, part);
     const frame = part.frame;
     context.save();

@@ -1,4 +1,5 @@
 import { assetUrl } from "../asset-url";
+import { sha256Hex as sha256 } from "../sha256";
 import { loadSourceProductionOptions, type SourceProductionBootConfiguration } from "./source-production-options";
 import { campaignResourceFrame, type CampaignResourceFrameInput } from "./campaign-resource-frame";
 import type { CampaignWorld } from "./campaign-world";
@@ -32,11 +33,6 @@ const MISSIONS = {
 
 function requireSource(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`Source resource: ${message}`);
-}
-
-async function sha256(bytes: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", Uint8Array.from(bytes).buffer);
-  return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, "0")).join("");
 }
 
 export function selectSourceResourceConfiguration(profile: SourceProductionBootConfiguration,

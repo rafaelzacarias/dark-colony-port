@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { appendFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { fork } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { loadCampaignMission } from "../../src/game-data";
+import { loadReleaseMission, savedView } from "./fixtures/release-mission";
 import { MissionView } from "../../src/mission-view";
 import { parseTriggerScript } from "../extractors/data/triggers";
 import { installSourceRender } from "./fixtures/source-render";
@@ -70,7 +70,7 @@ export async function preflight06(faction: Faction06, output: string) {
     return new Response(read(`public${path}`));
   };
   try {
-    const mission = await loadCampaignMission(faction, 6, "browser-adapted");
+    const mission = await loadReleaseMission(faction, 6);
     const contract = inspect06(mission);
     writeFileSync(`${output}/${faction}-source.json`, JSON.stringify({ contract, scenario: mission.scenario,
       triggers: mission.triggers, commanderOptions: sourceBrowserCampaignSessionOptions(mission).commanders }));
@@ -132,7 +132,7 @@ export async function run06(faction: Faction06, output: string, limits = limits0
     return new Response(bytes);
   };
   try {
-    const mission = await loadCampaignMission(faction, 6, "browser-adapted");
+    const mission = await loadReleaseMission(faction, 6, savedView(proofDirectory ? `${proofDirectory}/pending-win.json` : resume));
     const contract = inspect06(mission);
     write("source", { ...contract, limits, commanderOptions: sourceBrowserCampaignSessionOptions(mission).commanders,
       limitation: "Original-script browser-adapted MissionView with real loader and NullCanvas; not browser or native parity." });

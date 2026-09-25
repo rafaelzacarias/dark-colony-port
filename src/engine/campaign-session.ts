@@ -5,6 +5,7 @@ import { browserConstructionChoices, browserConstructionSlots, createBrowserCons
   type BrowserConstructionConfiguration, type BrowserConstructionState, type BrowserConstructionRequest, type BrowserConstructionTransition } from "./browser-construction";
 import { browserVisionArtifact } from "./browser-artifacts";
 import { initializeBrowserCasualtyPickup, sourceUnitIsCommander } from "./browser-casualty-pickup";
+import { CONTACT_PICKUP_STATE_OFFSET, scanBrowserContactPickups } from "./browser-contact-pickups";
 import { createCampaignWorld, createCampaignWorldAdapter, projectAdaptedTro, type AdaptedTroProjection,
   type CampaignEntity, type CampaignMessage, type CampaignWorld } from "./campaign-world";
 import { aiSelectorSourceCanonical, initializeAiSelectors, retainAiSelectorOwner, validateAiSelectorConfiguration,
@@ -43,7 +44,7 @@ import { ADAPTED_UNIT_PRODUCTION_SOURCES, createCampaignProduction, productionPr
   type ProductionSourceProfile } from "./campaign-production";
 import { createMissionController, executeMissionTransaction, hasEnabledMissionTrip, missionBailDeadlineExceeded,
   type MissionActionTrace, type MissionCommandReceipt, type MissionControllerState, type PlannedMissionCommand } from "./mission-controller";
-import { cloneTransportHostWorld, projectTransportConstruction, validateTransportConstruction, commandNativeHarvest, validateNativeMovement, bindCampaignResourceTask, configureCampaignResourceLifecycle, createTransportHostAdapter, initializeTransportHost, stepTransportHost, transportHostDefinition, transportHostState, updateTransportHostUnit,
+import { cloneTransportHostWorld, projectTransportConstruction, validateTransportConstruction, commandNativeHarvest, validateNativeMovement, bindCampaignResourceTask, configureCampaignResourceLifecycle, createTransportHostAdapter, initializeTransportHost, stepOwnedTransportHost, transportHostDefinition, transportHostState, updateTransportHostUnit,
   initializeTransportHostNativeAiTasks, initializeTransportHostNativeCombat, stepTransportHostVisibility, receiveTransportHostAiPolicy, validateNativeAiTaskConfiguration, validateNativeAiTaskAlignment,
   type NativeAiTaskConfiguration, type NativeAiTaskFrame,
   type NativeHarvestCommand,
@@ -644,7 +645,9 @@ function rebuildOccupancy(host: TransportHostState, staticSlots: readonly number
     requireSession(definition, "Missing reserved production definition");
     host[definition.plane][reservation.tile.y * host.width + reservation.tile.x] = 1022;
   }
-  for (const entity of host.slots) {
+  // A08 trip 13 drops a mine line (47,0..9) as a trooper steps onto 47,6; mines are proximity triggers, so movers keep shared cells.
+  const isMine = (entity: TransportHostState["slots"][number]) => browserAdapted && (entity?.unitType === 45 || entity?.unitType === 46);
+  for (const entity of [...host.slots.filter(entity => !isMine(entity)), ...host.slots.filter(isMine)]) {
     if (!entity || staticSet.has(entity.slot) || entity.team === 8 || entity.status === 0 || entity.status === 10) continue;
     if (entity.nativeAiTask) {
       const cells = host.nativeAiTasks!.ground.flatMap((word, index) => (word & 1023) === entity.slot ? [index] : []);
@@ -666,6 +669,7 @@ function rebuildOccupancy(host: TransportHostState, staticSlots: readonly number
     const index = tileY * host.width + tileX;
     const reservedExit = browserAdapted && !host.nativeCombat && !host.nativeAiTasks && !host.resourceLifecycle
       && host[definition.plane][index] === 1022;
+    if (isMine(entity) && tileX < host.width && tileY < host.height && host[definition.plane][index] !== -1) continue;
     requireSession(tileX < host.width && tileY < host.height && (host[definition.plane][index] === -1 || reservedExit) &&
       (definition.plane === "flying" || host.groundEligible[index]), `Occupied or ineligible ${definition.plane} cell ${tileX},${tileY}`);
     host[definition.plane][index] = entity.slot;
@@ -736,6 +740,38 @@ function synchronizeRawAndHost(state: CampaignSessionState, options: CampaignSes
     view.setUint32(offset + 12, entity.health, true);
   }
   if (changedPlane) rebuildOccupancy(host, state.staticSlots, state.world.browserCasualtyPickup?.runtimeProfile === "browser-adapted", state.world.source);
+}
+
+function collectBrowserContactPickups(state: CampaignSessionState): CampaignSessionState {
+  const host = hostOf(state.world);
+  const pickups = scanBrowserContactPickups(state.world, host, state.staticSlots, state.cycleCounter);
+  if (!pickups.length) return state;
+  const bytes = state.world.entityBytes!;
+  const exomoney = { ...state.world.exomoney };
+  const removed = new Set<number>();
+  const joined = new Set<number>();
+  for (const pickup of pickups) {
+    const record = host.slots[pickup.slot];
+    bytes[pickup.slot * 220 + CONTACT_PICKUP_STATE_OFFSET] = 0;
+    if (pickup.kind === "join") {
+      bytes[pickup.slot * 220 + 7] = 0;
+      if (record) record.team = 0;
+      joined.add(pickup.slot);
+      continue;
+    }
+    const total = (exomoney[pickup.collector.team] ?? 0) + pickup.amount;
+    requireSession(total >= -0x80000000 && total <= 0x7fffffff, "Contact pickup money exceeds the native int32 field");
+    exomoney[pickup.collector.team] = total;
+    bytes[pickup.slot * 220 + 0x2c] = 0;
+    if (record) { record.status = 0; host.registry[pickup.slot] = null; }
+    removed.add(pickup.slot);
+    host.requests.push({ type: "unregister", slot: pickup.slot, generation: pickup.generation });
+  }
+  const staticSlots = state.staticSlots.filter(slot => !removed.has(slot));
+  rebuildOccupancy(host, staticSlots, true, state.world.source);
+  return { ...state, staticSlots,
+    world: { ...state.world, exomoney, entities: state.world.entities.filter(entity => !removed.has(entity.rawSlot!))
+      .map(entity => joined.has(entity.rawSlot!) ? { ...entity, team: 0 } : entity) } };
 }
 
 function applyUnitBatch(state: CampaignSessionState, updates: readonly HostUnitUpdate[]): CampaignSessionState {
@@ -1561,6 +1597,14 @@ function freezeSessionHistory<Value>(value: Value, seen = new WeakSet<object>())
   return value;
 }
 
+function deepFreeze<Value>(value: Value): Value {
+  if (value && typeof value === "object" && !Object.isFrozen(value) && !ArrayBuffer.isView(value)) {
+    Object.freeze(value);
+    for (const child of Object.values(value)) deepFreeze(child);
+  }
+  return value;
+}
+
 function cloneSessionState(state: CampaignSessionState, shareBrowserHistory = false): CampaignSessionState {
   const { world, aiSelectorInputs, production, ...operational } = state;
   return { ...structuredClone(operational), world: cloneTransportHostWorld(world),
@@ -1591,6 +1635,9 @@ export class CampaignSession {
   private includeReplayPolicy = true;
   private adaptedProjectionCache?: { state: CampaignSessionState; value: AdaptedTroProjection };
   private browserProjectionCache?: { state: CampaignSessionState; value: BrowserCampaignProjection };
+  // Per committed state; values are deep-frozen because every caller shares them.
+  private hudSnapshotCache?: { state: CampaignSessionState; value: ReturnType<CampaignSession["buildHudSnapshot"]> };
+  private constructionStatusCache?: { state: CampaignSessionState; value: ReturnType<CampaignSession["buildConstructionStatus"]> };
 
   constructor(options: CampaignSessionOptions, fork?: CampaignSession) {
     if (!fork && options.browserEconomy) {
@@ -1624,9 +1671,20 @@ export class CampaignSession {
     const { aiSelectorInputs: _history, ...state } = this.current;
     return structuredClone(state);
   }
+  /** Exit tiles of producers whose next unit is waiting to start. */
+  get browserWaitingProductionExits(): { readonly team: number; readonly x: number; readonly y: number }[] {
+    const production = this.current.production;
+    if (!production) return [];
+    return production.teams.flatMap(team => team.queues.flatMap(queue => {
+      const head = queue.items[0];
+      const source = head && queue.ready === 1 && !queue.allocation ? production.units.find(unit => unit.unitType === head.unitType) : undefined;
+      return source ? [{ team: team.team, x: team.base.x + source.exitOffset.x, y: team.base.y + source.exitOffset.y }] : [];
+    }));
+  }
+  /** Current world, uncloned: steps always clone before mutating, so callers must treat it as read-only. */
   get browserResearchWorld(): CampaignWorld {
     requireSession(this.runtimeProfile === "browser-adapted", "Research observation requires adapted session");
-    return cloneTransportHostWorld(this.current.world);
+    return this.current.world;
   }
 
   browserResearchFrame(research: BrowserResearchConfiguration,
@@ -1634,7 +1692,13 @@ export class CampaignSession {
       readonly updates: readonly HostUnitUpdate[];
     }): BrowserType37Frame {
     requireSession(this.runtimeProfile === "browser-adapted", "Research observation requires adapted session");
-    const projected = refreshFeedback(applyUnitBatch(cloneSessionState(this.current, true), input.updates), this.options);
+    // applyUnitBatch only assigns slot-record fields and writes registry, requests, occupancy planes and raw bytes;
+    // copying exactly those keeps the committed state untouched without a full session clone (~1.7 ms per H13 tick).
+    const { world } = this.current, host = hostOf(world);
+    const preview: CampaignSessionState = { ...this.current, world: { ...world, entityBytes: world.entityBytes!.slice(),
+      transportState: { ...host, slots: host.slots.map(slot => slot && { ...slot }), registry: [...host.registry],
+        requests: [...host.requests], ground: host.ground.slice(), flying: host.flying.slice() } } };
+    const projected = refreshFeedback(applyUnitBatch(preview, input.updates), this.options);
     return observeBrowserResearchType37Frame(projected.world, research, { ...input,
       research, scienceOwner: research.scienceOwner });
   }
@@ -1651,22 +1715,32 @@ export class CampaignSession {
   }
   get browserHudSnapshot() {
     requireSession(this.runtimeProfile === "browser-adapted", "Browser view requires adapted runtime");
+    if (this.hudSnapshotCache?.state !== this.current) this.hudSnapshotCache = { state: this.current, value: this.buildHudSnapshot() };
+    return this.hudSnapshotCache.value;
+  }
+  private buildHudSnapshot() {
     const { world, controller, production, browserConstruction } = this.current, host = hostOf(world);
-    return structuredClone({ controller: { runtime: { statistics: controller.runtime.statistics } },
+    return deepFreeze(structuredClone({ controller: { runtime: { statistics: controller.runtime.statistics } },
       world: { entities: world.entities.filter(entity => entity.unitType === 40 && entity.team === 8), exomoney: world.exomoney },
       transport: { slots: host.slots.map(slot => slot?.unitType === 40 && slot.team === 8 ? slot : null) },
       ...(browserConstruction ? { browserConstruction } : {}),
-      ...(production ? { production: { ...production, journal: [], requests: [] } } : {}) });
+      ...(production ? { production: { ...production, journal: [], requests: [] } } : {}) }));
   }
 
   get browserConstructionStatus() {
     if (!this.options.browserConstruction || !this.current.browserConstruction) return undefined;
-    const configuration = this.options.browserConstruction;
-    return structuredClone({ state: this.current.browserConstruction, credits: this.current.world.exomoney[0],
-      slots: browserConstructionSlots(configuration, this.current.browserConstruction, this.current.world),
-      choices: browserConstructionChoices(configuration, this.current.browserConstruction, this.current.world),
+    if (this.constructionStatusCache?.state !== this.current) {
+      this.constructionStatusCache = { state: this.current, value: this.buildConstructionStatus() };
+    }
+    return this.constructionStatusCache.value;
+  }
+  private buildConstructionStatus() {
+    const configuration = this.options.browserConstruction!, construction = this.current.browserConstruction!;
+    return deepFreeze(structuredClone({ state: construction, credits: this.current.world.exomoney[0],
+      slots: browserConstructionSlots(configuration, construction, this.current.world),
+      choices: browserConstructionChoices(configuration, construction, this.current.world),
       health: this.current.world.buildingSlots["0,0"], restricted:
-        (this.current.world.adaptedTro?.dependencyRestrictions[0] ?? this.current.world.source.teams[0].dependencies ?? []).includes(configuration.dependency) });
+        (this.current.world.adaptedTro?.dependencyRestrictions[0] ?? this.current.world.source.teams[0].dependencies ?? []).includes(configuration.dependency) }));
   }
 
   #projectBrowserView(state: CampaignSessionState): Omit<BrowserViewFrame, "entry" | "bailExpired"> {
@@ -1674,9 +1748,10 @@ export class CampaignSession {
     const host = hostOf(world);
     const transport = { kind: host.kind, slots: host.slots, registry: host.registry, generations: host.generations,
       reducer: { carriers: host.reducer.carriers }, fifos: host.fifos, nativeCombat: { death: false } };
-    return structuredClone({ cycleCounter,
+    // Shared, not cloned: steps always clone before mutating, and a deep-frozen frame survived 10k army-bot ticks on H10/H12/A13.
+    return { cycleCounter,
       controller: { runtime: { bail: controller.runtime.bail, statistics: controller.runtime.statistics } },
-      world: { ...world, messages: world.messages.slice(-1), transportState: transport }, transport });
+      world: { ...world, messages: world.messages.slice(-1), transportState: transport }, transport };
   }
   get latestJournalEntry(): CampaignSessionJournalEntry | undefined {
     const index = (this.journalStart + this.entries.length - 1) % this.entries.length;
@@ -2206,12 +2281,13 @@ export class CampaignSession {
         staged = refreshFeedback(staged, this.options);
         const built = unwrap(campaignResourceFrame({ ...input.resourceFrameSource,
           sourceDayNight: staged.sourceDayNight, buildingSlots: staged.world.buildingSlots }));
-        const world = unwrap(stepTransportHost(staged.world, built.resourceFrame, input.nativeAiFrame));
+        const world = unwrap(stepOwnedTransportHost(staged.world, built.resourceFrame, input.nativeAiFrame));
         staged = { ...staged, world, sourceDayNight: built.sourceDayNight,
           controller: { ...staged.controller, runtime: { ...staged.controller.runtime, statistics: world.statistics } } };
       } else {
         requireSession(input.resourceFrameSource === undefined, "Resource frame requires opt-in lifecycle configuration");
-        staged = { ...staged, world: unwrap(stepTransportHost(staged.world, undefined, input.nativeAiFrame)) };
+        // staged.world comes from this step's private cloneSessionState copy and is discarded if the step throws.
+        staged = { ...staged, world: unwrap(stepOwnedTransportHost(staged.world, undefined, input.nativeAiFrame)) };
       }
       synchronizeRawAndHost(staged, this.options);
       staged = refreshFeedback(staged, this.options);
@@ -2230,6 +2306,15 @@ export class CampaignSession {
         staged = publishProductionCredits(staged);
         synchronizeRawAndHost(staged, this.options);
         staged = refreshFeedback(staged, this.options);
+      }
+      // Contact objects run after the view-supplied production census so their joins/removals count from the next cycle.
+      if (this.runtimeProfile === "browser-adapted" && !hostOf(staged.world).nativeCombat && !hostOf(staged.world).nativeAiTasks) {
+        const collected = collectBrowserContactPickups(staged);
+        if (collected !== staged) {
+          staged = collected;
+          synchronizeRawAndHost(staged, this.options);
+          staged = refreshFeedback(staged, this.options);
+        }
       }
       if (staged.world.scenarioMarkers) {
         for (const [team, enabled] of (input.type37Frame?.spyTeams ?? []).entries()) {

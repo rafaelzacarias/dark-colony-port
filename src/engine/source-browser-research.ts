@@ -1,4 +1,5 @@
 import { assetUrl } from "../asset-url";
+import { sha256Hex } from "../sha256";
 import type { CampaignMissionData } from "../game-data";
 import type { DependencyRecord } from "../../tools/extractors/data/tables";
 import { createBrowserResearchConfiguration } from "./browser-research";
@@ -12,8 +13,7 @@ export async function loadSourceBrowserResearchConfiguration(mission: CampaignMi
     return new Uint8Array(await response.arrayBuffer());
   }) {
   const bytes = await loadBytes(assetUrl("/assets/generated/data/dependencies.json"));
-  const digest = await crypto.subtle.digest("SHA-256", Uint8Array.from(bytes).buffer);
-  const hash = Array.from(new Uint8Array(digest), value => value.toString(16).padStart(2, "0")).join("");
+  const hash = await sha256Hex(bytes);
   if (hash !== DEPEND_HASH) throw new TypeError("Browser research: source DEPEND hash mismatch");
   const dependencies = JSON.parse(new TextDecoder().decode(bytes)) as { records: DependencyRecord[] };
   const { rawScenario: _rawScenario, ...source } = mission.scenario;

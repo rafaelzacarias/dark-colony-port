@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { appendFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { fork } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { loadCampaignMission } from "../../src/game-data";
+import { loadReleaseMission, savedView } from "./fixtures/release-mission";
 import { MissionView } from "../../src/mission-view";
 import { parseTriggerScript } from "../extractors/data/triggers";
 import { installSourceRender } from "./fixtures/source-render";
@@ -102,7 +102,7 @@ export async function preflight04(faction: Faction04, output: string) {
     return new Response(read(`public${path}`));
   };
   try {
-    const mission = await loadCampaignMission(faction, 4, "browser-adapted");
+    const mission = await loadReleaseMission(faction, 4);
     const contract = inspectMission04(mission);
     view = new MissionView(renderer.canvas(), {} as HTMLElement, { onStats() {}, onUnitsChanged() {} }, mission);
     await view.initialize();
@@ -156,7 +156,7 @@ export async function runMission04(faction: Faction04, output: string, limits = 
   };
   let result: Record<string, unknown> = { status: "RUNTIME_BLOCKER" };
   try {
-    const mission = await loadCampaignMission(faction, 4, "browser-adapted");
+    const mission = await loadReleaseMission(faction, 4, savedView(proofDirectory && `${proofDirectory}/pending-win.json`));
     const contract = inspectMission04(mission);
     write("source", { ...contract, limits, runtimeHashes: beforeHashes,
       limitation: "Original-script browser-adapted MissionView with QA NullCanvas; not native parity or browser visual evidence." });

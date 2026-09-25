@@ -13,7 +13,7 @@ const parsed = ts.createSourceFile("main.ts", source, ts.ScriptTarget.Latest, tr
 const functionNames = new Set([
   "activeMission", "resetMissionControls", "hideCampaignUi", "showCampaignLauncher",
   "refreshMissionSave", "startCampaign", "updateSkirmishStats", "cancelMissionDrag",
-  "checkpointRuntimeProfile",
+  "checkpointRuntimeProfile", "exitToMainMenu", "saveCurrentMission",
 ]);
 const functions = parsed.statements.filter((statement) => ts.isFunctionDeclaration(statement)
   && statement.name && functionNames.has(statement.name.text)).map((statement) => statement.getText(parsed)).join("\n");
@@ -74,9 +74,13 @@ function keyboardHarness() {
   }
   let keydown!: (event: KeyboardEvent) => void;
   ui.context.HTMLElement = FakeElement;
-  ui.context.window = { addEventListener(_type: string, handler: typeof keydown) { keydown = handler; } };
+  ui.context.window = { confirm: () => true, addEventListener(_type: string, handler: typeof keydown) { keydown = handler; } };
   ui.context.setMissionOrder = (order: string) => calls.push(["order", order]);
   ui.context.stepFrame = (step: number) => calls.push(["frame", step]);
+  ui.context.cameraPan.keyDown = (event: KeyboardEvent) => {
+    if (!event.key.startsWith("Arrow")) return false;
+    event.preventDefault(); calls.push(["pan-key", event.key]); return true;
+  };
   runInContext(ts.transpileModule(keyboardHandler, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
   }).outputText, ui.context);
@@ -139,6 +143,7 @@ function harness() {
     selectedIds = [1];
     movementStance = "assault";
     orderMode = "assault";
+    cameraView = { x: 0, y: 0, width: 16, height: 14 };
     simulation = { snapshot: { units: [{ id: 1, health: 100, activity: "idle" }] } };
     playerFaction: string;
     initialization = nextInitialization;
@@ -183,6 +188,15 @@ function harness() {
     campaignMissionPicker: { setDisabled(disabled: boolean) { element("picker").disabled = disabled; } },
     constructionPanel: { reset() {} }, baseTabs: node(), baseTab: "build", failedLegacyImport: null,
     Option: class {}, document: { createElement: () => node() },
+    window: { confirm: () => true }, indexedDB: {},
+    mobileControls: null, mobileMenu: null, saveMenu: { isOpen: false, open() {} },
+    cameraPan: { cancel() {}, keyDown() { return false; } },
+    baseMenu: { reset() {} }, unitMenuRequested: true, unitMenuJump: false,
+    missionOptionsMenu: node(), commandGrid: node(),
+    lastProductionKey: "", lastRadarKey: "", lastUiTick: -1, uiDeferrals: 0, uiRefreshDue: true,
+    updateMobileControls() {}, requestUnitMenu() {}, showMenuScreen() {},
+    cancelCampaignIntro() {}, cancelCinematic() {}, shouldShowCampaignIntro: () => false,
+    outcomeCinematic: () => undefined, assetUrl: (path: string) => path,
     updateMissionProduction() {}, updateMissionCursor() {}, updateMissionRadar() {}, updateDeploymentControl() {},
     layoutMissionShell() {}, renderArchiveList() {}, stopMedia() {}, setPlayback() {}, configureArchiveBrowser() {},
     campaignResultAction,
@@ -202,6 +216,7 @@ function harness() {
       return radar;
     },
   });
+  context.document.querySelector = () => null;
   for (const name of ["missionProduction", "productionChoices", "legacyPortraitImage", "saveMissionStatus",
     "saveMissionButton", "missionMusicControl", "radarCanvas", "missionCanvas", "selectionBox", "missionMessage",
     "missionResult", "missionResultAction", "campaignLauncher", "campaignControls", "missionShell", "objectivesPanel",
@@ -280,6 +295,8 @@ for (const faction of ["human", "alien"] as const) {
     assert.match(ui.element("campaignFactionLabel").title, /BROWSER ADAPTED/);
     assert.equal(ui.element("encodingBadge").textContent, "20 TPS / BROWSER ADAPTED");
     await ui.element("saveMissionButton").click();
+    assert.equal(ui.writes.length, 0, "Opening Save does not commit until a slot is chosen");
+    await ui.context.saveCurrentMission("slot-1");
     assert.equal(ui.writes.length, 1);
     const saved = JSON.parse(JSON.stringify(ui.writes[0]));
     assert.equal(saved.version, 1);
@@ -719,14 +736,15 @@ test("a late save completion or failure cannot disable or relabel the fresh Alie
     const pending = deferred();
     ui.context.writeMissionSave = async (save: unknown) => { ui.writes.push(save); await pending.promise; };
     await ui.start("human");
-    const save = ui.element("saveMissionButton").click();
+    const save = ui.context.saveCurrentMission("slot-1");
     assert.equal(ui.element("saveMissionButton").disabled, true);
     assert.equal(ui.element("saveMissionStatus").textContent, "SAVING");
     await ui.element("exitCampaign").click();
     await ui.start("alien");
     if (rejectSave) pending.reject(new Error("Old save failed"));
     else pending.resolve();
-    await save;
+    if (rejectSave) await assert.rejects(save, /Old save failed/);
+    else await save;
     assert.equal(ui.element("saveMissionButton").disabled, false);
     assert.equal(ui.element("saveMissionStatus").textContent, "");
     assert.equal(ui.element("saveMissionStatus").title, "");
@@ -758,7 +776,7 @@ test("plain mission shortcuts still issue orders, stop, select infantry, toggle 
     assert.equal(ui.press(key).defaultPrevented, true, key);
   }
   assert.deepEqual(ui.calls, [["stop"], ["order", "patrol"], ["order", "move"], ["order", "assault"],
-    ["order", "waypoints"], ["infantry"], ["pan", -4, 0], ["pan", 4, 0], ["pan", 0, 4], ["pan", 0, -4]]);
+    ["order", "waypoints"], ["infantry"], ["pan-key", "ArrowLeft"], ["pan-key", "ArrowRight"], ["pan-key", "ArrowUp"], ["pan-key", "ArrowDown"]]);
   assert.equal(ui.press("j").defaultPrevented, true);
   assert.equal(ui.element("objectivesPanel").hidden, false);
   assert.equal(ui.press("j").defaultPrevented, true);

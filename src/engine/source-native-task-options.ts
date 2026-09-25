@@ -1,4 +1,5 @@
 import type { LegacyAiRegisteredWorld } from "./legacy-ai-task";
+import { sha256Hex as hash } from "../sha256";
 import type { NativeAiTaskConfiguration, TransportHostState, HostSlot } from "./transport-host";
 import type { CampaignWorld } from "./campaign-world";
 import { parseScenario, type ScenarioDefinition } from "../../tools/extractors/data/scenario";
@@ -126,11 +127,6 @@ export function sourceNativeCombatInitialRegistry(configuration: NativeAiTaskCon
   requireSource(world.entities.every(actor => actor.unitType !== 69 && actor.unitType !== 73),
     "source commander initialization outside bounded death profile");
   return (world.transportState as TransportHostState).registry.map((key, slot) => key === null ? -1 : slot);
-}
-
-async function hash(bytes: Uint8Array): Promise<string> {
-  return Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", Uint8Array.from(bytes).buffer)),
-    value => value.toString(16).padStart(2, "0")).join("");
 }
 
 function freeze<Value>(value: Value): Value {

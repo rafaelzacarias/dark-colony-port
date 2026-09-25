@@ -28,7 +28,7 @@ test("armed static view: controlled type42 uses source weapon40 while type45/46 
       const scenario = { ...original.scenario, ...parsed,
         placementRows: original.scenario.placementRows.map(row => row[2] === 41
           ? row.map((value, index) => index === 2 ? type : index === 3 ? type === 45 ? 1 : 0 : value) : row) };
-      const fixture = { ...original, scenario, browserEconomy: undefined };
+      const fixture = { ...original, scenario, browserEconomy: undefined, browserResearch: undefined };
       const initial = initializeCampaignSession(sourceBrowserCampaignSessionOptions(fixture));
       assert.ok(initial.ok, JSON.stringify(initial));
       const browserEconomy = await createBrowserCampaignEconomyProfile({ scope: "browser-adapted-economy-v1",

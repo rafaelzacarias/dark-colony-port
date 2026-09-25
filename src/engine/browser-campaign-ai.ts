@@ -1,4 +1,5 @@
 import type { ScenarioDefinition } from "../../tools/extractors/data/scenario";
+import { sha256Hex } from "../sha256";
 import type { DependencyRecord } from "../../tools/extractors/data/tables";
 import type { AdaptedTroProjection, CampaignEntity } from "./campaign-world";
 import { NavigationGrid, type GridPoint } from "./grid";
@@ -111,8 +112,7 @@ export async function createBrowserCampaignAiConfiguration(input: {
   });
   const canonical = JSON.stringify({ strategy: "source-objectives-v1", scenario, units, weapons, dependencies,
     width: grid.width, height: grid.height, costs: Array.from(grid.costs) });
-  const fingerprint = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",
-    new TextEncoder().encode(canonical))), value => value.toString(16).padStart(2, "0")).join("");
+  const fingerprint = await sha256Hex(new TextEncoder().encode(canonical));
   const configuration: BrowserCampaignAiConfiguration = Object.freeze({ profile: "browser-adapted",
     strategy: "source-objectives-v1", fingerprint, ticksPerSecond: 20, decisionPeriodTicks: 20,
     sourceId: scenario.id, teams: Object.freeze(teams) });

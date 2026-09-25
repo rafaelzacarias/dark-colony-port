@@ -29,7 +29,7 @@ function harness() {
   }
   const context = vm.createContext({
     assetMode: "campaign", loadingToken: 0, skirmish: null, gameSessionMode: null,
-    resetMissionControls() {}, cancelCampaignIntro() { events.push("abort-previous"); },
+    resetMissionControls() {}, cancelCampaignIntro() { events.push("abort-previous"); }, cancelCinematic() {},
     audio: undefined, missionMusic: undefined, campaignFactionButtons: [node(), node()],
     campaignMissionPicker: { setDisabled() {} }, checkpointRuntimeProfile() {},
     campaignConstructionPolicy() {},
@@ -97,6 +97,14 @@ test("main intro integration: picker/faction fresh routes, explicit retries and 
   assert.match(main, /undefined, action.missionNumber === campaignMissionNumber \? "retry" : "next"/);
   assert.match(main, /function showCampaignLauncher\(\): void \{\s+cancelCampaignIntro\(\)/);
   assert.match(main, /function showCampaignLauncher\(\)[\s\S]*?continueMissionButton.disabled = false/);
-  assert.match(main, /\(import\.meta as ImportMeta & \{ hot\?: \{ dispose\(callback: \(\) => void\): void \} \}\)\.hot\s+\?\.dispose\(\(\) => \{ \+\+loadingToken; cancelCampaignIntro\(\); \}\)/);
+  assert.match(main, /\(import\.meta as ImportMeta & \{ hot\?: \{ dispose\(callback: \(\) => void\): void \} \}\)\.hot\s+\?\.dispose\(\(\) => \{\s+\+\+loadingToken;\s+cancelCampaignIntro\(\);\s+cancelCinematic\(\);/);
+  assert.match(main, /mobileControls\?\.dispose\(\);\s+mobileMenu\?\.dispose\(\);/);
   assert.match(main, /id="mission-mute"[^>]*checked/);
+});
+
+test("opening movie is opt-in, with no webdriver-only startup exception", () => {
+  const initialize = parsed.statements.find((statement): statement is ts.FunctionDeclaration =>
+    ts.isFunctionDeclaration(statement) && statement.name?.text === "initialize")!;
+  assert.doesNotMatch(initialize.getText(parsed), /showCinematic|INTRO_CINEMATIC|webdriver/);
+  assert.match(main, /"#play-intro"\)\.addEventListener\("click", \(\) => void showCinematic\(INTRO_CINEMATIC\)\)/);
 });

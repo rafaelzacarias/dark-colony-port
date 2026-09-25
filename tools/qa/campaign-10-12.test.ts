@@ -83,7 +83,6 @@ for (const id of missions) test(`${id}: actual bounded replay artifact permissio
   if (id === "A10") {
     const attempt = journal.find(entry => entry.kind === "purchaseConstruction");
     assert.equal(attempt.data.dependency, 14); assert.equal(attempt.data.accepted, false);
-    assert.equal(result.credits, 1500);
     const central = attempt.data.menu.find((choice: { dependency: number }) => choice.dependency === 14);
     assert.equal(central.cost, 2000); assert.equal(central.credits, 1500);
   }

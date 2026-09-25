@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { appendFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { fork } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { loadCampaignMission } from "../../src/game-data";
+import { loadReleaseMission, savedView } from "./fixtures/release-mission";
 import { MissionView } from "../../src/mission-view";
 import { parseTriggerScript } from "../extractors/data/triggers";
 import { installSourceRender } from "./fixtures/source-render";
@@ -222,7 +222,7 @@ export async function preflight05(faction: Faction05, output: string) {
     return new Response(read(`public${path}`));
   };
   try {
-    const mission = await loadCampaignMission(faction, 5, "browser-adapted");
+    const mission = await loadReleaseMission(faction, 5);
     const contract = inspectMission05(mission);
     view = new MissionView(renderer.canvas(), {} as HTMLElement, { onStats() {}, onUnitsChanged() {} }, mission);
     await view.initialize();
@@ -300,7 +300,7 @@ export async function runMission05(faction: Faction05, output: string, limits = 
     return new Response(bytes);
   };
   try {
-    const mission = await loadCampaignMission(faction, 5, "browser-adapted");
+    const mission = await loadReleaseMission(faction, 5, savedView(proofDirectory ? `${proofDirectory}/pending-win.json` : resume));
     const contract = inspectMission05(mission);
     write("source", { ...contract, limits, runtimeHashes: beforeHashes,
       limitation: "Original-script browser-adapted MissionView with QA NullCanvas. Not browser visuals, native parity, control-chain injection, or full-game proof." });

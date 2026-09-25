@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { loadCampaignMission } from "../../src/game-data";
+import { loadReleaseMission, savedView } from "./fixtures/release-mission";
 import { MissionView } from "../../src/mission-view";
 import { NavigationGrid, type GridPoint } from "../../src/engine/grid";
 import { findPath } from "../../src/engine/pathfinding";
@@ -71,7 +71,7 @@ export async function preflightFinal(output: string) {
     for (const number of [5, 6] as const) {
       let view: MissionView | undefined;
       try {
-        const contract = sourceFinal(number), mission = await loadCampaignMission("alien", number, "browser-adapted");
+        const contract = sourceFinal(number), mission = await loadReleaseMission("alien", number);
         assert.deepEqual(mission.triggers, contract.triggers);
         assert.equal(mission.scenario.source.sha256, contract.sources.SCN);
         view = new MissionView(renderer.canvas(), {} as HTMLElement, { onStats() {}, onUnitsChanged() {} }, mission);
@@ -137,7 +137,9 @@ export async function playFinal(output: string, proofDirectory?: string) {
     const bytes = read(`public${path}`); fetched[path] = digestFinal(bytes); return new Response(bytes);
   };
   try {
-    const contract = sourceFinal(5), mission = await loadCampaignMission("alien", 5, "browser-adapted");
+    const resumeCheckpoint = process.env.DC_FINAL_A05_RESUME && `${process.env.DC_FINAL_A05_RESUME}/checkpoint.json`;
+    const contract = sourceFinal(5), mission = await loadReleaseMission("alien", 5,
+      savedView(proofDirectory ? `${proofDirectory}/pending-win.json` : resumeCheckpoint || undefined));
     assert.deepEqual(mission.triggers, contract.triggers);
     assert.equal(mission.scenario.source.sha256, contract.sources.SCN);
     const sourceHash = digestFinal(JSON.stringify(mission));

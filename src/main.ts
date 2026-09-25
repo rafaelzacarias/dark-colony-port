@@ -1,6 +1,5 @@
 import "./style.css";
 import { assetUrl } from "./asset-url";
-import { createElement as createIcon, Save, SatelliteDish } from "lucide";
 import { SIMULATION_TICKS_PER_SECOND, type Faction } from "./engine";
 import { campaignConstructionPolicy, campaignResultAction, loadCampaignMission, loadSkirmishBalance } from "./game-data";
 import { MissionView } from "./mission-view";
@@ -9,13 +8,20 @@ import { WebAudioManager } from "./audio";
 import { NativeMissionMusic } from "./audio/native-mission-music";
 import { bindControlGroups, createRadar, ORIGINAL_HUD, snapshotRadarEntities } from "./ui";
 import { createMissionCursorController, loadMissionCursorAnimation, MISSION_CURSOR_FALLBACKS, type MissionCursor } from "./ui/mission-cursor";
-import { readMissionSave, writeMissionSave, type SavedMission } from "./mission-save";
+import { readMissionSave, writeMissionSave, type MissionSaveSlot, type SavedMission } from "./mission-save";
 import type { LegacyCampaignImportConsent } from "./engine/campaign-session-legacy-import";
-import { createProductionPanel } from "./ui/production-panel";
-import { createConstructionPanel } from "./ui/construction-panel";
+import { baseMenuEntries, createBaseMenu } from "./ui/base-menu";
+import { createMobileControls, isPhoneUserAgent } from "./ui/mobile-controls";
+import { createMobileMissionMenu, type MobileMissionMenuState } from "./ui/mobile-mission-menu";
+import { createMissionSaveMenu } from "./ui/mission-save-menu";
+import { createCameraPan } from "./ui/camera-pan";
 import { createCampaignMissionPicker } from "./ui/campaign-mission-picker";
 import { cancelCampaignIntro, shouldShowCampaignIntro, showCampaignIntro, type CampaignLaunchReason } from "./ui/campaign-intro";
+import { cancelCinematic, INTRO_CINEMATIC, outcomeCinematic, playCinematic } from "./ui/cinematics";
 import "./ui/campaign-intro.css";
+import "./ui/mobile-controls.css";
+import "./ui/mobile-mission-menu.css";
+import "./ui/game-menu.css";
 
 interface SpriteIndexArchive {
   readonly source: string;
@@ -132,7 +138,7 @@ const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("Missing #app mount point");
 
 app.innerHTML = `
-  <main class="asset-lab">
+  <main class="asset-lab main-menu-active">
     <header class="topbar">
       <div class="brand-lockup">
         <span class="brand-mark" aria-hidden="true">DC</span>
@@ -171,24 +177,49 @@ app.innerHTML = `
           </div>
         </div>
         <div id="preview-stage" class="preview-stage">
-          <section id="campaign-launcher" class="campaign-launcher campaign-picker-enabled" aria-labelledby="campaign-launch-title" hidden>
-            <header>
-              <p>ORIGINAL SCENARIO DATA / 30 MISSIONS</p>
-              <h3 id="campaign-launch-title">Choose a mission</h3>
+          <section id="campaign-launcher" class="campaign-launcher campaign-picker-enabled" aria-labelledby="campaign-launch-title" inert>
+            <header class="start-menu-brand">
+              <p>THE BATTLE FOR MARS</p>
+              <h2 id="campaign-launch-title">Dark <span>Colony</span></h2>
+              <small>BROWSER EDITION</small>
             </header>
-            <div id="campaign-mission-picker"></div>
-            <div class="faction-selector">
-              <button type="button" class="human" data-campaign-faction="human">
-                <picture class="mission-picker-portrait"><img src="${assetUrl("/assets/generated/sprites/INTRFACE/HCOM.png")}" alt="" /></picture>
-                <span>01</span><strong>Human Mission</strong><small>HUMAN01 · SCN, MAP and initial TRO state</small>
-              </button>
-              <button type="button" class="alien" data-campaign-faction="alien">
-                <picture class="mission-picker-portrait"><img src="${assetUrl("/assets/generated/sprites/INTRFACE/ACOM.png")}" alt="" /></picture>
-                <span>01</span><strong>Alien Mission</strong><small>ALIEN01 · SCN, MAP and initial TRO state</small>
-              </button>
+            <div class="start-menu-panel">
+              <nav data-menu-screen="home" class="start-menu-actions" aria-label="Main menu">
+                <button id="continue-mission" type="button" hidden>Continue</button>
+                <button type="button" data-menu-open="new">New game</button>
+                <button type="button" data-menu-load>Load game</button>
+                <button type="button" data-menu-open="options">Options</button>
+              </nav>
+              <section data-menu-screen="new" aria-labelledby="new-game-title" hidden>
+                <h3 id="new-game-title">New campaign</h3>
+                <p class="start-menu-hint">Choose your side. Your saved games will not be replaced.</p>
+                <div class="faction-selector">
+                  <button type="button" class="human" data-campaign-faction="human">
+                    <picture class="mission-picker-portrait"><img src="${assetUrl("/assets/generated/sprites/INTRFACE/HCOM.png")}" alt="" /></picture>
+                    <strong>Human</strong><small>Begin the human campaign</small>
+                  </button>
+                  <button type="button" class="alien" data-campaign-faction="alien">
+                    <picture class="mission-picker-portrait"><img src="${assetUrl("/assets/generated/sprites/INTRFACE/ACOM.png")}" alt="" /></picture>
+                    <strong>Alien</strong><small>Begin the alien campaign</small>
+                  </button>
+                </div>
+                <details class="mission-select-details"><summary>Mission select</summary>
+                  <div id="campaign-mission-picker"></div>
+                </details>
+              </section>
+              <section data-menu-screen="options" aria-labelledby="menu-options-title" hidden>
+                <h3 id="menu-options-title">Options</h3>
+                <div class="start-menu-actions">
+                  <button id="menu-sound" type="button" aria-pressed="false">Sound: off</button>
+                  <button id="play-intro" type="button">Watch introduction</button>
+                  <button id="open-asset-browser" type="button">Extras: asset browser</button>
+                </div>
+                <p class="start-menu-hint">The opening movie never plays automatically. Mission briefings remain available when starting a campaign.</p>
+              </section>
+              <button id="menu-back" type="button" hidden>Back to main menu</button>
+              <p id="continue-status" role="status" hidden></p>
             </div>
-            <button id="continue-mission" type="button" hidden>CONTINUE</button>
-            <p id="continue-status" role="status" hidden></p>
+            <footer class="start-menu-footer">Human &amp; alien campaigns <span>Manual saves / 3 slots / This device</span></footer>
           </section>
           <div id="mission-shell" class="mission-shell" hidden>
             <img class="mission-frame-art" src="${assetUrl("/assets/generated/interface/INTRFACE.GIF")}" alt="" />
@@ -196,22 +227,24 @@ app.innerHTML = `
             <div id="campaign-controls" class="campaign-controls" hidden>
               <canvas id="mission-radar" aria-label="Mission radar" hidden></canvas>
               <div class="legacy-portrait" aria-hidden="true"><img id="legacy-portrait-image" alt="" /></div>
-              <section id="mission-production" aria-label="Base production" hidden>
-                <div class="production-balance">PETRA <output id="production-credits">0</output></div>
-                <div id="production-choices"></div>
-              </section>
-              <div id="mission-base-tabs" role="tablist" aria-label="Base actions" hidden>
-                <button type="button" role="tab" data-base-tab="build" aria-controls="mission-construction" aria-selected="true">Build</button>
-                <button type="button" role="tab" data-base-tab="units" aria-controls="mission-production" aria-selected="false">Units</button>
-              </div>
-              <section id="mission-construction" aria-label="Fixed-site construction" hidden></section>
               <strong id="campaign-faction">HUMAN01</strong>
               <span id="campaign-selection">1 SELECTED</span>
+              <div id="mission-base-menu" class="original-base-menu"></div>
               <p id="mission-message"></p>
-              <label id="mission-mute-label"><input id="mission-mute" type="checkbox" checked /> MUTE</label>
               <button id="mission-music-control" type="button" title="Play mission music" aria-label="Play mission music" hidden>&#9654;</button>
               <audio id="mission-soundtrack" preload="none" muted hidden></audio>
-              <div class="legacy-command-grid">
+              <div id="mission-options-menu" class="original-options-menu" role="group" aria-label="Game options" hidden>
+                <button id="exit-campaign" class="original-menu-button" type="button" title="Quit to missions" aria-label="Quit to missions"></button>
+                <button id="save-mission" class="original-menu-button" type="button" title="Save game" aria-label="Save mission"></button>
+                <label id="mission-mute-label" class="original-menu-button" title="Options: mute sound"><input id="mission-mute" type="checkbox" checked /> MUTE</label>
+                <button id="mission-allies" class="original-menu-button" type="button" title="Allies menu (unavailable)" aria-label="Allies menu (unavailable)" disabled></button>
+                <button id="mission-pause" class="original-menu-button" type="button" title="Pause (unavailable)" aria-label="Pause (unavailable)" disabled></button>
+                <button id="show-objectives" class="original-menu-button" type="button" title="Objectives (J)" aria-label="Objectives"></button>
+                <button id="select-all-units" class="legacy-text-command" type="button">SELECT ALL</button>
+                <button id="load-mission" class="legacy-text-command" type="button">LOAD GAME</button>
+                <span id="save-mission-status" role="status" aria-live="polite"></span>
+              </div>
+              <div class="legacy-command-grid" hidden>
                 <button id="stop-units" type="button" title="Stop selected units" aria-label="Stop selected units">
                   <span class="legacy-button-sprite button-stop"></span>
                 </button>
@@ -227,16 +260,13 @@ app.innerHTML = `
                 <button id="patrol-units" type="button" title="Patrol route (P)" aria-label="Patrol route" aria-pressed="false">
                   <span class="legacy-button-sprite button-waypoints"></span><span class="command-key">P</span>
                 </button>
-                <button id="inspire-units" type="button" title="Inspire Troops: native effect and cooldown not yet verified" aria-label="Inspire Troops (unavailable)" disabled>
+                <button id="inspire-units" type="button" title="Inspire Troops (select a lieutenant)" aria-label="Inspire Troops (select a lieutenant)" disabled>
                   <span class="legacy-button-sprite button-inspire"></span>
                 </button>
-                <button id="deploy-units" type="button" title="Deploy SARGE" aria-label="Deploy SARGE" aria-pressed="false" hidden></button>
+                <button id="deploy-units" type="button" title="Deploy SARGE" aria-label="Deploy SARGE" aria-pressed="false" hidden>
+                  <span class="legacy-button-sprite button-deploy"></span>
+                </button>
               </div>
-              <button id="select-all-units" class="legacy-text-command" type="button">SELECT ALL</button>
-              <button id="exit-campaign" class="legacy-text-command" type="button">MISSIONS</button>
-              <button id="show-objectives" class="legacy-text-command" type="button" title="Objectives (J)">OBJECTIVES</button>
-              <button id="save-mission" class="legacy-text-command" type="button" title="Save mission" aria-label="Save mission"></button>
-              <span id="save-mission-status" role="status" aria-live="polite"></span>
             </div>
             <section id="objectives-panel" class="objectives-panel" aria-labelledby="objectives-title" hidden>
               <p>MISSION DATA / READ ONLY</p>
@@ -259,7 +289,7 @@ app.innerHTML = `
           <canvas id="sprite-canvas" aria-label="Decoded sprite frame"></canvas>
           <video id="media-video" controls playsinline hidden></video>
           <div id="audio-stage" hidden><audio id="media-audio" controls></audio></div>
-          <div id="load-state" class="load-state">LOADING</div>
+          <div id="load-state" class="load-state" role="status" aria-live="polite">LOADING</div>
           <span id="frame-watermark" class="frame-watermark">FRAME --</span>
         </div>
         <div class="transport" aria-label="Frame controls">
@@ -303,6 +333,8 @@ const animationState = element<HTMLSelectElement>("#animation-state");
 const encodingBadge = element<HTMLSpanElement>("#encoding-badge");
 const previewStage = element<HTMLDivElement>("#preview-stage");
 const assetLab = element<HTMLElement>(".asset-lab");
+const phoneControlsEnabled = isPhoneUserAgent(navigator.userAgent);
+assetLab.classList.toggle("phone-controls-enabled", phoneControlsEnabled);
 const canvas = element<HTMLCanvasElement>("#sprite-canvas");
 const missionShell = element<HTMLDivElement>("#mission-shell");
 const missionCanvas = element<HTMLCanvasElement>("#mission-canvas");
@@ -350,19 +382,26 @@ const campaignFactionLabel = element<HTMLElement>("#campaign-faction");
 const campaignSelection = element<HTMLSpanElement>("#campaign-selection");
 const missionMessage = element<HTMLParagraphElement>("#mission-message");
 const legacyPortraitImage = element<HTMLImageElement>("#legacy-portrait-image");
-const missionProduction = element<HTMLElement>("#mission-production");
-const productionCredits = element<HTMLOutputElement>("#production-credits");
-const productionChoices = element<HTMLElement>("#production-choices");
+const missionOptionsMenu = element<HTMLElement>("#mission-options-menu");
+const commandGrid = element<HTMLElement>(".legacy-command-grid");
 const legacyMissionName = element<HTMLSpanElement>("#legacy-mission-name");
 const legacyTick = element<HTMLSpanElement>("#legacy-tick");
 const stopUnits = element<HTMLButtonElement>("#stop-units");
 const deployUnits = element<HTMLButtonElement>("#deploy-units");
-deployUnits.append(createIcon(SatelliteDish, { width: 18, height: 18, "aria-hidden": "true" }));
+const inspireUnits = element<HTMLButtonElement>("#inspire-units");
 
 function updateDeploymentControl(): void {
   const selection = skirmish instanceof MissionView ? skirmish.deploymentSelection : undefined;
   deployUnits.hidden = !selection || (!selection.canDeploy && !selection.canUndeploy);
-  element<HTMLButtonElement>("#inspire-units").hidden = !deployUnits.hidden;
+  const inspire = skirmish instanceof MissionView ? skirmish.inspireSelection : undefined;
+  inspireUnits.hidden = !deployUnits.hidden;
+  inspireUnits.disabled = !inspire?.ready;
+  const inspireLabel = !inspire?.canInspire ? "Inspire Troops (select a lieutenant)"
+    : inspire.ready ? "Inspire Troops" : `Inspire Troops (recharging ${inspire.chargePercent}%)`;
+  if (inspireUnits.title !== inspireLabel) {
+    inspireUnits.title = inspireLabel;
+    inspireUnits.setAttribute("aria-label", inspireLabel);
+  }
   const label = selection?.canUndeploy ? "Undeploy SARGE" : "Deploy SARGE";
   deployUnits.title = label;
   deployUnits.setAttribute("aria-label", label);
@@ -403,7 +442,15 @@ let activeSequence: readonly number[] | null = null;
 let atlasImage: HTMLImageElement | null = null;
 let loadingToken = 0;
 (import.meta as ImportMeta & { hot?: { dispose(callback: () => void): void } }).hot
-  ?.dispose(() => { ++loadingToken; cancelCampaignIntro(); });
+  ?.dispose(() => {
+    ++loadingToken;
+    cancelCampaignIntro();
+    cancelCinematic();
+    mobileControls?.dispose();
+    mobileMenu?.dispose();
+    saveMenu.dispose();
+    cameraPan.dispose();
+  });
 let playing = false;
 let previousAnimationTime = 0;
 let activeAtlasWidth = 0;
@@ -411,19 +458,17 @@ let activeAtlasHeight = 0;
 let skirmish: SkirmishView | MissionView | null = null;
 let pendingMission: MissionView | null = null;
 let diagnosticCleanupMission: MissionView | null | undefined;
-let savedMission: SavedMission | null = null;
 let failedLegacyImport: { faction: Faction; missionNumber: number; checkpoint: unknown;
   groups?: readonly (readonly number[])[] } | null = null;
 const saveMissionButton = element<HTMLButtonElement>("#save-mission");
 const continueMissionButton = element<HTMLButtonElement>("#continue-mission");
 const saveMissionStatus = element<HTMLElement>("#save-mission-status");
 const continueStatus = element<HTMLElement>("#continue-status");
-saveMissionButton.append(createIcon(Save, { width: 12, height: 12, "aria-hidden": "true" }));
 let gameSessionMode: GameSessionMode | null = null;
 let campaignFaction: Faction | null = null;
 let campaignMissionNumber = 1;
 let campaignRuntimeProfile: "browser-adapted" | undefined;
-let missionDragStart: { readonly x: number; readonly y: number } | null = null;
+let missionDragStart: { readonly x: number; readonly y: number; readonly pointerId: number } | null = null;
 let missionDragMoved = false;
 let missionPointer: { x: number; y: number } | null = null;
 let missionCursorController: ReturnType<typeof createMissionCursorController> | undefined;
@@ -432,14 +477,15 @@ let appliedMissionCursorStyle = "";
 let audio: WebAudioManager | undefined;
 let missionMusic: NativeMissionMusic | undefined;
 let radar: ReturnType<typeof createRadar> | null = null;
+let lastProductionKey = "", lastRadarKey = "", lastUiTick = -1, uiDeferrals = 0, uiRefreshDue = true;
 const controlGroups = bindControlGroups(window, {
-  isEnabled: () => activeMission() !== null && objectivesPanel.hidden && missionResult.hidden,
+  isEnabled: () => activeMission() !== null && objectivesPanel.hidden && missionResult.hidden && !saveMenu.isOpen,
   getUnits: () => {
     const mission = activeMission();
     return mission?.simulation.snapshot.units.map((unit) => ({ ...unit, owned: mission.isOwnedUnit(unit.id) })) ?? [];
   },
   getSelectedIds: () => activeMission()?.selectedIds ?? [],
-  onRecall: (ids) => activeMission()?.replaceSelection(ids),
+  onRecall: (ids) => { requestUnitMenu(); activeMission()?.replaceSelection(ids); },
 });
 
 function activeMission(): MissionView | null {
@@ -448,13 +494,16 @@ function activeMission(): MissionView | null {
 }
 
 function resetMissionControls(): void {
+  cameraPan.cancel();
+  mobileControls?.cancel();
+  mobileMenu?.close();
   diagnosticCleanupMission = undefined;
   failedLegacyImport = null;
-  constructionPanel.reset();
-  baseTabs.hidden = true;
-  baseTab = "build";
-  missionProduction.hidden = true;
-  productionChoices.replaceChildren();
+  baseMenu.reset();
+  unitMenuRequested = true;
+  unitMenuJump = false;
+  missionOptionsMenu.hidden = true;
+  commandGrid.hidden = true;
   legacyPortraitImage.parentElement!.hidden = false;
   saveMissionStatus.textContent = "";
   saveMissionStatus.title = "";
@@ -467,6 +516,10 @@ function resetMissionControls(): void {
   if (skirmish instanceof MissionView) skirmish.dispose();
   radar?.dispose();
   radar = null;
+  lastProductionKey = "";
+  lastRadarKey = "";
+  lastUiTick = -1;
+  uiDeferrals = 0;
   radarCanvas.hidden = true;
   controlGroups.reset();
   audio?.stopAll();
@@ -483,6 +536,7 @@ function resetMissionControls(): void {
     gameSessionMode = null;
   }
   campaignFaction = null;
+  updateMobileControls();
 }
 
 function updateMissionRadar(mission: MissionView): void {
@@ -494,35 +548,149 @@ function updateMissionRadar(mission: MissionView): void {
   });
 }
 
-const productionPanel = createProductionPanel({ region: missionProduction, portrait: legacyPortraitImage.parentElement!,
-  credits: productionCredits, choices: productionChoices }, (mission) => activeMission() === mission && objectivesPanel.hidden && missionResult.hidden);
-
-const constructionPanel = createConstructionPanel(element<HTMLElement>("#mission-construction"),
-  (mission) => activeMission() === mission && objectivesPanel.hidden && missionResult.hidden);
-
-const baseTabs = element<HTMLElement>("#mission-base-tabs");
-let baseTab = "build";
-for (const button of baseTabs.querySelectorAll<HTMLButtonElement>("button")) {
-  button.addEventListener("click", () => {
-    baseTab = button.dataset.baseTab!;
+const baseMenu = createBaseMenu(element<HTMLElement>("#mission-base-menu"), {
+  isEnabled: (mission) => activeMission() === mission && objectivesPanel.hidden && missionResult.hidden,
+  onTabChange: (tab) => {
+    if (tab === "build") unitMenuRequested = false;
     const mission = activeMission();
     if (mission) updateMissionProduction(mission);
-  });
+  },
+});
+// Units auto-selected on arrival do not replace the build grid; only player selection input requests the unit orders.
+let unitMenuRequested = true;
+let unitMenuJump = false;
+const requestUnitMenu = () => { unitMenuRequested = true; unitMenuJump = true; };
+
+let lastMobileMenuKey = "";
+const mobileMenu = phoneControlsEnabled ? createMobileMissionMenu(assetLab, {
+  onPurchase: key => {
+    const mission = mobileInputMission();
+    const entry = mission && baseMenuEntries(mission).find(candidate => candidate.key === key);
+    if (!mission || !entry || !entry.enabled || entry.submitting || entry.maxStage < 1) {
+      return { ok: false, message: entry?.reason || "This order is no longer available." };
+    }
+    const accepted = entry.source === "production" ? mission.purchaseProduction(entry.dependency)
+      : mission.purchaseConstruction(entry.dependency);
+    lastMobileMenuKey = "";
+    updateMobileControls();
+    return { ok: accepted, message: accepted ? `Order accepted: ${entry.text.replace(/\s+/g, " ").trim()}`
+      : "Order not accepted. Check PETRA, prerequisites, and pending orders." };
+  },
+  onSave: () => { mobileMenu?.close(); saveMissionButton.click(); },
+  onLoad: () => { mobileMenu?.close(); openLoadMenu(); },
+  onToggleMute: () => {
+    missionMute.checked = !missionMute.checked;
+    missionMute.dispatchEvent(new Event("change"));
+    updateMobileControls();
+  },
+  onExit: exitToMainMenu,
+  onClose: () => { mobileControls?.cancel(); lastMobileMenuKey = ""; },
+}) : null;
+const saveMenu = createMissionSaveMenu(assetLab, {
+  onSave: saveCurrentMission,
+  onLoad: save => { void startCampaign(save.faction, save.missionNumber, save.checkpoint, save.controlGroups); },
+  onClose: () => { skirmish?.resetClock(); },
+});
+const cameraPan = createCameraPan(missionCanvas, {
+  isEnabled: () => {
+    const mission = activeMission();
+    return mission !== null && !document.hidden && objectivesPanel.hidden && missionResult.hidden && !missionDragStart
+      && !mobileMenu?.isOpen && !saveMenu.isOpen && !mission.missionDiagnostic && !mission.missionOutcome?.ready
+      && !document.querySelector(".cinematic-player[open], .campaign-intro[open]");
+  },
+  onPan: (x, y) => activeMission()?.panByCells(x, y, false),
+});
+const mobileControls = phoneControlsEnabled ? createMobileControls(previewPanel, {
+  // Held input runs before update(), which draws the new camera position in the same animation frame.
+  onPan: (x, y) => withMobileMission(mission => mission.panByCells(x, y, false)),
+  onSelectScreen: () => withMobileMission(mission => {
+    requestUnitMenu();
+    const bounds = missionCanvas.getBoundingClientRect();
+    mission.selectUnitsInClientRect(bounds.left, bounds.top, bounds.right, bounds.bottom);
+  }),
+  onBuildMenu: () => openMobileMenu("build"),
+  onClearSelection: () => withMobileMission(mission => mission.clearSelection()),
+  onStop: () => withMobileMission(mission => mission.stopSelected()),
+  onMove: () => withMobileMission(() => setMissionOrder("move")),
+  onAssault: () => withMobileMission(() => setMissionOrder("assault")),
+  onOptions: () => openMobileMenu("options"),
+}) : null;
+
+function mobileInputMission(): MissionView | null {
+  const mission = phoneControlsEnabled ? activeMission() : null;
+  return mission && objectivesPanel.hidden && missionResult.hidden && !document.hidden
+    && !mission.missionDiagnostic && !mission.missionOutcome?.ready
+    && !saveMenu.isOpen && !document.querySelector(".cinematic-player[open]") ? mission : null;
 }
 
-function updateMissionProduction(mission: MissionView): void {
-  productionPanel.render(mission);
-  const hasConstruction = constructionPanel.render(mission);
-  baseTabs.hidden = !hasConstruction;
-  missionProduction.classList.toggle("with-base-tabs", hasConstruction);
-  if (hasConstruction) {
-    element<HTMLElement>("#mission-construction").hidden = baseTab !== "build";
-    missionProduction.hidden = baseTab !== "units";
-    legacyPortraitImage.parentElement!.hidden = true;
-    for (const button of baseTabs.querySelectorAll<HTMLButtonElement>("button")) {
-      button.setAttribute("aria-selected", String(button.dataset.baseTab === baseTab));
+function withMobileMission(action: (mission: MissionView) => void): void {
+  const mission = mobileInputMission();
+  if (!mission || mobileMenu?.isOpen) return;
+  if (missionDragStart) cancelMissionDrag();
+  action(mission);
+}
+
+function mobileMenuState(mission: MissionView): MobileMissionMenuState {
+  const entries = baseMenuEntries(mission);
+  const credits = mission.productionMenu[0]?.credits
+    ?? mission.constructionMenu.find((choice): choice is Extract<typeof choice, { credits: number }> => "credits" in choice)?.credits;
+  return {
+    title: mission.mission.scenario.title,
+    entries, credits,
+    objectives: mission.mission.briefing.objectives.length ? mission.mission.briefing.objectives : [mission.mission.briefing.plainText],
+    enabled: mobileInputMission() === mission,
+    muted: missionMute.checked,
+    saveDisabled: saveMissionButton.disabled,
+    saveStatus: [saveMissionStatus.textContent, saveMissionStatus.title].filter(Boolean).join(": "),
+  };
+}
+
+function openMobileMenu(tab: "build" | "options"): void {
+  const mission = mobileInputMission();
+  if (!mission || !mobileMenu) return;
+  cancelMissionDrag();
+  mobileControls?.cancel();
+  if (tab === "build") { unitMenuRequested = false; unitMenuJump = false; }
+  baseMenu.setTab(tab);
+  updateMissionProduction(mission);
+  mobileMenu.open(tab, mobileMenuState(mission));
+  lastMobileMenuKey = "";
+  updateMobileControls();
+}
+
+function updateMobileControls(): void {
+  if (!mobileControls) return;
+  const mission = activeMission();
+  const visible = mission !== null && missionResult.hidden && !mission.missionDiagnostic && !mission.missionOutcome?.ready;
+  const enabled = mobileInputMission() !== null;
+  if (!visible) mobileMenu?.close();
+  mobileControls.update({
+    visible, enabled: enabled && !mobileMenu?.isOpen,
+    selectedCount: mission?.selectedIds.length ?? 0,
+    orderMode: mission?.orderMode ?? "context",
+    movementStance: mission?.movementStance ?? "assault",
+    buildOpen: mobileMenu?.buildOpen ?? false,
+  });
+  if (mission && mobileMenu?.isOpen) {
+    const key = `${lastUiTick}|${enabled}|${missionMute.checked}|${saveMissionButton.disabled}|${saveMissionStatus.textContent}|${saveMissionStatus.title}`;
+    if (key !== lastMobileMenuKey) {
+      lastMobileMenuKey = key;
+      mobileMenu.update(mobileMenuState(mission));
     }
   }
+}
+
+// MAINE group 40 (unit orders) replaces the Building tab contents while units are selected, as in the original sidebar.
+function updateMissionProduction(mission: MissionView): void {
+  const selected = mission.selectedIds.length;
+  if (unitMenuJump && selected > 0) baseMenu.setTab("build");
+  unitMenuJump = false;
+  const { tab, buildEntries } = baseMenu.render(mission);
+  const units = tab === "build" && selected > 0 && (unitMenuRequested || buildEntries === 0);
+  commandGrid.hidden = !units;
+  element<HTMLElement>(".original-base-grid").classList.toggle("covered", units);
+  missionOptionsMenu.hidden = tab !== "options";
+  legacyPortraitImage.parentElement!.hidden = !(tab === "build" && !units && buildEntries === 0);
 }
 
 function spriteAssetUrl(relativePath: string): string {
@@ -613,7 +781,14 @@ function updateSkirmishStats(stats: SkirmishStats): void {
   if (assetMode === "campaign") {
     const mission = activeMission();
     if (mission) {
-      updateMissionProduction(mission);
+      // Menu and radar inputs change at most once per 50 ms tick; rebuilding them every frame was ~19% of a live H13 frame.
+      // The simulation tick already fills its own frame, so the rebuild waits for the next frame (at most 2 frames late).
+      const tickFrame = stats.tick !== lastUiTick;
+      lastUiTick = stats.tick;
+      uiRefreshDue = !tickFrame || uiDeferrals >= 2;
+      uiDeferrals = uiRefreshDue ? 0 : uiDeferrals + 1;
+      const productionKey = `${stats.tick}|${mission.selectedIds.join(",")}|${mission.orderMode}|${mission.movementStance}`;
+      if (uiRefreshDue && productionKey !== lastProductionKey) { lastProductionKey = productionKey; updateMissionProduction(mission); }
       moveUnits.setAttribute("aria-pressed", String(mission.movementStance === "move"));
       element<HTMLButtonElement>("#assault-units").setAttribute("aria-pressed", String(mission.movementStance === "assault"));
       element<HTMLButtonElement>("#patrol-units").setAttribute("aria-pressed", String(mission.orderMode === "patrol"));
@@ -651,6 +826,8 @@ function updateSkirmishStats(stats: SkirmishStats): void {
             missionMusic?.stop();
             missionMusicControl.hidden = true;
             audio?.stopAll();
+            const scene = campaignFaction && outcomeCinematic(campaignFaction, campaignMissionNumber, outcome.resultCode);
+            if (scene) void showCinematic(scene);
           }
           missionResult.hidden = false;
           objectivesPanel.hidden = true;
@@ -662,7 +839,10 @@ function updateSkirmishStats(stats: SkirmishStats): void {
           missionResultAction.hidden = action === null;
           missionResultAction.textContent = action?.kind === "retry" ? "RETRY MISSION" : "NEXT MISSION";
         }
-    if (mission) updateMissionRadar(mission);
+    if (mission) {
+      const view = mission.cameraView, radarKey = `${stats.tick}|${view.x},${view.y},${view.width},${view.height}`;
+      if (uiRefreshDue && radarKey !== lastRadarKey) { lastRadarKey = radarKey; updateMissionRadar(mission); }
+    }
     legacyTick.textContent = `TICK ${stats.tick.toLocaleString()}`;
     archiveSummary.textContent = `${stats.selectedCount} SELECTED / ${ownedUnits} UNITS`;
     decoderStatus.textContent = `${campaignFaction?.toUpperCase() ?? "MISSION"} / TICK ${stats.tick.toLocaleString()}`;
@@ -998,6 +1178,7 @@ function hideCampaignUi(): void {
   missionShell.hidden = true;
   objectivesPanel.hidden = true;
   assetLab.classList.remove("mission-running");
+  assetLab.classList.remove("main-menu-active");
   previewPanel.classList.remove("campaign-active", "campaign-launcher-active");
 }
 
@@ -1017,6 +1198,9 @@ function showCampaignLauncher(): void {
   previewPanel.classList.remove("simulation-active");
   previewPanel.classList.add("campaign-launcher-active");
   campaignLauncher.hidden = false;
+  campaignLauncher.inert = false;
+  assetLab.classList.add("main-menu-active");
+  showMenuScreen("home");
   campaignControls.hidden = true;
   missionShell.hidden = true;
   objectivesPanel.hidden = true;
@@ -1059,7 +1243,6 @@ async function refreshMissionSave(): Promise<void> {
   try {
     const stored = await readMissionSave();
     if (token !== loadingToken || campaignLauncher.hidden) return;
-    savedMission = stored;
     continueMissionButton.hidden = stored === null;
     continueMissionButton.textContent = stored
       ? `CONTINUE ${stored.faction.toUpperCase()} ${String(stored.missionNumber).padStart(2, "0")}` : "CONTINUE";
@@ -1087,6 +1270,7 @@ async function startCampaign(faction: Faction, missionNumber = 1, checkpoint?: u
   launchReason: CampaignLaunchReason = legacyConsent ? "import" : checkpoint !== undefined ? "continue" : "fresh"): Promise<void> {
   if (assetMode !== "campaign") return;
   cancelCampaignIntro();
+  cancelCinematic();
   const token = ++loadingToken;
   resetMissionControls();
   missionResult.hidden = true;
@@ -1100,6 +1284,7 @@ async function startCampaign(faction: Faction, missionNumber = 1, checkpoint?: u
   objectivesPanel.hidden = true;
   assetLab.classList.remove("mission-running");
   campaignLauncher.hidden = false;
+  campaignLauncher.inert = true;
   campaignMissionPicker.setDisabled(true);
   campaignFactionButtons.forEach((button) => { button.disabled = true; });
   continueMissionButton.disabled = true;
@@ -1162,6 +1347,7 @@ async function startCampaign(faction: Faction, missionNumber = 1, checkpoint?: u
     });
     radarCanvas.hidden = false;
     assetLab.classList.add("mission-running");
+    assetLab.classList.remove("main-menu-active");
     configureArchiveBrowser("SQUAD", "Filter squad");
     datasetTitle.textContent = `${faction.toUpperCase()} SOURCE MISSION / ${String(missionNumber).padStart(2, "0")}`;
     archivePath.textContent = mission.scenario.source.path;
@@ -1204,6 +1390,7 @@ async function startCampaign(faction: Faction, missionNumber = 1, checkpoint?: u
     campaignLauncher.hidden = true;
     previewPanel.classList.remove("simulation-active");
     previewPanel.classList.add("campaign-launcher-active");
+    assetLab.classList.add("main-menu-active");
     const diagnostic = error instanceof Error ? error.message : String(error);
     loadState.hidden = true;
     loadState.textContent = `UNSUPPORTED MISSION ${faction.toUpperCase()} ${String(missionNumber).padStart(2, "0")}: ${diagnostic}`;
@@ -1223,6 +1410,7 @@ async function startCampaign(faction: Faction, missionNumber = 1, checkpoint?: u
     layoutMissionShell();
   } finally {
     if (token === loadingToken) {
+      campaignLauncher.inert = false;
       campaignMissionPicker.setDisabled(false);
       campaignFactionButtons.forEach((button) => { button.disabled = false; });
       continueMissionButton.disabled = false;
@@ -1361,8 +1549,12 @@ function switchMode(mode: AssetMode): void {
 
 function animate(time: number): void {
   renderMissionCursor(performance.now());
+  updateMobileControls();
+  mobileControls?.tick(time);
+  cameraPan.tick(time);
   if (assetMode === "simulation" || assetMode === "campaign") {
-      skirmish?.update(time);
+      if (saveMenu.isOpen) skirmish?.resetClock();
+      else skirmish?.update(time);
   const mission = activeMission();
   const musicEnabled = mission !== null && missionResult.hidden && !mission.missionDiagnostic && !mission.missionOutcome?.ready;
   if (musicEnabled) missionMusic?.update(time);
@@ -1434,8 +1626,10 @@ canvas.addEventListener("click", (event) => {
 });
 missionCanvas.addEventListener("pointerdown", (event) => {
   if (assetMode !== "campaign" || event.button !== 0 || !objectivesPanel.hidden || !missionResult.hidden) return;
+  if (missionDragStart || (event.pointerType === "touch" && !event.isPrimary) || mobileMenu?.isOpen) return;
+  if (phoneControlsEnabled && event.pointerType === "touch") event.preventDefault();
   trackMissionPointer(event);
-  missionDragStart = { x: event.clientX, y: event.clientY };
+  missionDragStart = { x: event.clientX, y: event.clientY, pointerId: event.pointerId };
   missionDragMoved = false;
   missionCanvas.setPointerCapture(event.pointerId);
 });
@@ -1446,7 +1640,7 @@ missionCanvas.addEventListener("pointerenter", (event) => {
 missionCanvas.addEventListener("pointermove", (event) => {
   trackMissionPointer(event);
   updateMissionCursor();
-  if (!missionDragStart) return;
+  if (!missionDragStart || event.pointerId !== missionDragStart.pointerId) return;
   const deltaX = event.clientX - missionDragStart.x;
   const deltaY = event.clientY - missionDragStart.y;
   if (!missionDragMoved && Math.hypot(deltaX, deltaY) < 6) return;
@@ -1461,12 +1655,13 @@ missionCanvas.addEventListener("pointermove", (event) => {
 });
 missionCanvas.addEventListener("pointerup", (event) => {
   trackMissionPointer(event);
-  if (!missionDragStart || event.button !== 0) return;
+  if (!missionDragStart || event.button !== 0 || event.pointerId !== missionDragStart.pointerId) return;
   if (!objectivesPanel.hidden || !missionResult.hidden || !activeMission()) {
     cancelMissionDrag();
     return;
   }
   if (skirmish instanceof MissionView) {
+    requestUnitMenu();
     if (missionDragMoved) {
       skirmish.selectUnitsInClientRect(
         missionDragStart.x,
@@ -1479,30 +1674,39 @@ missionCanvas.addEventListener("pointerup", (event) => {
       skirmish.commandAt(event.clientX, event.clientY, event.shiftKey);
     }
   }
-  missionDragStart = null;
-  missionDragMoved = false;
-  selectionBox.hidden = true;
-  updateMissionCursor();
+  cancelMissionDrag();
 });
 function cancelMissionDrag(): void {
+  const pointerId = missionDragStart?.pointerId;
   missionDragStart = null;
   missionDragMoved = false;
   selectionBox.hidden = true;
+  if (pointerId !== undefined && missionCanvas.hasPointerCapture(pointerId)) missionCanvas.releasePointerCapture(pointerId);
   updateMissionCursor();
 }
-missionCanvas.addEventListener("pointercancel", cancelMissionDrag);
+missionCanvas.addEventListener("pointercancel", event => {
+  if (event.pointerId === missionDragStart?.pointerId) cancelMissionDrag();
+});
+missionCanvas.addEventListener("lostpointercapture", event => {
+  if (event.pointerId === missionDragStart?.pointerId) cancelMissionDrag();
+});
+window.addEventListener("blur", cancelMissionDrag);
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) { cancelMissionDrag(); mobileControls?.cancel(); }
+});
 missionCanvas.addEventListener("pointerleave", () => {
   missionPointer = null;
   updateMissionCursor();
 });
 missionCanvas.addEventListener("contextmenu", (event) => {
   event.preventDefault();
+  if (phoneControlsEnabled) return;
   if (skirmish instanceof MissionView && objectivesPanel.hidden && missionResult.hidden) skirmish.clearSelection();
 });
 campaignFactionButtons.forEach((button) =>
   button.addEventListener("click", () => void startCampaign(button.dataset.campaignFaction as Faction)),
 );
-selectAllUnits.addEventListener("click", () => skirmish?.selectAllPlayerUnits());
+selectAllUnits.addEventListener("click", () => { requestUnitMenu(); skirmish?.selectAllPlayerUnits(); });
 stopUnits.addEventListener("click", () => {
   if (skirmish instanceof MissionView) skirmish.stopSelected();
 });
@@ -1510,6 +1714,11 @@ deployUnits.addEventListener("click", () => {
   if (!(skirmish instanceof MissionView) || !objectivesPanel.hidden || !missionResult.hidden) return;
   if (skirmish.deploymentSelection.canUndeploy) skirmish.undeploySelected();
   else skirmish.deploySelected();
+  updateDeploymentControl();
+});
+inspireUnits.addEventListener("click", () => {
+  if (!(skirmish instanceof MissionView) || !objectivesPanel.hidden || !missionResult.hidden) return;
+  skirmish.inspireSelected();
   updateDeploymentControl();
 });
 moveUnits.addEventListener("click", () => {
@@ -1522,30 +1731,105 @@ element<HTMLButtonElement>("#patrol-units").addEventListener("click", () => {
 element<HTMLButtonElement>("#waypoint-units").addEventListener("click", () => {
   setMissionOrder("waypoints");
 });
-exitCampaign.addEventListener("click", showCampaignLauncher);
-saveMissionButton.addEventListener("click", async () => {
+function exitToMainMenu(): void {
+  if (activeMission() && !window.confirm("Return to the main menu? Progress since your last manual save will be lost.")) return;
+  showCampaignLauncher();
+}
+
+function openLoadMenu(): void {
+  if (activeMission() && !window.confirm("Load a saved game? Unsaved progress in this mission will be lost when you load a slot.")) return;
+  cancelMissionDrag();
+  mobileControls?.cancel();
+  saveMenu.open("load");
+}
+
+exitCampaign.addEventListener("click", exitToMainMenu);
+element<HTMLButtonElement>("#load-mission").addEventListener("click", openLoadMenu);
+saveMissionButton.addEventListener("click", () => {
   const mission = activeMission();
   if (!mission || mission.missionDiagnostic || mission.missionOutcome?.ready || !missionResult.hidden || !objectivesPanel.hidden) return;
+  cancelMissionDrag();
+  mobileControls?.cancel();
+  saveMenu.open("save");
+});
+async function saveCurrentMission(slot: MissionSaveSlot): Promise<void> {
+  const mission = activeMission();
+  if (!mission || mission.missionDiagnostic || mission.missionOutcome?.ready || !missionResult.hidden || !objectivesPanel.hidden) {
+    throw new Error("This mission is no longer available to save.");
+  }
   const token = loadingToken;
   saveMissionButton.disabled = true;
   saveMissionStatus.textContent = "SAVING";
+  saveMissionStatus.title = "";
   try {
     const save: SavedMission = { version: 1, faction: mission.playerFaction, missionNumber: campaignMissionNumber,
       savedAt: new Date().toISOString(), checkpoint: mission.checkpoint(), controlGroups: controlGroups.state.groups };
-    await writeMissionSave(save);
-    savedMission = save;
-    if (token === loadingToken) saveMissionStatus.textContent = "SAVED";
+    await writeMissionSave(save, indexedDB, slot);
+    if (token === loadingToken) {
+      saveMissionStatus.textContent = "SAVED";
+      saveMissionStatus.title = `Slot ${slot.slice(-1)}`;
+    }
   } catch (error) {
     if (token === loadingToken) {
       saveMissionStatus.textContent = "SAVE FAILED";
       saveMissionStatus.title = error instanceof Error ? error.message : String(error);
     }
+    throw error;
   } finally { if (token === loadingToken) saveMissionButton.disabled = false; }
-});
-continueMissionButton.addEventListener("click", () => {
-  if (savedMission) void startCampaign(savedMission.faction, savedMission.missionNumber, savedMission.checkpoint, savedMission.controlGroups);
+}
+continueMissionButton.addEventListener("click", async () => {
+  const token = loadingToken;
+  continueMissionButton.disabled = true;
+  try {
+    const save = await readMissionSave();
+    if (token !== loadingToken) return;
+    if (!save) throw new Error("No saved game is available. Start a new campaign or choose Load game.");
+    void startCampaign(save.faction, save.missionNumber, save.checkpoint, save.controlGroups);
+  } catch (error) {
+    if (token !== loadingToken) return;
+    continueStatus.hidden = false;
+    continueStatus.textContent = `LOAD FAILED: ${error instanceof Error ? error.message : String(error)}`;
+  } finally {
+    if (token === loadingToken) continueMissionButton.disabled = false;
+  }
 });
 element<HTMLButtonElement>("#mission-result-exit").addEventListener("click", showCampaignLauncher);
+element<HTMLButtonElement>("#play-intro").addEventListener("click", () => void showCinematic(INTRO_CINEMATIC));
+function showMenuScreen(screen: "home" | "new" | "options"): void {
+  campaignLauncher.querySelectorAll<HTMLElement>("[data-menu-screen]").forEach(panel => {
+    panel.hidden = panel.dataset.menuScreen !== screen;
+  });
+  element<HTMLButtonElement>("#menu-back").hidden = screen === "home";
+  if (screen === "options") updateMenuSound();
+  campaignLauncher.scrollTop = 0;
+  campaignLauncher.querySelector<HTMLButtonElement>(`[data-menu-screen="${screen}"] button:not([hidden])`)?.focus({ preventScroll: true });
+}
+campaignLauncher.querySelectorAll<HTMLButtonElement>("[data-menu-open]").forEach(button => {
+  button.addEventListener("click", () => showMenuScreen(button.dataset.menuOpen === "new" ? "new" : "options"));
+});
+element<HTMLButtonElement>("#menu-back").addEventListener("click", () => showMenuScreen("home"));
+element<HTMLButtonElement>("[data-menu-load]").addEventListener("click", openLoadMenu);
+element<HTMLButtonElement>("#open-asset-browser").addEventListener("click", () => switchMode("sprites"));
+function updateMenuSound(): void {
+  const button = element<HTMLButtonElement>("#menu-sound");
+  button.textContent = missionMute.checked ? "Sound: off" : "Sound: on";
+  button.setAttribute("aria-pressed", String(!missionMute.checked));
+}
+element<HTMLButtonElement>("#menu-sound").addEventListener("click", () => {
+  missionMute.checked = !missionMute.checked;
+  missionMute.dispatchEvent(new Event("change"));
+});
+
+async function showCinematic(name: string): Promise<void> {
+  const outcome = await playCinematic(name, {
+    muted: missionMute.checked,
+    onMutedChange: (muted) => {
+      missionMute.checked = muted;
+      missionMute.dispatchEvent(new Event("change"));
+    },
+  });
+  if (outcome === "failed") console.warn(`Cinematic ${name} could not be played`);
+}
 missionResultAction.addEventListener("click", () => {
   if (failedLegacyImport && !missionResult.hidden) {
     const failed = failedLegacyImport;
@@ -1571,6 +1855,7 @@ missionResultAction.addEventListener("click", () => {
 showObjectives.addEventListener("click", () => { cancelMissionDrag(); objectivesPanel.hidden = false; updateMissionCursor(); });
 closeObjectives.addEventListener("click", () => { objectivesPanel.hidden = true; });
 missionMute.addEventListener("change", () => {
+  updateMenuSound();
   audio?.setMuted(missionMute.checked);
   missionMusic?.setMuted(missionMute.checked);
   if (!missionMute.checked) void audio?.unlock();
@@ -1605,8 +1890,16 @@ window.addEventListener("resize", () => {
   drawFrame();
 });
 window.addEventListener("keydown", (event) => {
+  if (mobileMenu?.isOpen || saveMenu.isOpen || document.querySelector(".cinematic-player[open], .campaign-intro[open]")) return;
   if (event.defaultPrevented || event.composedPath().some((node) => node instanceof HTMLElement
     && (node.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(node.tagName)))) return;
+  if (!campaignLauncher.hidden) {
+    if (event.key === "Escape" && !campaignLauncher.inert) {
+      event.preventDefault();
+      showMenuScreen("home");
+    }
+    return;
+  }
   if (!missionResult.hidden) {
     if (event.key === "Escape") showCampaignLauncher();
     return;
@@ -1614,6 +1907,7 @@ window.addEventListener("keydown", (event) => {
   if (!objectivesPanel.hidden && event.key !== "Escape" && event.key.toLowerCase() !== "j") return;
   if (assetMode === "campaign" && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "a") {
     event.preventDefault();
+    requestUnitMenu();
     skirmish?.selectAllPlayerUnits();
     return;
   }
@@ -1622,10 +1916,10 @@ window.addEventListener("keydown", (event) => {
       objectivesPanel.hidden = true;
       return;
     }
-    showCampaignLauncher();
+    exitToMainMenu();
     return;
   }
-  if (assetMode === "campaign" && (event.ctrlKey || event.metaKey || event.altKey)) return;
+  if (assetMode === "campaign" && (event.ctrlKey || event.metaKey || event.altKey)) { cameraPan.cancel(); return; }
   if (assetMode === "campaign" && skirmish instanceof MissionView) {
     const key = event.key.toLowerCase();
     if (key === "j") {
@@ -1652,23 +1946,11 @@ window.addEventListener("keydown", (event) => {
     }
     if (event.key === "F2") {
       event.preventDefault();
+      requestUnitMenu();
       skirmish.selectVisibleInfantry();
       return;
     }
-    const movement = key === "arrowleft"
-      ? [-4, 0]
-      : key === "arrowright"
-        ? [4, 0]
-        : key === "arrowup"
-          ? [0, 4]
-          : key === "arrowdown"
-            ? [0, -4]
-            : null;
-    if (movement) {
-      event.preventDefault();
-      skirmish.panByCells(movement[0], movement[1]);
-      return;
-    }
+    if (cameraPan.keyDown(event)) return;
   }
   if (event.key === "ArrowLeft") stepFrame(-1);
   if (event.key === "ArrowRight") stepFrame(1);
@@ -1679,6 +1961,9 @@ window.addEventListener("keydown", (event) => {
 });
 
 async function initialize(): Promise<void> {
+  campaignLauncher.inert = true;
+  loadState.hidden = false;
+  loadState.textContent = "LOADING GAME DATA";
   try {
     [spriteIndex, animationIndex, terrainIndex, mediaIndex] = await Promise.all([
       json<SpriteIndex>(`${ASSET_ROOT}/index.json`),
@@ -1694,8 +1979,14 @@ async function initialize(): Promise<void> {
     catch (error) { console.warn("Original cursors unavailable; using system cursor states", error); }
     showCampaignLauncher();
   } catch (error) {
-    loadState.textContent = "INDEX UNAVAILABLE";
-    decoderStatus.textContent = error instanceof Error ? error.message.toUpperCase() : "INDEX ERROR";
+    const message = error instanceof Error ? error.message : String(error);
+    loadState.textContent = `GAME DATA UNAVAILABLE: ${message}`;
+    const retry = document.createElement("button");
+    retry.type = "button";
+    retry.textContent = "Retry";
+    retry.addEventListener("click", () => void initialize());
+    loadState.append(retry);
+    decoderStatus.textContent = message;
   }
 }
 

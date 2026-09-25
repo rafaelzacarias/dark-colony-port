@@ -1,4 +1,5 @@
 import { parseScenario } from "../../tools/extractors/data/scenario";
+import { sha256Hex } from "../sha256";
 import { authenticateLegacyNativeSchedulerSource, type LegacyNativeSchedulerSource } from "./legacy-native-scheduler";
 import { parseDependencies } from "../../tools/extractors/data/tables";
 import { parseFin } from "../../tools/extractors/animations/fin";
@@ -34,8 +35,7 @@ export async function createSourceNativeWorldPrefixSource(input: Readonly<{
 }>): Promise<SourceNativeWorldPrefixSource> {
   const executable = Uint8Array.from(input.executable), scenario = Uint8Array.from(input.scenario);
   const scheduler = await authenticateLegacyNativeSchedulerSource(executable);
-  const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", scenario))]
-    .map(value => value.toString(16).padStart(2, "0")).join("");
+  const hash = await sha256Hex(scenario);
   const mission = (Object.keys(missions) as (keyof typeof missions)[]).find(name => missions[name] === hash);
   if (!mission) throw new RangeError("World prefix requires original HUMAN02 or ALIEN02 SCN bytes");
   const parsed = parseScenario(new TextDecoder().decode(scenario));
@@ -286,8 +286,7 @@ export async function createSourceNativeCityStartup(input: SourceNativeCityAsset
       : "d5ab938493b41614ef12f2640b152970e5aad8668a15e4709d6db3df80c18bae",
   };
   for (const [name, bytes] of Object.entries({ gameStat: assets.gameStat, depend: assets.depend, map: assets.map, ...assets.animations })) {
-    const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))]
-      .map(value => value.toString(16).padStart(2, "0")).join("");
+    const hash = await sha256Hex(bytes);
     if (hash !== hashes[name]) throw new RangeError(`Unauthenticated CITY source ${name}`);
   }
   const binding = sources.get(source)!, scenario = binding.scenario;

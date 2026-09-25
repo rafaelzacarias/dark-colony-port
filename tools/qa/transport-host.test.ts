@@ -112,6 +112,12 @@ test("reinforce2 creates synchronously in source order or appends teamless FIFO 
   assert.deepEqual(full, before);
 });
 
+test("reinforcement past the map edge (HUMAN10 block 14) lands on the nearest edge cell", () => {
+  const planned = single("reinforce2", "edge");
+  const world = prepare(fixture(), { ...planned, command: { ...planned.command, tileX: 12, tileY: 3 } as typeof planned.command });
+  assert.deepEqual(world.entities.map((entity) => [entity.tileX, entity.tileY]), [[6, 3]]);
+});
+
 function abduct(world: CampaignWorld): CampaignWorld {
   const planned: PlannedMissionCommand = { id: "pickup", triggerId: 2, actionIndex: 0,
     action: { name: "abduct", arguments: [0, 1] }, command: { kind: "abduct", selectedSide: 0, carrierSide: 1 } };

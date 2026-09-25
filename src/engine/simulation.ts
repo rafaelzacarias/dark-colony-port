@@ -18,7 +18,7 @@ import { validateNativeMovement, type ResourceHostEntityState } from "./transpor
 import { advanceSourceDayNight, sourceDayNightFromHeader, type SourceDayNight } from "./source-day-night";
 import {
   completeLegacyInspireTask13, getLegacyInspireChargeGates, getLegacyInspireProfile,
-  LEGACY_INSPIRE_NATIVE_RANDOM_TABLE, resolveLegacyInspireMultiplierQ8,
+  LEGACY_INSPIRE_NATIVE_RANDOM_TABLE, resolveLegacyInspireMultiplierQ8, scanLegacyInspireEffect,
   updateLegacyInspireCounters, verifiedLegacyInspireDeployFin,
   type LegacyInspireScanInput, type LegacyInspireScanResult, type LegacyInspireSlot, type LegacyInspireState,
 } from "./legacy-inspire";
@@ -60,6 +60,24 @@ export interface NativeInspireEvent {
   readonly pendingOrder: number;
   readonly scan?: LegacyInspireScanResult;
   readonly reason?: string;
+}
+
+/** Browser-adapted Inspire (no native adapter): caster charge and inspired-target timers keyed by simulation unit id. */
+export interface AdaptedInspireCheckpoint {
+  readonly randomIndex: number;
+  readonly casters: readonly { readonly unitId: number; readonly typeId: number; readonly charge: number }[];
+  readonly targets: readonly {
+    readonly unitId: number; readonly timer: number; readonly casterId: number; readonly multiplierQ8: number;
+  }[];
+}
+
+export interface AdaptedInspireUnitState {
+  readonly caster: boolean;
+  readonly typeId: number | null;
+  readonly charge: number;
+  readonly ready: boolean;
+  readonly timer: number;
+  readonly liveMultiplierQ8: number;
 }
 
 interface NativeInspireEntity {
@@ -382,6 +400,7 @@ export interface SimulationCheckpoint {
   readonly movementFinishedEvents?: readonly MovementFinishedEvent[];
   readonly resourceActors?: readonly ResourceActorOwnership[];
   readonly resourceActorEvents?: readonly ResourceActorEvent[];
+  readonly adaptedInspire?: AdaptedInspireCheckpoint;
 }
 
 type CheckpointCheck = (value: unknown) => void;
@@ -607,6 +626,10 @@ function validateSimulationCheckpoint(input: unknown): asserts input is Simulati
       releaseAcknowledgement: checkpointNullable(resourceReleaseCheck) })),
     resourceActorEvents: checkpointArray(checkpointObject({ ...resourceIdentityChecks, tick: integer,
       type: checkpointChoice("combat-death", "remove-noncombat") })),
+    adaptedInspire: checkpointObject({ randomIndex: checkpointInteger(0, 255),
+      casters: checkpointArray(checkpointObject({ unitId: positive, typeId: checkpointInteger(69, 76), charge: checkpointInteger(0, 255) })),
+      targets: checkpointArray(checkpointObject({ unitId: positive, timer: checkpointInteger(1, 255), casterId: positive,
+        multiplierQ8: checkpointChoice(332, 358, 384, 409) })) }),
   })(input);
   const saved = input as SimulationCheckpoint;
   const area = saved.grid.width * saved.grid.height;
@@ -622,6 +645,14 @@ function validateSimulationCheckpoint(input: unknown): asserts input is Simulati
     allIds.add(entity.id);
   }
   const units = new Set(saved.units.map((unit) => unit.id));
+  if (saved.adaptedInspire) {
+    const alive = new Set(saved.units.filter((unit) => unit.health > 0).map((unit) => unit.id));
+    for (const records of [saved.adaptedInspire.casters, saved.adaptedInspire.targets]) {
+      const ids = records.map((record) => record.unitId);
+      checkpointRequire(new Set(ids).size === ids.length && ids.every((id) => alive.has(id)));
+    }
+    for (const target of saved.adaptedInspire.targets) historicalId(target.casterId);
+  }
   const actorIds = new Set<number>();
   const actorSlots = new Set<number>();
   const actorKeys = new Set<string>();
@@ -894,6 +925,8 @@ export class DeterministicSimulation implements Simulation {
   readonly #buildings = new Map<number, BuildingState>();
   readonly #staticTargets = new Map<number, StaticTargetState>();
   readonly #staticBlockers = new Map<number, { count: number; readonly priorCost: number }>();
+  // Caller-supplied before each advance (derived from checkpointed campaign state), so it is not part of the checkpoint.
+  readonly #dormantUnits = new Set<number>();
   readonly #commands: QueuedCommand[] = [];
   readonly #combatEvents: CombatEvent[] = [];
   readonly #sourceDamageDiagnostics: { tick: number; attackerId: number; targetId: number; reason: string }[] = [];
@@ -914,6 +947,9 @@ export class DeterministicSimulation implements Simulation {
   readonly #inspireSlots = new Map<number, NativeInspireEntity>();
   readonly #inspireUnitSlots = new Map<number, number>();
   readonly #inspireEvents: NativeInspireEvent[] = [];
+  readonly #adaptedInspireCasters = new Map<number, { typeId: number; charge: number }>();
+  readonly #adaptedInspireTargets = new Map<number, { timer: number; casterId: number; multiplierQ8: number }>();
+  #adaptedInspireRandomIndex = 0;
 
   constructor(grid: NavigationGrid, options: SimulationOptions = {}) {
     this.grid = grid;
@@ -945,10 +981,22 @@ export class DeterministicSimulation implements Simulation {
   }
 
   checkpoint(): SimulationCheckpoint {
+    const checkpoint = this.#capture();
+    validateSimulationCheckpoint(checkpoint);
+    return checkpoint;
+  }
+
+  /** Exact copy for transactional staging; the source is already valid, so the checkpoint round-trip checks are skipped. */
+  fork(): DeterministicSimulation {
+    // The map-sized cost grid is copied as a typed array; boxing it into a plain array for structuredClone cost ~0.5 ms per tick.
+    return DeterministicSimulation.#fromCheckpoint(this.#capture(false), this.grid.costs);
+  }
+
+  #capture(includeCosts = true): SimulationCheckpoint {
     if (this.#nativeInspire) throw new RangeError("Cannot checkpoint external nativeInspire: no verified adapter state export/import contract");
-    const checkpoint = structuredClone({
+    return structuredClone({
       version: (this.#resourceActors.size ? 2 : 1) as 1 | 2,
-      grid: { width: this.grid.width, height: this.grid.height, costs: Array.from(this.grid.costs) },
+      grid: { width: this.grid.width, height: this.grid.height, costs: includeCosts ? Array.from(this.grid.costs) : [] },
       tick: this.#tick, nextEntityId: this.#nextEntityId, nextCommandSequence: this.#nextCommandSequence,
       randomState: this.random.state, dayNightCycleTicks: this.dayNightCycleTicks,
       sourceDayNight: this.#sourceDayNight, teamAlliances: this.#teamAlliances, resources: this.#resources,
@@ -964,15 +1012,32 @@ export class DeterministicSimulation implements Simulation {
       sourceDamageDiagnostics: this.#sourceDamageDiagnostics, reservationEvents: this.#reservationEvents,
       movementFinishedEvents: this.#movementFinishedEvents,
       resourceActors: [...this.#resourceActors.values()], resourceActorEvents: this.#resourceActorEvents,
+      ...this.#adaptedInspireCheckpoint(),
     });
-    validateSimulationCheckpoint(checkpoint);
-    return checkpoint;
+  }
+
+  #adaptedInspireCheckpoint(): { adaptedInspire?: AdaptedInspireCheckpoint } {
+    const live = (id: number) => this.#adaptedInspireLive(id);
+    const casters = [...this.#adaptedInspireCasters].filter(([id]) => live(id))
+      .map(([unitId, { typeId, charge }]) => ({ unitId, typeId, charge }));
+    const targets = [...this.#adaptedInspireTargets].filter(([id, target]) => live(id) && target.timer > 0)
+      .map(([unitId, { timer, casterId, multiplierQ8 }]) => ({ unitId, timer, casterId, multiplierQ8 }));
+    if (!casters.length && !targets.length && this.#adaptedInspireRandomIndex === 0) return {};
+    return { adaptedInspire: { randomIndex: this.#adaptedInspireRandomIndex, casters, targets } };
+  }
+
+  #adaptedInspireLive(id: number): boolean {
+    const unit = this.#units.get(id);
+    return !!unit && unit.health > 0 && unit.activity !== "die";
   }
 
   static restore(input: unknown): DeterministicSimulation {
     validateSimulationCheckpoint(input);
-    const saved = structuredClone(input);
-    const simulation = new DeterministicSimulation(new NavigationGrid(saved.grid.width, saved.grid.height, Uint16Array.from(saved.grid.costs)), {
+    return DeterministicSimulation.#fromCheckpoint(structuredClone(input));
+  }
+
+  static #fromCheckpoint(saved: SimulationCheckpoint, costs?: ArrayLike<number>): DeterministicSimulation {
+    const simulation = new DeterministicSimulation(new NavigationGrid(saved.grid.width, saved.grid.height, Uint16Array.from(costs ?? saved.grid.costs)), {
       seed: saved.randomState, dayNightCycleTicks: saved.dayNightCycleTicks,
       teamAlliances: saved.teamAlliances, initialResources: saved.resources,
     });
@@ -1005,6 +1070,13 @@ export class DeterministicSimulation implements Simulation {
     for (const event of saved.movementFinishedEvents ?? []) simulation.#movementFinishedEvents.push(event);
     for (const actor of saved.resourceActors ?? []) simulation.#resourceActors.set(actor.simulationId, copyResourceActor(actor));
     for (const event of saved.resourceActorEvents ?? []) simulation.#resourceActorEvents.push(event);
+    if (saved.adaptedInspire) {
+      simulation.#adaptedInspireRandomIndex = saved.adaptedInspire.randomIndex;
+      for (const { unitId, typeId, charge } of saved.adaptedInspire.casters) simulation.#adaptedInspireCasters.set(unitId, { typeId, charge });
+      for (const { unitId, timer, casterId, multiplierQ8 } of saved.adaptedInspire.targets) {
+        simulation.#adaptedInspireTargets.set(unitId, { timer, casterId, multiplierQ8 });
+      }
+    }
     return simulation;
   }
 
@@ -1204,6 +1276,83 @@ export class DeterministicSimulation implements Simulation {
       state: { charge: registration.charge, timer: registration.timer, casterSlot: registration.casterSlot },
       animationMode: 0, pendingOrder: 0 });
     if (registration.unitId !== null) this.#inspireUnitSlots.set(registration.unitId, registration.slot);
+  }
+
+  /** Idempotent; a changed caster type (upgrade) keeps its charge. Returns false for a missing or dead unit. */
+  registerAdaptedInspireCaster(unitId: number, typeId: number): boolean {
+    if (this.#nativeInspire) throw new RangeError("adapted Inspire is unavailable with a native Inspire adapter");
+    if (!getLegacyInspireProfile(typeId)) throw new RangeError(`type ${typeId} is not an Inspire caster`);
+    if (!this.#adaptedInspireLive(unitId) || this.#resourceActors.has(unitId)) return false;
+    const existing = this.#adaptedInspireCasters.get(unitId);
+    if (existing) existing.typeId = typeId;
+    else this.#adaptedInspireCasters.set(unitId, { typeId, charge: 0 });
+    this.#adaptedInspireTargets.delete(unitId);
+    return true;
+  }
+
+  adaptedInspireState(unitId: number): AdaptedInspireUnitState | null {
+    const caster = this.#adaptedInspireCasters.get(unitId);
+    const target = this.#adaptedInspireTargets.get(unitId);
+    if ((!caster && !target) || !this.#adaptedInspireLive(unitId)) return null;
+    const timer = target?.timer ?? 0;
+    return Object.freeze({ caster: !!caster, typeId: caster?.typeId ?? null, charge: caster?.charge ?? 0,
+      ready: !!caster && getLegacyInspireChargeGates(caster.charge).uiChargeReady, timer,
+      liveMultiplierQ8: timer > 0 ? target!.multiplierQ8 : 256 });
+  }
+
+  #advanceAdaptedInspire(): void {
+    for (const [id, caster] of this.#adaptedInspireCasters) {
+      if (!this.#adaptedInspireLive(id)) { this.#adaptedInspireCasters.delete(id); continue; }
+      caster.charge = updateLegacyInspireCounters({ charge: caster.charge, timer: 0, casterSlot: 0 }, this.#tick,
+        getLegacyInspireProfile(caster.typeId)!.recharge).charge;
+    }
+    for (const [id, target] of this.#adaptedInspireTargets) {
+      if (this.#adaptedInspireLive(id)) {
+        target.timer = updateLegacyInspireCounters({ charge: 0, timer: target.timer, casterSlot: 0 }, this.#tick, 0).timer;
+      }
+      if (target.timer === 0 || !this.#adaptedInspireLive(id)) this.#adaptedInspireTargets.delete(id);
+    }
+  }
+
+  #applyAdaptedInspire(unitIds: readonly number[], team: number): void {
+    const { width, height } = this.grid;
+    for (const id of unitIds) {
+      const caster = this.#adaptedInspireCasters.get(id);
+      const unit = this.#units.get(id);
+      if (!caster || !unit || !this.#adaptedInspireLive(id) || unit.team !== team
+        || !getLegacyInspireChargeGates(caster.charge).uiChargeReady) continue;
+      const profile = getLegacyInspireProfile(caster.typeId)!;
+      const xQ8 = Math.floor(unit.xSubcells * 256 / SUBCELLS_PER_CELL);
+      const yQ8 = Math.floor(unit.ySubcells * 256 / SUBCELLS_PER_CELL);
+      // Synthetic native planes: one occupant per cell and plane (lowest id), limited to the scan's +/-20 tile window.
+      const ground = new Uint16Array(width * height).fill(1023);
+      const air = new Uint16Array(width * height).fill(1023);
+      const slots: Record<number, LegacyInspireSlot> = {};
+      const slotUnits: number[] = [];
+      for (const other of [...this.#units.values()].sort((left, right) => left.id - right.id)) {
+        if (slotUnits.length >= 1022 || !this.#adaptedInspireLive(other.id) || this.#resourceOwned(other.id)) continue;
+        const cellX = Math.floor(other.xSubcells / SUBCELLS_PER_CELL);
+        const cellY = Math.floor(other.ySubcells / SUBCELLS_PER_CELL);
+        if (Math.abs(cellX - (xQ8 >> 8)) > 20 || Math.abs(cellY - (yQ8 >> 8)) > 20) continue;
+        const plane = other.movementPlane === "air" ? air : ground;
+        const cell = cellY * width + cellX;
+        if (plane[cell] !== 1023) continue;
+        const otherCaster = this.#adaptedInspireCasters.get(other.id);
+        plane[cell] = slotUnits.length;
+        slots[slotUnits.length] = { team: other.team ?? -1, primaryWeapon: other.weapon ? 0 : -1,
+          multiplierQ8: otherCaster ? getLegacyInspireProfile(otherCaster.typeId)!.multiplierQ8 : 0 };
+        slotUnits.push(other.id);
+      }
+      const scan = scanLegacyInspireEffect({ xQ8, yQ8, casterSlot: 0, casterTeam: team, visitBudget: profile.visitBudget,
+        width, height, ground, air, slots, randomTable: LEGACY_INSPIRE_NATIVE_RANDOM_TABLE,
+        randomIndex: this.#adaptedInspireRandomIndex });
+      caster.charge = scan.casterCharge;
+      this.#adaptedInspireRandomIndex = scan.randomIndex;
+      for (const write of scan.writes) {
+        this.#adaptedInspireTargets.set(slotUnits[write.targetSlot], { timer: write.timer, casterId: id,
+          multiplierQ8: profile.multiplierQ8 });
+      }
+    }
   }
 
   nativeInspireState(unitId: number): NativeInspireSnapshot | null {
@@ -1445,7 +1594,56 @@ export class DeterministicSimulation implements Simulation {
       entity.pendingOrder = 0;
       this.#inspireUnitSlots.delete(id);
     }
+    this.#adaptedInspireCasters.delete(id);
+    this.#adaptedInspireTargets.delete(id);
     return this.#units.delete(id);
+  }
+
+  setDormantUnits(ids: Iterable<number>): void {
+    this.#dormantUnits.clear();
+    for (const id of ids) {
+      const unit = this.#units.get(id);
+      if (!unit) continue;
+      this.#dormantUnits.add(id);
+      if (unit.activity !== "die" && unit.activity !== "idle") { this.#clearOrders(unit); unit.activity = "idle"; }
+    }
+  }
+
+  transferEntityTeam(id: number, team: number, faction: Faction): boolean {
+    validateTeam(team);
+    if (this.#resourceActors.has(id) || this.#inspireUnitSlots.has(id)) {
+      throw new RangeError("Team transfer is unsupported for native resource or Inspire registrations");
+    }
+    const unit = this.#units.get(id);
+    const target = this.#staticTargets.get(id);
+    if (unit) {
+      if (unit.activity === "die") return false;
+      const next = { ...unit, team, faction, activity: "idle" as const };
+      this.#clearOrders(next);
+      this.#units.set(id, next);
+    } else if (target) {
+      if (target.health <= 0) return false;
+      this.#staticTargets.set(id, { ...target, team, faction, ...(target.weapon ? { attackTargetId: null } : {}) });
+    } else return false;
+    for (const other of this.#units.values()) if (other.attackTargetId === id) other.attackTargetId = null;
+    for (const other of this.#staticTargets.values()) if (other.attackTargetId === id) other.attackTargetId = null;
+    return true;
+  }
+
+  removeStaticTarget(id: number): boolean {
+    const target = this.#staticTargets.get(id);
+    if (!target) return false;
+    if (target.health > 0) {
+      for (const index of target.footprint) {
+        const blocker = this.#staticBlockers.get(index)!;
+        blocker.count -= 1;
+        if (blocker.count === 0) {
+          this.grid.costs[index] = blocker.priorCost;
+          this.#staticBlockers.delete(index);
+        }
+      }
+    }
+    return this.#staticTargets.delete(id);
   }
 
   updateUnitEquipment(id: number, equipment: { readonly weapon: WeaponStats; readonly sourceDefense: LegacyDefenseProfile }): void {
@@ -1609,6 +1807,7 @@ export class DeterministicSimulation implements Simulation {
     for (const event of resourceEvents) if (event.type === "combat-death") {
       this.#deathEvents.push({ type: "death", tick: this.#tick, targetId: event.simulationId });
     }
+    this.#advanceAdaptedInspire();
     while (this.#commands[0]?.tick === this.#tick) this.#applyCommand(this.#commands.shift()!.command);
     this.#movementReservations.clear();
     this.#airMovementReservations.clear();
@@ -1623,7 +1822,7 @@ export class DeterministicSimulation implements Simulation {
     for (const entry of updateOrder) {
       const native = "registration" in entry ? entry : null;
       const unit = native ? (native.registration.unitId === null ? undefined : this.#units.get(native.registration.unitId)) : entry as UnitState;
-      if (unit?.activity === "die" || (unit && this.#resourceOwned(unit.id))) continue;
+      if (unit?.activity === "die" || (unit && this.#resourceOwned(unit.id)) || (unit && this.#dormantUnits.has(unit.id))) continue;
       if (native) this.#advanceInspire(native);
       if (unit && native?.animationMode !== 1) {
         const startXSubcells = unit.xSubcells;
@@ -1690,6 +1889,8 @@ export class DeterministicSimulation implements Simulation {
           const slot = this.#inspireUnitSlots.get(target.id);
           const native = slot === undefined ? undefined : this.#inspireSlots.get(slot);
           if (native) { native.animationMode = 0; native.pendingOrder = 0; }
+          this.#adaptedInspireCasters.delete(target.id);
+          this.#adaptedInspireTargets.delete(target.id);
         } else {
           if (target.weapon) target.attackTargetId = null;
           for (const index of target.footprint) {
@@ -1713,10 +1914,13 @@ export class DeterministicSimulation implements Simulation {
       this.#queueConstruction(command);
       return;
     }
-    const unitIds = [...new Set(command.unitIds)].sort((left, right) => left - right);
+    const unitIds = [...new Set(command.unitIds)].filter(id => !this.#dormantUnits.has(id)).sort((left, right) => left - right);
     if (command.type === "inspire") {
-      if (!this.#nativeInspire) throw new RangeError("native Inspire adapter is not configured");
       if (!Number.isInteger(command.team) || command.team < 0 || command.team > 7) throw new RangeError("invalid Inspire command team");
+      if (!this.#nativeInspire) {
+        this.#applyAdaptedInspire(unitIds, command.team);
+        return;
+      }
       for (const id of unitIds) {
         const slot = this.#inspireUnitSlots.get(id);
         const entity = slot === undefined ? undefined : this.#inspireSlots.get(slot);
@@ -2090,7 +2294,12 @@ export class DeterministicSimulation implements Simulation {
       || (target.team !== undefined && target.team >= 8)
       || !areHostile(attacker, target, this.#teamAlliances)) return false;
     const profile = attacker.weapon.sourceDamage;
-    if (profile && "mode" in profile) return true;
+    // Zero-damage targets (TOWR 81 and beacons 84/89/95 are class 8, coefficient 0) would pin attackers forever.
+    if (profile && "mode" in profile) {
+      const result = nativeOrdinaryHitDamage(attacker.weapon.damage, profile, target.sourceDefense,
+        this.#sourceDayNight?.phase, attacker.team, target.team, 256);
+      return "diagnostic" in result || result.damage > 0;
+    }
     return (profile && target.sourceDefense
       ? calculateLegacyDamage(attacker.weapon.damage, profile, target.sourceDefense)
       : attacker.weapon.damage) > 0;
@@ -2120,7 +2329,9 @@ export class DeterministicSimulation implements Simulation {
       let damage = unit.weapon.damage;
       const nativeSlot = this.#inspireUnitSlots.get(unit.id);
       const native = nativeSlot === undefined ? undefined : this.#inspireSlots.get(nativeSlot);
-      const inspireFactorQ8 = native ? this.#inspireMultiplier(native) : 256;
+      const adapted = native ? undefined : this.#adaptedInspireTargets.get(unit.id);
+      const adaptedQ8 = adapted && adapted.timer > 0 ? adapted.multiplierQ8 : 256;
+      const inspireFactorQ8 = native ? this.#inspireMultiplier(native) : adaptedQ8;
       if (profile && "mode" in profile) {
         const result = nativeOrdinaryHitDamage(damage, profile, target.sourceDefense,
           this.#sourceDayNight?.phase, unit.team, target.team, inspireFactorQ8);
@@ -2133,8 +2344,9 @@ export class DeterministicSimulation implements Simulation {
         this.#sourceDamageDiagnostics.push({ tick: this.#tick, attackerId: unit.id, targetId: target.id,
           reason: "unsupported-inspired-hit-profile" });
         return;
-      } else if (profile && target.sourceDefense) {
-        damage = calculateLegacyDamage(damage, profile, target.sourceDefense);
+      } else {
+        if (profile && target.sourceDefense) damage = calculateLegacyDamage(damage, profile, target.sourceDefense);
+        if (adaptedQ8 !== 256) damage = Math.floor(damage * adaptedQ8 / 256);
       }
       pendingDamage.set(target.id, (pendingDamage.get(target.id) ?? 0) + damage);
       this.#combatEvents.push({

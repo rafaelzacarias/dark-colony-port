@@ -404,7 +404,8 @@ export function executeMissionTransaction<Block extends RuntimeTriggerBlock, Wor
     condition: "0", actions: [] })) }, inputs, event, losses);
   if (!initialized.next) return { ok: false, diagnostics: initialized.diagnostics };
   let runtime = structuredClone(initialized.next.runtime);
-  let staged = structuredClone(world);
+  // Most cycles fire no world command; the world is only copied before the first adapter.prepare.
+  let staged = world, stagedIsCopy = false;
   let stagedInputs = { ...structuredClone(inputs), runtimeProfile: adapter.runtimeProfile,
     triggeringUnitType: event.kind === "trip" ? event.unitType : undefined };
   const commands: PlannedMissionCommand[] = [];
@@ -442,6 +443,7 @@ export function executeMissionTransaction<Block extends RuntimeTriggerBlock, Wor
         if (!decoded.ok) return atAction(decoded.diagnostics);
         const planned: PlannedMissionCommand = { ...origin, id: `${state.revision}:${block.id}:${actionIndex}`,
           command: decoded.value, statistics: { ...runtime.statistics } };
+        if (!stagedIsCopy) { staged = structuredClone(staged); stagedIsCopy = true; }
         const prepared = adapter.prepare(staged, structuredClone([planned]));
         if (!prepared.ok) return atAction(prepared.diagnostics);
         const acceptedReceipts = snapshotReceipts([planned], prepared.value.receipts);

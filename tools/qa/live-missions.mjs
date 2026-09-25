@@ -155,6 +155,7 @@ async function runMission(page, faction) {
       return render.apply(this, args);
     };
   }, moduleResponse.url());
+  await page.locator('[data-menu-open="new"]').click();
   await page.locator(`#campaign-launcher [data-campaign-faction="${faction}"]`).click();
   await page.locator("#mission-shell").waitFor({ state: "visible" });
   await page.waitForFunction(() => document.querySelectorAll("#archive-list button[data-unit-id]").length === 5);

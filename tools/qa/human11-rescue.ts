@@ -4,7 +4,7 @@ import { spawnSync, type SpawnOptions, type SpawnSyncOptions } from "node:child_
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { NavigationGrid } from "../../src/engine/grid";
 import { sourceContract, hash } from "./campaign-10-12";
-import { loadCampaignMission } from "../../src/game-data";
+import { loadReleaseMission, savedView } from "./fixtures/release-mission";
 import { MissionView } from "../../src/mission-view";
 import { areHostile } from "../../src/engine/diplomacy";
 import { findPath } from "../../src/engine/pathfinding";
@@ -137,7 +137,7 @@ export async function worker(output: string, proof: boolean, resume?: string) {
     JSON.stringify({ kind, tick: view?.simulation.snapshot.tick, elapsedMs: Date.now() - started, data }) + "\n");
   let result: Record<string, unknown> = { status: "RUNTIME_BLOCKER" };
   try {
-    const mission = await loadCampaignMission("human", 11, "browser-adapted");
+    const mission = await loadReleaseMission("human", 11, savedView(proof ? `${output}/pending-win.json` : resume));
     const sourceHash = hash(JSON.stringify(mission));
     assert.equal(mission.scenario.source.sha256, source.sources.SCN);
     assert.deepEqual(mission.triggers, source.triggers);

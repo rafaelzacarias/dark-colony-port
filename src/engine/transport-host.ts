@@ -1,4 +1,5 @@
 import type { CampaignEntity, CampaignResourceRateCommand, CampaignTransportAdapter, CampaignWorld } from "./campaign-world";
+import { sha256Hex } from "../sha256";
 import type { LegacyUnitStat } from "./legacy-balance";
 import { browserCasualtyPickupPolicy, type BrowserCasualtyPickup } from "./browser-casualty-pickup";
 import { nativeConstructionRaw, restoreNativeConstructionHost, type NativeConstructionHost } from "./native-construction-host";
@@ -264,8 +265,7 @@ export async function authenticateNativeAiTaskConfiguration(configuration: Nativ
     return retained;
   }
   const source = nativeAiSourceValue(candidate);
-  const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(source))),
-    value => value.toString(16).padStart(2, "0")).join("");
+  const hash = await sha256Hex(new TextEncoder().encode(source));
   requireHost(nativeAiSourcePins.has(hash) && candidate.sourceId === `nativeactor-v1:${hash}`,
     "Native AI configuration is not in the verified constructor/source corpus");
   authenticatedNativeAiSources.set(source, candidate.sourceId);
@@ -503,15 +503,33 @@ function failure<Value>(error: unknown): TriggerResult<Value> {
   return { ok: false, diagnostics: [{ code: "invalid-input", message: error instanceof Error ? error.message : String(error) }] };
 }
 
+// Flat primitive planes (map-sized) dominate host clone cost; slice() copies them ~50x faster than structuredClone.
+const FLAT_HOST_PLANES = ["ground", "flying", "groundEligible", "resourceTileFlags"] as const;
+function cloneHostState<State extends object>(state: State): State {
+  const source = state as Record<string, unknown>, rest = { ...source }, planes: Record<string, unknown> = {};
+  for (const key of FLAT_HOST_PLANES) {
+    const plane = source[key];
+    if (Array.isArray(plane)) { planes[key] = plane.slice(); delete rest[key]; }
+  }
+  return { ...structuredClone(rest), ...planes } as unknown as State;
+}
+
 function publicTransportHostState(world: CampaignWorld): TransportHostState {
   const state = world.transportState as TransportHostState | null;
   requireHost(state?.kind === "transport-host-v1", "Transport host has not been initialized");
-  const cloned = structuredClone(state);
+  const cloned = cloneHostState(state);
   for (const entity of cloned.slots) if (entity?.resourceTask) entity.taskWords = entity.resourceTask.stack.at(-1)!.words;
   return cloned;
 }
 
 export { publicTransportHostState as transportHostState };
+
+/** Uncloned host for read-only validators; callers must not mutate it or rely on projected taskWords. */
+export function readTransportHostState(world: CampaignWorld): Readonly<TransportHostState> {
+  const state = world.transportState as TransportHostState | null;
+  requireHost(state?.kind === "transport-host-v1", "Transport host has not been initialized");
+  return state;
+}
 
 function transportHostState(world: CampaignWorld): TransportHostState {
   const state = world.transportState as TransportHostState | null;
@@ -523,7 +541,7 @@ function transportHostState(world: CampaignWorld): TransportHostState {
   }
   if (!configuration || !isImmutableSourceNativeTaskConfiguration(configuration)) return publicTransportHostState(world);
   const combatConfiguration = state.nativeCombat && retainSourceNativeCombatConfiguration(state.nativeCombat.configuration);
-  const cloned = structuredClone({ ...state, nativeAiTasks: { ...state.nativeAiTasks!, configuration: undefined },
+  const cloned = cloneHostState({ ...state, nativeAiTasks: { ...state.nativeAiTasks!, configuration: undefined },
     ...(state.nativeCombat ? { nativeCombat: { ...state.nativeCombat, configuration: undefined } } : {}) });
   const { nativeCombat: clonedCombat, ...withoutCombat } = cloned;
   const retained: TransportHostState = { ...withoutCombat, nativeAiTasks: { ...cloned.nativeAiTasks, configuration },
@@ -1014,7 +1032,9 @@ function prepare(world: CampaignWorld, planned: PlannedMissionCommand): ReturnTy
       requireHost(integer(command.team, 7) && integer(command.tileX, 255) && integer(command.tileY, 255), "Invalid reinforcement location/team");
       requireHost(command.groups.length > 0 && command.groups.length <= 5 && command.groups.every((group) =>
         integer(group.unitType, 109) && integer(group.count, 255)), "Invalid reinforcement groups");
-      const tile = { x: command.tileX, y: command.tileY };
+      // HUMAN10 block 14 sends team 3 to (133,107) on a 128x112 map. DC.EXE 0x418f4c does not bound-check the
+      // tile; delivering past the edge would index outside the planes, so the carrier lands on the nearest edge cell.
+      const tile = { x: Math.min(command.tileX, state.width - 1), y: Math.min(command.tileY, state.height - 1) };
       requireHost(cellIndex(state, tile) !== null, "Reinforcement origin outside map");
       for (const group of command.groups) if (group.count > 0) {
         validateSourceNativeAllocation(state, group.unitType, command.team);
@@ -1758,7 +1778,27 @@ function step(world: CampaignWorld, state: TransportHostState, resourceFrame?: R
 export function stepTransportHost(world: CampaignWorld, resourceFrame?: ResourceHostFrame, nativeAiFrame?: NativeAiTaskFrame): TriggerResult<CampaignWorld> {
   try {
     const state = transportHostState(world);
-    const staged = save(step(cloneTransportHostWorld({ ...world, transportState: state }), state, resourceFrame, nativeAiFrame), state);
+    // `state` is already a private copy; save() only reads the pre-step slots, which the untouched original provides.
+    const staged = save(step({ ...structuredClone({ ...world, transportState: undefined }), transportState: world.transportState },
+      state, resourceFrame, nativeAiFrame), state);
+    validateNativeAiTaskAlignment(staged, state);
+    return { ok: true, value: staged };
+  } catch (error) { return failure(error); }
+}
+
+/**
+ * stepTransportHost for a caller that exclusively owns `world` (the session's staged copy) and discards it after the call:
+ * the host is stepped in place instead of cloned twice (~0.8 ms per H13 tick). step() and its callees only touch `state`;
+ * save() reads just each slot's previous generation and status, which a small snapshot provides.
+ */
+export function stepOwnedTransportHost(world: CampaignWorld, resourceFrame?: ResourceHostFrame, nativeAiFrame?: NativeAiTaskFrame): TriggerResult<CampaignWorld> {
+  try {
+    const state = world.transportState as TransportHostState | null;
+    requireHost(state?.kind === "transport-host-v1", "Transport host has not been initialized");
+    for (const entity of state.slots) if (entity?.resourceTask) entity.taskWords = entity.resourceTask.stack.at(-1)!.words;
+    const previous = { slots: state.slots.map(entity => entity && { generation: entity.generation, status: entity.status }) };
+    const stepped = step({ ...world, transportState: previous as unknown as TransportHostState }, state, resourceFrame, nativeAiFrame);
+    const staged = save(stepped, state);
     validateNativeAiTaskAlignment(staged, state);
     return { ok: true, value: staged };
   } catch (error) { return failure(error); }

@@ -1,0 +1,22 @@
+{
+  "id": "A12",
+  "status": "WIN",
+  "tick": 26537,
+  "outcome": {
+    "resultCode": 0,
+    "reasonCode": 1,
+    "ready": true
+  },
+  "commands": 807,
+  "purchases": 25,
+  "proof": {
+    "id": "A12",
+    "status": "WIN",
+    "exact": true,
+    "fromTick": 26336,
+    "toTick": 26537,
+    "hash": "3a538791582e4d6ef216df8d665be8364dd93abe7b245816aaba51f402f8cbf1",
+    "sourceHash": "2eb9cf973352d1a1ef2ac7667bebd20a173ab6d72ae2b7859456fe1c2a483a2a",
+    "elapsedMs": 379292
+  }
+}

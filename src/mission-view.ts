@@ -21,6 +21,7 @@ import { worldYToScreen, screenYToWorld } from "./render/coordinates";
 import { drawTerrainLayer } from "./render/terrain";
 import { createMissionTerrain, type MissionMode3Terrain } from "./render/mission-terrain";
 import { createMissionSpritePalettes } from "./render/mission-sprites";
+import { beginMode1ShadowFrame, endMode1ShadowFrame } from "./render/mode1-canvas";
 import { createLegacyInfantryFamilyMask } from "./engine/legacy-navigation";
 import { projectLegacyColony } from "./engine/legacy-colony";
 import { legacyStaticOccupancyFieldsFromSource, projectLegacyStaticOccupancy } from "./engine/legacy-static-occupancy";
@@ -52,6 +53,8 @@ import { nativeViewResourceIdentity, type NativeViewProjection, type NativeViewF
 import { validateSourceNativeVisibilityHostConfiguration, type SourceNativeVisibilityHostConfiguration } from "./engine/source-native-visibility-host";
 import type { NativeConstructionActor } from "./engine/native-construction-host";
 import type { CampaignEntity, CampaignWorld } from "./engine/campaign-world";
+import { CONTACT_JOIN, CONTACT_PICKUP_STATE_OFFSET } from "./engine/browser-contact-pickups";
+import { sourceUnitIsCommander } from "./engine/browser-casualty-pickup";
 import { commandNativeHarvest, transportHostState, type HostSlot, type NativeHarvestCommand,
   type HostUnitUpdate, type HostRequest, type ResourceHostEntityState } from "./engine/transport-host";
 import { CombatMovementOrders } from "./engine/combat-movement";
@@ -65,6 +68,8 @@ import { createMissionAudioFeedback, type MissionAudioFeedback } from "./audio/m
 import { composeFinSample, createAtlasCache, createFinFrameLookup, createFinSelector, createFinSourceSampler,
   directionFromMotion, drawFinComposition, TRSC_GRAY_VISUAL_DIRECTIONS,
   type FinAction, type CompassDirection, type FinAnimationData, type FinAtlasFrame } from "./render";
+import { finBodyBounds, type FinBodyBounds } from "./render/fin-composition";
+import { drawBrowserMode5Canvas } from "./render/mode5-canvas";
 
 export function prepareNativeDeathSoundEffects(
   requests: readonly HostRequest[],
@@ -148,6 +153,8 @@ export interface MissionViewMode3Frame extends MissionMode3Prepass {
 import { additionalMissionAnimationArchives } from "./engine/mission-animation-archives";
 
 const ASSET_ROOT = assetUrl("/assets/generated");
+// SARGE (human) and PSYC (alien) share the DC.EXE income-interception deployment.
+const INTERCEPTOR_TYPES: ReadonlySet<number> = new Set([4, 12]);
 const SPRITE_ALIASES: Readonly<Record<string, string>> = { BEEK: "BEAC" };
 
 export function missionUnitAction(unit: UnitSnapshot, previous: UnitSnapshot, pendingPath = false): FinAction {
@@ -184,6 +191,11 @@ export function missionAnimationArchives(sprite: string): readonly string[] {
   return additionalMissionAnimationArchives(sprite) ?? [SPRITE_ALIASES[sprite] ?? sprite];
 }
 export const MISSION_BROWSER_POLICY = Object.freeze({ fixedStepMilliseconds: 50, orientationSteps: 1, seed: 0xdc1997 });
+
+function firingRevealTicks(stat: LegacyUnitStat & { readonly rawTail?: readonly number[] }): number {
+  // GAMESTAT column 14 becomes type+0x64, then the low five bits of actor+0x10 when firing.
+  return (stat.rawTail?.[3] ?? 0) & 31;
+}
 
 export function missionResourceSample(animation: FinAnimationData, task: ResourceHostEntityState) {
   if (task.nativeMovement) {
@@ -254,6 +266,7 @@ export interface MissionEntityBinding {
 }
 
 interface MissionViewState {
+  combatReveals?: { id: number; team: number; expiresAt: number }[];
   nativeCommand?: SourceNativeQueuedPlayerCommand;
   resourceDiagnostic?: string;
   bindings: MissionEntityBinding[];
@@ -404,7 +417,8 @@ function validateViewCheckpoint(value: unknown, mission: SourceBrowserCampaignMi
       diagnostic: nullable(string),
       animationStates: array(object({ id, action: choice("Stand", "Move", "Attack", "Die"),
         facing: choice("N", "NE", "E", "SE", "S", "SW", "W", "NW"), since: number })),
-    }, { pendingProduction: integer(0, 109), pendingConstruction: integer(0, 109), resourceDiagnostic: string,
+    }, { combatReveals: array(object({ id, team: integer(0, 7), expiresAt: number })),
+      pendingProduction: integer(0, 109), pendingConstruction: integer(0, 109), resourceDiagnostic: string,
       nativeCommand: object({ sourceId: string, id: string, localTeam: choice(0), selected: nativeBinding, command: nativeOrder }) }),
   }, { browserAi, economy, research: object({ presentationPolicy: choice("adapted-original-cursor-v1"), state: delegated }),
     guardAttacks: array(object({ id, targetId: id })) })(value);
@@ -518,6 +532,32 @@ export class MissionView {
   readonly #unitStats = new Map<number, LegacyUnitStat>();
   readonly #unitWeaponIds = new Map<number, number>();
   readonly #unitTeams = new Map<number, number>();
+  // DC.EXE 4148b0 skips the ordinary update of state-1 contact objects until they join.
+  #contactDormant: Set<number> | undefined;
+
+  // DC.EXE 4140dc requests sound index 3 (EAX=3, EDX=7) for both join and pickup: SLIST XTR 3 -> sound 5.
+  // Frames may run in an audio-less candidate view, so contacts are counted there and played once after commit.
+  #contactSounds = 0;
+
+  #emitContactSound(source: MissionView): void {
+    if (!source.#contactSounds) return;
+    source.#contactSounds = 0;
+    if (!this.#audio) return;
+    const soundId = legacyCueCatalog.bindings.find(({ id, group }) => id === 3 && group === "XTR")?.soundIds[0];
+    const sound = legacyCueCatalog.sounds.find(({ id }) => id === soundId);
+    if (soundId !== 5 || sound?.source !== "SOUND/CAPTURE.WAV") throw new Error("Missing source XTR 3 contact sound 5");
+    void this.#audio.play({ assetId: sound.source, priority: 40 });
+  }
+
+  #contactDormantIds(world: Pick<CampaignWorld, "entities"> & Partial<Pick<CampaignWorld, "entityBytes">>): Set<number> {
+    const bytes = world.entityBytes;
+    if (!bytes) return new Set();
+    return new Set(world.entities.flatMap(entity => {
+      if (entity.rawSlot === null || bytes[entity.rawSlot * 220 + CONTACT_PICKUP_STATE_OFFSET] !== CONTACT_JOIN) return [];
+      const binding = this.#nativeBindings.get(`${entity.rawSlot}:${entity.generation}`);
+      return binding ? [binding.simulationId] : [];
+    }));
+  }
   readonly #staticObjects: StaticMissionObject[] = [];
   readonly #visuals = new Map<string, MissionVisual>();
   readonly #waypointRoutes = new Map<
@@ -529,13 +569,17 @@ export class MissionView {
   #waypointDraft: { points: { x: number; y: number }[]; engage: boolean } | null = null;
   #combatMovement = new CombatMovementOrders();
   #guardAttacks = new GuardAttackOrders();
+  readonly #combatReveals = new Map<number, { team: number; expiresAt: number }>();
   readonly #recordedDeaths = new Set<number>();
   readonly #audio?: WebAudioManager;
   readonly #audioFeedback?: MissionAudioFeedback;
   readonly #animationStates = new Map<number, { action: FinAction; facing: CompassDirection; since: number }>();
+  readonly #visualBounds = new Map<number, FinBodyBounds>();
   #genericPendingPaths?: { simulation: DeterministicSimulation; tick: number; ids: ReadonlySet<number> };
   #terrainImage: HTMLImageElement | null = null;
   #indexedTerrain: Awaited<ReturnType<typeof createMissionTerrain>> | null = null;
+  #terrainCache: { canvas: HTMLCanvasElement; key: string; cameraKey: string; owner: object;
+    pendingKey: string | null; pendingFrames: number } | null = null;
   #terrainFallback: string | null = null;
   #spritePalettes: Awaited<ReturnType<typeof createMissionSpritePalettes>> | null = null;
   #disposed = false;
@@ -575,7 +619,7 @@ export class MissionView {
       this.#session = stagedFrom.#session;
       this.#previousSnapshot = stagedFrom.#previousSnapshot;
       this.#commitRuntime(stagedFrom);
-      this.#simulation = DeterministicSimulation.restore(stagedFrom.simulation.checkpoint());
+      this.#simulation = stagedFrom.simulation.fork();
       this.#session = stagedFrom.#session?.fork() ?? null;
       this.#combatMovement = CombatMovementOrders.restore(stagedFrom.#combatMovement.checkpoint());
       this.#guardAttacks = GuardAttackOrders.restore(stagedFrom.#guardAttacks.checkpoint());
@@ -660,6 +704,14 @@ export class MissionView {
           .map(({ entity }, id) => ({ id, cellX: entity.x, cellY: entity.y }));
     this.#cameraX = focus.reduce((sum, unit) => sum + unit.cellX, 0) / Math.max(1, focus.length);
     this.#cameraY = focus.reduce((sum, unit) => sum + unit.cellY, 0) / Math.max(1, focus.length);
+    // Widely separated starting groups (e.g. ALIEN09) put the centroid on empty fogged ground; start on the largest group instead.
+    const inView = (unit: { cellX: number; cellY: number }, x: number, y: number) => Math.abs(unit.cellX - x) <= 8 && Math.abs(unit.cellY - y) <= 7;
+    if (focus.length > 0 && !focus.some(unit => inView(unit, this.#cameraX, this.#cameraY))) {
+      const group = focus.map(anchor => focus.filter(unit => inView(unit, anchor.cellX, anchor.cellY)))
+        .reduce((best, candidate) => candidate.length > best.length ? candidate : best);
+      this.#cameraX = group.reduce((sum, unit) => sum + unit.cellX, 0) / group.length;
+      this.#cameraY = group.reduce((sum, unit) => sum + unit.cellY, 0) / group.length;
+    }
     this.#awaitingPlayerFocus = focus.length === 0;
     this.#previousSnapshot = this.simulation.snapshot;
     if (nativeCombatOptions && !this.#missionDiagnostic) this.#nativeCombatProjection = canonicalSource(this.simulation.checkpoint());
@@ -689,6 +741,7 @@ export class MissionView {
         ...(this.#pendingConstruction !== undefined ? { pendingConstruction: this.#pendingConstruction } : {}),
         ...(this.#resourceDiagnostic !== undefined ? { resourceDiagnostic: this.#resourceDiagnostic } : {}),
         ...(this.#pendingNativeCommand ? { nativeCommand: this.#pendingNativeCommand } : {}),
+        ...(this.#combatReveals.size ? { combatReveals: [...this.#combatReveals].map(([id, reveal]) => ({ id, ...reveal })) } : {}),
         explored: Array.from(this.#explored), camera: { x: this.#cameraX, y: this.#cameraY, awaitingPlayerFocus: this.#awaitingPlayerFocus },
         latestMessage: this.#latestMessage, carriers: this.carrierVisuals, outcome: this.#outcome, diagnostic: this.#missionDiagnostic ?? null,
         animationStates: [...this.#animationStates].map(([id, state]) => ({ id, ...state })),
@@ -808,11 +861,11 @@ export class MissionView {
         const binding = state.bindings.find(entry => entry.simulationId === actor.simulationId);
         const entity = session.snapshot.world.entities.find(entry => entry.key === actor.key);
         const unit = snapshot.units.find(entry => entry.id === actor.simulationId);
-        requireCheckpoint(binding && entity && unit && entity.unitType === 4 && entity.team === actor.team
+        requireCheckpoint(binding && entity && unit && INTERCEPTOR_TYPES.has(entity.unitType) && entity.team === actor.team
           && entity.rawSlot === actor.slot && entity.generation === actor.generation
           && binding.key === actor.key && binding.slot === actor.slot && binding.generation === actor.generation
           && unit.team === actor.team && unit.health > 0 && unit.movementPlane !== "air"
-          && state.unitStats.some(entry => entry.id === unit.id && entry.type === 4)
+          && state.unitStats.some(entry => entry.id === unit.id && entry.type === entity.unitType)
           && actor.xSubcells === unit.xSubcells && actor.ySubcells === unit.ySubcells,
         "browser deployment source actor");
         if (actor.partner) requireCheckpoint(actor.partner.acquiredTick <= snapshot.tick
@@ -825,7 +878,7 @@ export class MissionView {
       for (const entry of saved.economy.incomeInterception?.ledger ?? []) {
         const binding = state.bindings.find(actor => actor.key === entry.interceptorKey
           && actor.slot === entry.interceptorSlot && actor.generation === entry.interceptorGeneration);
-        requireCheckpoint(binding && state.unitStats.some(actor => actor.id === binding.simulationId && actor.type === 4),
+        requireCheckpoint(binding && state.unitStats.some(actor => actor.id === binding.simulationId && INTERCEPTOR_TYPES.has(actor.type)),
           "browser interception historical source actor");
       }
     }
@@ -905,7 +958,8 @@ export class MissionView {
       requireCheckpoint(simulated || detached.has(id) || deaths.has(id), "missing simulated entity");
       if (simulated) requireCheckpoint(simulated.team === entity.team &&
         simulated.faction === (entity.team === 8 ? mission.faction : mission.scenario.teams[entity.team].race === 1 ? "alien" : "human"), "simulation team");
-      requireCheckpoint(statics.has(id) === (stat.movementSpeed === 0 && !resourceActor), "static binding");
+      requireCheckpoint(statics.has(id) === (stat.movementSpeed === 0 && !resourceActor && !(detached.has(id)
+        && mission.runtimeProfile === "browser-adapted" && !simulated)), "static binding");
       if (resourceActor) {
         const record = world && transportHostState(world).slots[binding.slot];
         requireCheckpoint(record?.resourceTask && canonicalSource(resourceActor.profile.taskOwner.state) === canonicalSource(record.resourceTask)
@@ -968,6 +1022,14 @@ export class MissionView {
     for (const { id, targetId } of guardAttacks.checkpoint()) {
       bound(id); historicalId(targetId);
       requireCheckpoint(!simulation.resourceActors.some(actor => actor.simulationId === id), "external guard owner");
+    }
+    const revealedIds = new Set<number>();
+    for (const reveal of state.combatReveals ?? []) {
+      bound(reveal.id);
+      const actor = [...snapshot.units, ...snapshot.staticTargets].find(actor => actor.id === reveal.id);
+      requireCheckpoint(!nativeCombatOptions && !revealedIds.has(reveal.id) && actor && actor.health > 0 &&
+        reveal.expiresAt > snapshot.tick && reveal.expiresAt <= snapshot.tick + 31, "combat reveal");
+      revealedIds.add(reveal.id);
     }
     for (const reservation of state.pendingReservations) requireCheckpoint(state.bindings.some((binding) =>
       binding.slot === reservation.slot && binding.generation === reservation.generation && !detached.has(binding.simulationId)), "pending reservation");
@@ -1038,6 +1100,7 @@ export class MissionView {
     }
     view.#combatMovement = combatMovement;
     view.#guardAttacks = guardAttacks;
+    for (const { id, ...reveal } of state.combatReveals ?? []) view.#combatReveals.set(id, reveal);
     view.#nativeBindings.clear(); view.#simulationBindings.clear();
     for (const binding of state.bindings) {
       view.#nativeBindings.set(`${binding.slot}:${binding.generation}`, binding);
@@ -1107,7 +1170,7 @@ export class MissionView {
           console.warn("Indexed terrain unavailable; using RGBA fallback", this.#terrainFallback);
         }
         const sprites = [...missionVisualSprites(this.mission, this.#session?.snapshot.world, this.#research)];
-        if (this.#browserEconomy && !sprites.includes("SARGSTL")) sprites.push("SARGSTL");
+        if (this.#browserEconomy && !sprites.includes(this.#interceptorTypes.deployedSprite)) sprites.push(this.#interceptorTypes.deployedSprite);
         if (this.#browserEconomy) {
           for (const [typeId, expected] of [[47, "EDPLY"], [48, "SDPL"]] as const) {
             const stat = this.mission.units.find(entry => entry.index === typeId);
@@ -1274,33 +1337,41 @@ export class MissionView {
   }
   get browserEconomyState(): BrowserEconomyCheckpoint | undefined { return this.#browserEconomy?.checkpoint(); }
 
+  get #interceptorTypes() {
+    return this.playerFaction === "alien"
+      ? { mobile: 12 as const, deployed: 78, mobileSprite: "PSYC", deployedSprite: "PSYCSTL" }
+      : { mobile: 4 as const, deployed: 77, mobileSprite: "SARG", deployedSprite: "SARGSTL" };
+  }
+
   get deploymentSelection() {
     const deployed = this.#browserEconomy?.deployedInterceptors ?? [];
     const eligible = this.mission.runtimeProfile === "browser-adapted" && this.#browserEconomy
       && !this.#disposed && !this.#missionDiagnostic && !this.#outcome?.ready;
+    const mobile = this.#interceptorTypes.mobile;
     const units = this.simulation.snapshot.units.filter(unit => this.#selectedIds.has(unit.id)
-      && unit.team === 0 && unit.health > 0 && this.#unitStats.get(unit.id)?.index === 4);
+      && unit.team === 0 && unit.health > 0 && this.#unitStats.get(unit.id)?.index === mobile);
     return { canDeploy: Boolean(eligible && units.some(unit => unit.activity === "idle" && !deployed.includes(unit.id))),
       canUndeploy: Boolean(eligible && units.some(unit => deployed.includes(unit.id))) };
   }
 
   deploySelected(): readonly number[] {
     if (!this.deploymentSelection.canDeploy) return [];
-    const source = this.mission.units.find(stat => stat.index === 4);
-    const deployed = this.mission.units.find(stat => stat.index === 77);
-    if (source?.sprite !== "SARG" || deployed?.sprite !== "SARGSTL" || deployed.movementSpeed !== 0
+    const types = this.#interceptorTypes;
+    const source = this.mission.units.find(stat => stat.index === types.mobile);
+    const deployed = this.mission.units.find(stat => stat.index === types.deployed);
+    if (source?.sprite !== types.mobileSprite || deployed?.sprite !== types.deployedSprite || deployed.movementSpeed !== 0
       || deployed.weapons.some(weapon => weapon !== -1) || source.targetClass !== deployed.targetClass
       || source.health !== deployed.health
       || JSON.stringify(source.armorUpgradePercentages) !== JSON.stringify(deployed.armorUpgradePercentages)) {
-      throw new TypeError("Unverified SARGE source deployment types");
+      throw new TypeError(`Unverified ${types.mobileSprite} source deployment types`);
     }
     const accepted: number[] = [];
     for (const unit of this.simulation.snapshot.units) {
       if (!this.#selectedIds.has(unit.id) || unit.team !== 0 || unit.health <= 0 || unit.activity !== "idle"
-        || this.#unitStats.get(unit.id)?.index !== 4 || this.#browserEconomy!.deployedInterceptors.includes(unit.id)) continue;
+        || this.#unitStats.get(unit.id)?.index !== types.mobile || this.#browserEconomy!.deployedInterceptors.includes(unit.id)) continue;
       const binding = this.#simulationBindings.get(unit.id)!;
       this.#browserEconomy!.activateIncomeInterception(this.simulation, { type: "deploy",
-        actor: { ...binding, team: 0, typeId: 4 } });
+        actor: { ...binding, team: 0, typeId: types.mobile } });
       this.#combatMovement.cancel([unit.id]); this.#guardAttacks.cancel([unit.id]);
       this.#waypointRoutes.delete(unit.id);
       accepted.push(unit.id);
@@ -1309,6 +1380,38 @@ export class MissionView {
     this.#browserEconomy!.observeInterception(this.simulation, this.#incomeInterceptionFrame());
     this.render();
     return accepted;
+  }
+
+  get inspireSelection(): { readonly canInspire: boolean; readonly ready: boolean; readonly charge: number; readonly chargePercent: number } {
+    const none = { canInspire: false, ready: false, charge: 0, chargePercent: 0 };
+    if (this.mission.runtimeProfile !== "browser-adapted" || this.#disposed || this.#missionDiagnostic || this.#outcome?.ready) return none;
+    let canInspire = false, ready = false, charge = 0;
+    for (const id of this.#selectedIds) {
+      const index = this.#unitStats.get(id)?.index ?? -1;
+      if (this.#unitTeams.get(id) !== 0 || index < 69 || index > 76) continue;
+      const state = this.simulation.adaptedInspireState(id);
+      if (!state?.caster) continue;
+      canInspire = true;
+      ready ||= state.ready;
+      charge = Math.max(charge, state.charge);
+    }
+    return canInspire ? { canInspire, ready, charge, chargePercent: Math.min(100, Math.floor(charge * 100 / 33)) } : none;
+  }
+
+  inspireSelected(): readonly number[] {
+    if (!this.inspireSelection.ready) return [];
+    const unitIds = this.selectedIds.filter(id => this.#unitTeams.get(id) === 0 && this.simulation.adaptedInspireState(id)?.ready);
+    if (unitIds.length) this.simulation.queue({ type: "inspire", unitIds, team: 0 });
+    return unitIds;
+  }
+
+  #registerInspireCasters(): void {
+    for (const unit of this.simulation.snapshot.units) {
+      const index = this.#unitStats.get(unit.id)?.index ?? -1;
+      if (index >= 69 && index <= 76 && unit.health > 0 && unit.activity !== "die" && !unit.resourceActor) {
+        this.simulation.registerAdaptedInspireCaster(unit.id, index);
+      }
+    }
   }
 
   undeploySelected(): readonly number[] {
@@ -1409,9 +1512,17 @@ export class MissionView {
   }
 
   purchaseConstruction(dependency: number): boolean {
-    if (!this.constructionMenu.some(choice => choice.dependency === dependency && choice.requestEnabled)) return false;
+    const choice = this.constructionMenu.find(choice => choice.dependency === dependency && choice.requestEnabled);
+    if (!choice) return false;
+    // Both requests settle in the same session step; together they must fit the credits (H09 bought both and faulted).
+    if ("cost" in choice && this.#pendingProduction !== undefined
+      && this.#pendingCost(this.#pendingProduction) + choice.cost > this.resourceWorkflow.credits[0]) return false;
     this.#pendingConstruction = dependency;
     return true;
+  }
+
+  #pendingCost(production: number): number {
+    return this.productionMenu.find(choice => choice.dependency === production)?.cost ?? 0;
   }
 
   get constructionVisuals() {
@@ -1606,7 +1717,11 @@ export class MissionView {
   }
 
   purchaseProduction(dependency: number): boolean {
-    if (!this.productionMenu.some((choice) => choice.dependency === dependency && choice.enabled)) return false;
+    const choice = this.productionMenu.find((choice) => choice.dependency === dependency && choice.enabled);
+    if (!choice) return false;
+    const construction = this.#pendingConstruction === undefined ? undefined
+      : this.constructionMenu.find(entry => entry.dependency === this.#pendingConstruction);
+    if (construction && "cost" in construction && construction.cost + choice.cost > this.resourceWorkflow.credits[0]) return false;
     this.#pendingProduction = dependency;
     return true;
   }
@@ -1927,6 +2042,7 @@ export class MissionView {
 
   #applySessionFrame(frame: CampaignSessionFrame | NativeViewFrame | BrowserViewFrame,
     transport: NativeViewTransport | ReturnType<typeof transportHostState> = "transport" in frame ? frame.transport : transportHostState(frame.world)): void {
+    if (this.mission.runtimeProfile === "browser-adapted") this.#contactDormant = this.#contactDormantIds(frame.world);
     const constructionEffects = "browserConstructionEffects" in frame.entry ? frame.entry.browserConstructionEffects : undefined;
     const upgrades = "productionRequests" in frame.entry
       ? frame.entry.productionRequests?.filter(request => request.type === "upgrade-applied") ?? [] : [];
@@ -2014,7 +2130,16 @@ export class MissionView {
         }
         const resourceActor = this.simulation.resourceActors.find(actor => actor.simulationId === binding.simulationId);
         if (resourceActor && request.type === "clear-collision" && record?.status === 10) continue;
-        if (!this.#detachedIds.has(binding.simulationId) && resourceActor?.owner !== "removed" && !this.simulation.removeUnit(binding.simulationId)) {
+        const staticIndex = request.type === "unregister" && this.mission.runtimeProfile === "browser-adapted"
+          ? this.#staticObjects.findIndex(({ id }) => id === binding.simulationId) : -1;
+        if (staticIndex >= 0) {
+          // Contact pickups (DC.EXE 4140dc) remove a static placement that never died.
+          if (!this.#detachedIds.has(binding.simulationId) && !this.simulation.removeStaticTarget(binding.simulationId)) {
+            throw new Error(`Engine cannot remove static source entity: ${binding.key}`);
+          }
+          this.#staticObjects.splice(staticIndex, 1);
+          this.#contactSounds++;
+        } else if (!this.#detachedIds.has(binding.simulationId) && resourceActor?.owner !== "removed" && !this.simulation.removeUnit(binding.simulationId)) {
           throw new Error(`Engine cannot remove source entity without death: ${binding.key}`);
         }
         this.#detachedIds.add(binding.simulationId);
@@ -2034,6 +2159,18 @@ export class MissionView {
     for (const entity of frame.world.entities) {
       const binding = this.#nativeBindings.get(`${entity.rawSlot}:${entity.generation}`);
       if (!binding) continue;
+      const currentTeam = this.#unitTeams.get(binding.simulationId);
+      if (currentTeam !== undefined && currentTeam !== entity.team && !this.#detachedIds.has(binding.simulationId)) {
+        // Session-owned DC.EXE 4140dc join-on-contact is the only adapted ownership transfer.
+        if (this.mission.runtimeProfile !== "browser-adapted" || entity.team !== 0) throw new TypeError(`Unsupported team transfer: ${entity.key}`);
+        const faction: Faction = this.mission.scenario.teams[0].race === 1 ? "alien" : "human";
+        if (!this.simulation.transferEntityTeam(binding.simulationId, 0, faction)) throw new Error(`Team transfer has no simulation entity: ${entity.key}`);
+        this.#unitTeams.set(binding.simulationId, 0);
+        this.#contactSounds++;
+        const objectIndex = this.#staticObjects.findIndex(({ id }) => id === binding.simulationId);
+        if (objectIndex >= 0) this.#staticObjects[objectIndex] = { ...this.#staticObjects[objectIndex],
+          entity: { ...this.#staticObjects[objectIndex].entity, team: 0 } };
+      }
       const stat = this.mission.units.find(({ index }) => index === entity.unitType);
       if (!stat) throw new Error(`Missing render type: ${entity.unitType}`);
       if (this.mission.damageMatrix && this.#unitStats.get(binding.simulationId)?.index !== stat.index) {
@@ -2120,14 +2257,20 @@ export class MissionView {
       const stat = this.#unitStats.get(target.id);
       return stat && browserVisionArtifact(stat);
     }) : [];
-    for (const unit of [...snapshot.units, ...artifacts]) {
+    const artifactIds = new Set(artifacts.map(({ id }) => id));
+    // Owned structures reveal a smaller area than mobile units (half their GAMESTAT observation, min 3 cells).
+    const structures = team !== 0 ? [] : snapshot.staticTargets.filter(target =>
+      !artifactIds.has(target.id) && this.#unitStats.has(target.id) && this.isOwnedUnit(target.id));
+    const structureSet = new Set<object>(structures);
+    for (const unit of [...snapshot.units, ...artifacts, ...structures]) {
       const observerTeam = this.#unitTeams.get(unit.id);
       const observes = sharedVision ? observerTeam === team
         || observerTeam !== undefined && sharedVision[observerTeam] === 1 : this.isOwnedUnit(unit.id);
       if (!observes || unit.health <= 0 || ("activity" in unit && unit.activity === "die")) continue;
       const stat = this.#unitStats.get(unit.id)!;
       const light = snapshot.daylightPermille;
-      const radius = Math.floor((stat.observationNight * (1000 - light) + stat.observationDay * light) / 1000);
+      const sight = Math.floor((stat.observationNight * (1000 - light) + stat.observationDay * light) / 1000);
+      const radius = structureSet.has(unit) ? Math.max(3, sight >> 1) : sight;
       for (let offsetY = -radius; offsetY <= radius; offsetY += 1) {
         const extent = radius - Math.abs(offsetY);
         for (let offsetX = -extent; offsetX <= extent; offsetX += 1) {
@@ -2136,7 +2279,34 @@ export class MissionView {
         }
       }
     }
+    if (this.#combatReveals.size) for (const actor of [...snapshot.units, ...snapshot.staticTargets]) {
+      const reveal = this.#combatReveals.get(actor.id);
+      if (reveal && reveal.expiresAt > snapshot.tick && actor.health > 0 &&
+        (reveal.team === team || sharedVision?.[reveal.team] === 1)) {
+        result[actor.cellY * this.grid.width + actor.cellX] = 1;
+      }
+    }
     return result;
+  }
+
+  #recordCombatReveals(): void {
+    const shots = this.simulation.combatEvents;
+    if (!shots.length && !this.#combatReveals.size) return;
+    const snapshot = this.simulation.snapshot;
+    const actors = new Map([...snapshot.units, ...snapshot.staticTargets].map(actor => [actor.id, actor]));
+    const victims = new Map([...this.#previousSnapshot.units, ...this.#previousSnapshot.staticTargets, ...actors.values()]
+      .map(actor => [actor.id, actor]));
+    for (const shot of shots) {
+      const stat = this.#unitStats.get(shot.attackerId), target = victims.get(shot.targetId);
+      if (!stat || target?.team === undefined || target.team > 7) continue;
+      const duration = firingRevealTicks(stat);
+      if (duration > 0) this.#combatReveals.set(shot.attackerId, { team: target.team, expiresAt: shot.tick + 1 + duration });
+      else this.#combatReveals.delete(shot.attackerId);
+    }
+    for (const [id, reveal] of this.#combatReveals) {
+      const actor = actors.get(id);
+      if (!actor || actor.health <= 0 || snapshot.tick >= reveal.expiresAt) this.#combatReveals.delete(id);
+    }
   }
 
   get explored(): Uint8Array { return this.#explored.slice(); }
@@ -2217,16 +2387,17 @@ export class MissionView {
   ): void {
     this.#waypointDraft = null;
     const bounds = this.canvas.getBoundingClientRect();
-    const left = Math.min(startX, endX);
-    const right = Math.max(startX, endX);
-    const top = Math.min(startY, endY);
-    const bottom = Math.max(startY, endY);
+    const left = Math.max(0, (Math.min(startX, endX) - bounds.left) * 512 / bounds.width);
+    const right = Math.min(512, (Math.max(startX, endX) - bounds.left) * 512 / bounds.width);
+    const top = Math.max(0, (Math.min(startY, endY) - bounds.top) * 452 / bounds.height);
+    const bottom = Math.min(452, (Math.max(startY, endY) - bounds.top) * 452 / bounds.height);
     if (!additive) this.#selectedIds.clear();
     for (const unit of this.simulation.snapshot.units) {
       if (this.#unitTeams.get(unit.id) !== 0 || unit.faction !== this.playerFaction || unit.activity === "die") continue;
-      const clientX = bounds.left + this.#screenX(unit.xSubcells / SUBCELLS_PER_CELL, 512) * bounds.width / 512;
-      const clientY = bounds.top + this.#screenY(unit.ySubcells / SUBCELLS_PER_CELL, 452) * bounds.height / 452;
-      if (clientX >= left && clientX <= right && clientY >= top && clientY <= bottom) this.#selectedIds.add(unit.id);
+      const body = this.#entityScreenBounds(unit);
+      if (left <= right && top <= bottom && body.right >= left && body.left <= right && body.bottom >= top && body.top <= bottom) {
+        this.#selectedIds.add(unit.id);
+      }
     }
     this.callbacks.onUnitsChanged(this.simulation.snapshot.units, this.selectedIds);
     this.render();
@@ -2246,9 +2417,8 @@ export class MissionView {
       ) {
         continue;
       }
-      const screenX = this.#screenX(unit.xSubcells / SUBCELLS_PER_CELL, 512);
-      const screenY = this.#screenY(unit.ySubcells / SUBCELLS_PER_CELL, 452);
-      if (screenX >= 0 && screenX <= 512 && screenY >= 0 && screenY <= 452) {
+      const body = this.#entityScreenBounds(unit);
+      if (body.right >= 0 && body.left <= 512 && body.bottom >= 0 && body.top <= 452) {
         this.#selectedIds.add(unit.id);
       }
     }
@@ -2296,6 +2466,14 @@ export class MissionView {
     return this.#waypointDraft?.points.map((point) => ({ ...point })) ?? [];
   }
 
+  #entityScreenBounds(entity: { id: number; xSubcells: number; ySubcells: number }): FinBodyBounds {
+    const rendered = this.#visualBounds.get(entity.id);
+    if (rendered) return rendered;
+    const x = this.#screenX(entity.xSubcells / SUBCELLS_PER_CELL, 512);
+    const y = this.#screenY(entity.ySubcells / SUBCELLS_PER_CELL, 452);
+    return { left: x - 12, right: x + 12, top: y - 32, bottom: y + 6 };
+  }
+
   #pointerTarget(clientX: number, clientY: number, cursorOnly = false) {
     const bounds = this.canvas.getBoundingClientRect();
     const logicalX = (clientX - bounds.left) * 512 / bounds.width;
@@ -2307,16 +2485,14 @@ export class MissionView {
     const entities = [...snapshot.units, ...snapshot.staticTargets].filter((entity) => entity.health > 0 &&
       !(this.#browserEconomy && this.#unitStats.get(entity.id)?.index === 40) &&
       (this.isOwnedUnit(entity.id) || visibility[entity.cellY * this.grid.width + entity.cellX]));
-    const hits = entities.filter((entity) => {
-      if (entity.cellX === cellX && entity.cellY === cellY) return true;
-      const x = this.#screenX(entity.xSubcells / SUBCELLS_PER_CELL, 512);
-      const y = this.#screenY(entity.ySubcells / SUBCELLS_PER_CELL, 452);
-      return Math.abs(logicalX - x) <= 12 && logicalY >= y - 32 && logicalY <= y + 6;
-    }).sort((left, right) => {
-      const distance = (entity: typeof left) => Math.abs(logicalX - this.#screenX(entity.xSubcells / SUBCELLS_PER_CELL, 512)) +
-        Math.abs(logicalY - this.#screenY(entity.ySubcells / SUBCELLS_PER_CELL, 452));
-      return distance(left) - distance(right) || left.id - right.id;
-    });
+    const bodyHit = (entity: typeof entities[number]) => {
+      const body = this.#entityScreenBounds(entity);
+      return logicalX >= body.left && logicalX <= body.right && logicalY >= body.top && logicalY <= body.bottom;
+    };
+    const hits = entities.filter(entity => bodyHit(entity) ||
+      ((!this.#visualBounds.has(entity.id) || !("cargo" in entity)) && entity.cellX === cellX && entity.cellY === cellY))
+      .sort((left, right) => Number(bodyHit(right)) - Number(bodyHit(left))
+        || left.ySubcells - right.ySubcells || right.id - left.id);
     if (cursorOnly && (this.#cursorCache?.session !== this.#session || this.#cursorCache?.tick !== snapshot.tick)) {
       this.#cursorCache = { session: this.#session, tick: snapshot.tick, sources: this.resourceSources };
     }
@@ -2388,11 +2564,11 @@ export class MissionView {
     this.clock.reset();
   }
 
-  panByCells(deltaX: number, deltaY: number): void {
+  panByCells(deltaX: number, deltaY: number, render = true): void {
     this.#awaitingPlayerFocus = false;
     this.#cameraX += deltaX;
     this.#cameraY += deltaY;
-    this.render();
+    if (render) this.render();
   }
 
   #advanceFrame(constructionInput?: SourceConstructionFrame): void {
@@ -2465,6 +2641,11 @@ export class MissionView {
     for (const command of guardCommands) this.simulation.queue(command);
     this.#browserEconomy?.assignComputerHarvesters(this.simulation);
     this.#browserEconomy?.haltDeployed(this.simulation);
+    if (this.mission.runtimeProfile === "browser-adapted") {
+      this.#contactDormant ??= this.#contactDormantIds(this.#session!.snapshot.world);
+      this.simulation.setDormantUnits(this.#contactDormant);
+      this.#registerInspireCasters();
+    }
     this.simulation.advance();
     this.#browserEconomy?.observe(this.simulation,
       this.#browserEconomy.deployedInterceptors.length ? this.#incomeInterceptionFrame() : undefined);
@@ -2472,12 +2653,37 @@ export class MissionView {
     if (this.simulation.sourceDamageDiagnostics.length) throw new Error(`Unsupported native hit: ${JSON.stringify(this.simulation.sourceDamageDiagnostics)}`);
     if (!this.#browserAi) this.#stepSession(constructionInput);
     this.#assertConstructionProjection();
+    this.#recordCombatReveals();
     this.#recordExploration();
     this.#presentCombatEvents();
     this.#advanceWaypointRoutes();
+    if (this.mission.runtimeProfile === "browser-adapted") this.#clearProductionExits();
   }
 
-  #commitRuntime(candidate: MissionView): void {
+  // DC.EXE flags the exit occupant (+0x35 = 0) so its idle consumer steps aside; the adapted runtime has no such consumer,
+  // so an idle unit parked on the exit stalled every later unit from that producer.
+  #clearProductionExits(): void {
+    const exits = this.#session?.browserWaitingProductionExits;
+    if (!exits?.length) return;
+    const units = this.simulation.snapshot.units.filter(unit => unit.health > 0 && unit.activity !== "die");
+    const occupied = new Set(units.map(unit => unit.cellY * this.grid.width + unit.cellX));
+    for (const exit of exits) {
+      const blocker = units.find(unit => unit.cellX === exit.x && unit.cellY === exit.y && unit.team === exit.team
+        && unit.activity === "idle" && unit.movementPlane !== "air");
+      if (!blocker) continue;
+      let target: { x: number; y: number } | undefined;
+      for (let ring = 2; ring <= 4 && !target; ring++) for (let dy = -ring; dy <= ring && !target; dy++) for (let dx = -ring; dx <= ring; dx++) {
+        const x = exit.x + dx, y = exit.y + dy;
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring || !this.grid.isPassable(x, y) || occupied.has(y * this.grid.width + x)) continue;
+        target = { x, y }; break;
+      }
+      if (!target) continue;
+      occupied.add(target.y * this.grid.width + target.x);
+      this.simulation.queue({ type: "move", unitIds: [blocker.id], target });
+    }
+  }
+
+  #commitRuntime(candidate: MissionView, transfer = false): void {
     this.#simulation = candidate.#simulation; this.#session = candidate.#session;
     this.#browserAi = candidate.#browserAi;
     this.#browserEconomy = candidate.#browserEconomy;
@@ -2494,14 +2700,16 @@ export class MissionView {
     this.#combatMovement = candidate.#combatMovement;
     this.#guardAttacks = candidate.#guardAttacks;
     this.#previousSnapshot = candidate.#previousSnapshot;
+    // A committed candidate is discarded, so its private copies can be taken over instead of cloned a second time.
     const copyMap = <Key, Value>(target: Map<Key, Value>, source: Map<Key, Value>) => {
-      target.clear(); source.forEach((value, key) => target.set(key, structuredClone(value)));
+      target.clear(); source.forEach((value, key) => target.set(key, transfer ? value : structuredClone(value)));
     };
     copyMap(this.#sceneIdentities, candidate.#sceneIdentities);
     copyMap(this.#nativeBindings, candidate.#nativeBindings); copyMap(this.#simulationBindings, candidate.#simulationBindings);
     copyMap(this.#unitStats, candidate.#unitStats); copyMap(this.#unitWeaponIds, candidate.#unitWeaponIds);
     copyMap(this.#unitTeams, candidate.#unitTeams); copyMap(this.#waypointRoutes, candidate.#waypointRoutes);
     copyMap(this.#animationStates, candidate.#animationStates);
+    copyMap(this.#combatReveals, candidate.#combatReveals);
     for (const [target, source] of [[this.#selectedIds, candidate.#selectedIds], [this.#detachedIds, candidate.#detachedIds],
       [this.#recordedDeaths, candidate.#recordedDeaths]]) { target.clear(); source.forEach(value => target.add(value)); }
     this.#staticObjects.splice(0, this.#staticObjects.length, ...candidate.#staticObjects);
@@ -2529,12 +2737,13 @@ export class MissionView {
       if (this.#browserAi || this.mission.sourceResource?.resourceLifecycle.nativeHarvest) {
         const candidate = new MissionView(this.canvas, this.stage, { onStats() {}, onUnitsChanged() {} }, this.mission, undefined, this);
         candidate.#advanceFrame();
-        this.#commitRuntime(candidate);
+        this.#commitRuntime(candidate, true);
         this.#presentCombatEvents();
         if (this.#audio) for (const request of this.#session?.latestJournalEntry?.requests ?? []) {
           if (request.type === "source-sound") void this.#audio.play({ assetId: "SOUND/ERUPT.WAV", priority: 40 });
         }
-      } else this.#advanceFrame();
+        this.#emitContactSound(candidate);
+      } else { this.#advanceFrame(); this.#emitContactSound(this); }
       } catch (error) { this.#failMission(error); }
     });
     this.#interpolation = result.interpolation;
@@ -2645,7 +2854,7 @@ export class MissionView {
       return { exact: false as const, diagnostic };
     };
     if (this.#disposed) return reject("Disposed view");
-    const context = this.canvas.getContext("2d"), terrain = input.terrain ?? this.#indexedTerrain?.mode3;
+    const context = this.canvas.getContext("2d", { willReadFrequently: true }), terrain = input.terrain ?? this.#indexedTerrain?.mode3;
     if (!context || !terrain || terrain.mission !== this.mission) return reject("Indexed terrain owner required");
     try {
       const snapshot = this.simulation.snapshot;
@@ -2667,8 +2876,11 @@ export class MissionView {
     const height = 452;
     if (this.canvas.width !== width) this.canvas.width = width;
     if (this.canvas.height !== height) this.canvas.height = height;
-    const context = this.canvas.getContext("2d");
+    // Every mode-1 shadow reads the destination back (getImageData); on a GPU canvas each one stalled the frame (22% of H13 CPU).
+    const context = this.canvas.getContext("2d", { willReadFrequently: true });
     if (!context) return;
+    this.#visualBounds.clear();
+    beginMode1ShadowFrame(context);
     context.setTransform(1, 0, 0, 1, 0, 0);
     context.clearRect(0, 0, width, height);
     context.imageSmoothingEnabled = false;
@@ -2684,8 +2896,45 @@ export class MissionView {
     const visibility = this.#visibilityForSnapshot(snapshot);
     if (this.#indexedTerrain) {
       try {
-        context.drawImage(this.#indexedTerrain.render({ cameraX: this.#cameraX, cameraY: this.#cameraY,
-          visible: visibility, explored: this.#explored, fog: "overlay", blend: this.simulation.sourceDayNight?.blend }), 0, 0);
+        // Fog, exploration and day/night only change on ticks, so the terrain is cached per tick. A camera move re-renders
+        // synchronously to stay aligned with units; a tick-only change is read back asynchronously and shown one frame later,
+        // because copying the WebGL canvas right after drawing stalled tick frames on the GPU (~5 ms).
+        const terrain = this.#indexedTerrain;
+        const blend = this.simulation.sourceDayNight?.blend;
+        const cameraKey = `${this.#cameraX}|${this.#cameraY}|${width}x${height}`, contentKey = `${snapshot.tick}|${blend}`;
+        const frame = { cameraX: this.#cameraX, cameraY: this.#cameraY, visible: visibility, explored: this.#explored,
+          fog: "overlay" as const, blend };
+        let cache = this.#terrainCache;
+        if (cache && (cache.owner !== terrain || cache.cameraKey !== cameraKey)) {
+          terrain.cancelReadback();
+          cache = null;
+        }
+        if (cache?.pendingKey) {
+          const image = terrain.collectReadback();
+          const target = cache.canvas.getContext("2d", { willReadFrequently: true })!;
+          if (image) {
+            target.clearRect(0, 0, width, height);
+            target.putImageData(image, 0, 0);
+            cache.key = cache.pendingKey;
+            cache.pendingKey = null;
+          } else if (++cache.pendingFrames > 3) {
+            terrain.cancelReadback();
+            cache = null;
+          }
+        }
+        if (!cache) {
+          const canvas = this.#terrainCache?.canvas ?? this.canvas.ownerDocument.createElement("canvas");
+          canvas.width = width; canvas.height = height;
+          const target = canvas.getContext("2d", { willReadFrequently: true })!;
+          target.clearRect(0, 0, width, height);
+          target.drawImage(terrain.render(frame), 0, 0);
+          cache = this.#terrainCache = { canvas, key: contentKey, cameraKey, owner: terrain, pendingKey: null, pendingFrames: 0 };
+        } else if (cache.key !== contentKey && !cache.pendingKey) {
+          terrain.renderAsync(frame);
+          cache.pendingKey = contentKey;
+          cache.pendingFrames = 0;
+        }
+        context.drawImage(cache.canvas, 0, 0);
       } catch (error) {
         this.#terrainFallback = error instanceof Error ? error.message : String(error);
         this.#indexedTerrain.dispose();
@@ -2697,8 +2946,22 @@ export class MissionView {
         for (let x = firstX; x <= lastX; x += 1) this.#drawTerrainCell(context, x, y, width, height);
       }
     }
+    // Entity visibility is checked at its tile; fog must not clip a revealed sprite's head or muzzle.
+    for (let y = firstY; y <= lastY; y += 1) {
+      for (let x = firstX; x <= lastX; x += 1) {
+        if (visibility[y * this.grid.width + x]) continue;
+        context.fillStyle = this.#explored[y * this.grid.width + x] ? "rgba(3, 4, 3, .72)" : "#000000";
+        context.fillRect(
+          this.#screenX(x, width),
+          this.#screenY(y + 1, height),
+          this.#tileSize + 1,
+          this.#tileSize + 1,
+        );
+      }
+    }
     const drawables: { y: number; draw: () => void }[] = [];
     const overlays: (() => void)[] = [];
+    const commanderMarkers: (() => void)[] = [];
     if (this.#research && this.#type37World && this.#discoveryCursor) {
       const projection = this.researchDiscovery!;
       const frame = this.#discoveryCursor;
@@ -2733,7 +2996,8 @@ export class MissionView {
           const parts = composeFinSample(sample, visual.lookup);
           if (!parts.length || parts.some(({ frame }) => !frame)) throw new Error("Missing VENT composition");
           drawFinComposition(context, parts, (name) => visual.atlases.get(name.toUpperCase())?.image,
-            { x: this.#screenX(worldX, width), y: this.#screenY(worldY, height) }, 1);
+            { x: this.#screenX(worldX, width), y: this.#screenY(worldY, height) }, 1,
+            (part, origin, scale) => this.#drawBrowserEffect(context, part, origin, scale));
         } catch (error) { this.#failMission(error); }
       } });
     }
@@ -2789,6 +3053,9 @@ export class MissionView {
         ? this.#sceneCapture(unit.id, unit.xSubcells, unit.ySubcells) : undefined;
       drawables.push({ y: ySubcells, draw: () => this.#drawUnit(context, unit, screenX, screenY, snapshot.tick, scene) });
       overlays.push(() => this.#drawUnitOverlay(context, unit, screenX, screenY));
+      if (this.isOwnedUnit(unit.id) && sourceUnitIsCommander(this.#unitStats.get(unit.id)?.index ?? -1)) {
+        commanderMarkers.push(() => this.#drawCommanderMarker(context, unit, screenX, screenY));
+      }
     }
     drawables.sort((left, right) => right.y - left.y).forEach(({ draw }) => draw());
 
@@ -2806,25 +3073,18 @@ export class MissionView {
         const sample = visual.sample({ state, action: "Stand", direction: null, fallback: false }, snapshot.tick + this.#interpolation);
         const parts = composeFinSample(sample, visual.lookup);
         if (!parts.length || parts.some(({ frame }) => !frame)) throw new Error(`Missing carrier composition: ${carrier.sprite}`);
-        drawFinComposition(context, parts, (name) => visual.atlases.get(name.toUpperCase())?.image, { x: screenX, y: screenY }, 1);
+        drawFinComposition(context, parts, (name, part) =>
+          (part.child.valueA === 0 || part.child.valueA === 1) && this.#spritePalettes
+            ? this.#spritePalettes.image(name, carrier.team)
+            : visual.atlases.get(name.toUpperCase())?.image,
+        { x: screenX, y: screenY }, 1, (part, origin, scale) => this.#drawBrowserEffect(context, part, origin, scale));
       } catch (error) {
         this.#failMission(error);
       }
     }
 
     for (const overlay of overlays) overlay();
-    for (let y = firstY; y <= lastY; y += 1) {
-      for (let x = firstX; x <= lastX; x += 1) {
-        if (visibility[y * this.grid.width + x]) continue;
-        context.fillStyle = this.#explored[y * this.grid.width + x] ? "rgba(3, 4, 3, .72)" : "#000000";
-        context.fillRect(
-          this.#screenX(x, width),
-          this.#screenY(y + 1, height),
-          this.#tileSize + 1,
-          this.#tileSize + 1,
-        );
-      }
-    }
+    for (const marker of commanderMarkers) marker();
     const darkness = this.#indexedTerrain ? 0 : ((1000 - snapshot.daylightPermille) / 1000) * 0.24;
     context.fillStyle = `rgba(5, 8, 18, ${darkness.toFixed(3)})`;
     context.fillRect(0, 0, width, height);
@@ -2874,6 +3134,7 @@ export class MissionView {
       }
       context.fillText(line, 12, row);
     }
+    endMode1ShadowFrame(context);
     const selected = snapshot.units.find(({ id }) => this.#selectedIds.has(id));
     this.callbacks.onStats({
       tick: snapshot.tick,
@@ -2990,12 +3251,12 @@ export class MissionView {
     const miningType = stat && (stat.index === 6 || stat.index === 14)
       ? missionMiningVisualType(unit, stat.index, this.#browserEconomy?.checkpoint()) : undefined;
     const miningSprite = miningType === undefined ? undefined : this.mission.units.find(entry => entry.index === miningType)?.sprite;
-    if (stat) this.#drawVisual(context, deployed ? "SARGSTL" : miningSprite ?? stat.sprite,
+    if (stat) this.#drawVisual(context, deployed ? this.#interceptorTypes.deployedSprite : miningSprite ?? stat.sprite,
       unit.activity === "move" && !deployed ? "move" : "idle", screenX, screenY, tick, unit.id, scene);
   }
 
   #drawUnitOverlay(context: CanvasRenderingContext2D, unit: UnitSnapshot, screenX: number, screenY: number): void {
-    if (unit.health <= 0 || unit.activity === "die") return;
+    if (unit.health <= 0 || unit.activity === "die") { this.#visualBounds.delete(unit.id); return; }
     if (this.#selectedIds.has(unit.id)) {
       context.beginPath();
       context.ellipse(screenX, screenY + 4, this.#tileSize * 0.42, this.#tileSize * 0.2, 0, 0, Math.PI * 2);
@@ -3004,10 +3265,40 @@ export class MissionView {
       context.stroke();
     }
     const barWidth = Math.max(14, this.#tileSize * 0.75);
+    const top = this.#visualBounds.get(unit.id)?.top;
+    const barY = top === undefined ? screenY - this.#tileSize * 0.7 : Math.round(top) - 5;
     context.fillStyle = "rgba(0,0,0,.72)";
-    context.fillRect(screenX - barWidth / 2, screenY - this.#tileSize * 0.7, barWidth, 3);
+    context.fillRect(screenX - barWidth / 2, barY, barWidth, 3);
     context.fillStyle = unit.faction === "human" ? "#70c7e9" : "#d45a4d";
-    context.fillRect(screenX - barWidth / 2, screenY - this.#tileSize * 0.7, barWidth * (unit.health / unit.maxHealth), 2);
+    context.fillRect(screenX - barWidth / 2, barY, barWidth * (unit.health / unit.maxHealth), 2);
+    if (this.mission.runtimeProfile === "browser-adapted" && (this.simulation.adaptedInspireState(unit.id)?.timer ?? 0) > 0) {
+      context.fillStyle = "#e8c14a";
+      context.fillRect(screenX + barWidth / 2 + 1, barY - 1, 3, 3);
+    }
+  }
+
+  #drawCommanderMarker(context: CanvasRenderingContext2D, unit: UnitSnapshot, screenX: number, screenY: number): void {
+    if (unit.health <= 0 || unit.activity === "die") return;
+    const body = this.#entityScreenBounds(unit);
+    if (body.right < 0 || body.left > 512 || body.bottom < 0 || body.top > 452) return;
+    const top = this.#visualBounds.get(unit.id)?.top ?? screenY - 32;
+    const y = Math.max(7, Math.round(top) - 14);
+    const x = Math.max(7, Math.min(505, screenX));
+    context.save();
+    context.beginPath();
+    for (let point = 0; point < 10; point++) {
+      const angle = -Math.PI / 2 + point * Math.PI / 5, radius = point % 2 ? 2.7 : 6;
+      const px = x + Math.cos(angle) * radius, py = y + Math.sin(angle) * radius;
+      if (point === 0) context.moveTo(px, py);
+      else context.lineTo(px, py);
+    }
+    context.closePath();
+    context.strokeStyle = "#17120a";
+    context.lineWidth = 2;
+    context.stroke();
+    context.fillStyle = "#f2ce65";
+    context.fill();
+    context.restore();
   }
 
   #drawVisual(
@@ -3025,7 +3316,7 @@ export class MissionView {
     const state = unitId === undefined ? undefined : this.#animationStates.get(unitId);
     const stat = unitId === undefined ? undefined : this.#unitStats.get(unitId);
     const artifact = this.mission.runtimeProfile === "browser-adapted" && stat && browserVisionArtifact(stat);
-    const action = artifact || sprite === "SARGSTL" || sprite === "EDPLY" || sprite === "SDPL"
+    const action = artifact || sprite === "SARGSTL" || sprite === "PSYCSTL" || sprite === "EDPLY" || sprite === "SDPL"
       ? "Stand" : state?.action ?? (activity === "move" ? "Move" : "Stand");
     const nativeTask = unitId === undefined ? undefined : this.simulation.resourceActors.find(actor => actor.simulationId === unitId)?.profile.taskOwner.state;
     const construction = scene ? this.constructionVisuals.find(actor => actor.nativeId === scene.rawSlot) : undefined;
@@ -3049,20 +3340,24 @@ export class MissionView {
         : nativeTask ? missionResourceSample(visual.animation, nativeTask) : visual.sample(selection!,
         tick - (state?.since ?? 0) + this.#interpolation);
       const parts = composeFinSample(sample, visual.lookup);
+      if (unitId !== undefined) {
+        const body = finBodyBounds(parts, { x: screenX, y: screenY }, this.#tileSize / 32);
+        if (body) this.#visualBounds.set(unitId, body);
+      }
       const paletteOwner = construction?.team ?? (unitId === undefined ? 0 : this.#unitTeams.get(unitId) ?? 0);
-      const goldExtractor = this.mission.runtimeProfile === "browser-adapted" && paletteOwner === 0
-        && (sprite === "EXPL" || sprite === "EDPLY");
       const imageLookup = (name: string, part: (typeof parts)[number]) =>
         (part.child.valueA === 0 || part.child.valueA === 1) && this.#spritePalettes
-          ? this.#spritePalettes.image(name, paletteOwner, goldExtractor && name.toUpperCase() === "EXPL" ? 2 : 8,
-            goldExtractor && name.toUpperCase() === "EXPL" ? "gold-extractor" : undefined)
+          ? this.#spritePalettes.image(name, paletteOwner, 8)
+          : part.child.valueA === 3 && this.#spritePalettes
+            ? this.#spritePalettes.emberImage(name) ?? visual.atlases.get(name.toUpperCase())?.image
           : visual.atlases.get(name.toUpperCase())?.image;
       if (scene && this.#indexedTerrain?.status.state === "ready" && this.#tileSize === 32 &&
         this.grid.width >= 16 && this.grid.height >= 15) {
         const frame = createMissionSceneFrame({ mission: this.mission, indexed: this.#indexedTerrain.indexed,
           camera: missionSceneCamera(this.#cameraX, this.#cameraY, this.grid.height),
           entities: [{ ...scene, sample, parts, fallbackOrigin: { x: screenX, y: screenY } }] });
-        frame.drawEntity(context, scene.rawSlot, imageLookup);
+        frame.drawEntity(context, scene.rawSlot, imageLookup,
+          (part, origin, scale) => this.#drawBrowserEffect(context, part, origin, scale));
         for (const diagnostic of frame.diagnostics) {
           if (!diagnostic.startsWith(`slot:${scene.rawSlot}:`)) reportRenderDiagnostic(diagnostic);
         }
@@ -3076,11 +3371,19 @@ export class MissionView {
         }
       } else {
         for (const part of parts) for (const diagnostic of part.diagnostics) reportRenderDiagnostic(`${sprite}:${part.child.sprite}:${diagnostic}`);
-        drawFinComposition(context, parts, imageLookup, { x: screenX, y: screenY }, this.#tileSize / 32);
+        drawFinComposition(context, parts, imageLookup, { x: screenX, y: screenY }, this.#tileSize / 32,
+          (part, origin, scale) => this.#drawBrowserEffect(context, part, origin, scale));
       }
     } catch (error) {
       reportRenderDiagnostic(`unsupported-timeline:${sprite}:${selection?.state.name ?? nativeTask?.animation.profile}`, error);
     }
+  }
+
+  #drawBrowserEffect(context: CanvasRenderingContext2D, part: Parameters<typeof drawBrowserMode5Canvas>[0]["part"],
+    origin: { x: number; y: number }, scale: number): boolean {
+    const result = drawBrowserMode5Canvas({ context, mission: this.mission, part, origin, scale });
+    if (!result.drawn) reportRenderDiagnostic(result.diagnostic);
+    return result.drawn;
   }
 
   #screenX(worldX: number, width: number): number {

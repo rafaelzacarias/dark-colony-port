@@ -1,4 +1,5 @@
 import { parseDependencies, parseUnitStats } from "../../tools/extractors/data/tables";
+import { sha256Hex as digest } from "../sha256";
 import { authenticateLegacyNativeSchedulerSource } from "./legacy-native-scheduler";
 import { producerProfiles } from "./source-production-options";
 import type { ProductionSourceProfile } from "./campaign-production";
@@ -41,11 +42,6 @@ function requireProduction(condition: unknown, message: string): asserts conditi
 
 function integer(value: number, minimum: number, maximum: number): boolean {
   return Number.isInteger(value) && value >= minimum && value <= maximum;
-}
-
-async function digest(bytes: Uint8Array): Promise<string> {
-  return [...new Uint8Array(await crypto.subtle.digest("SHA-256", Uint8Array.from(bytes).buffer))]
-    .map(value => value.toString(16).padStart(2, "0")).join("");
 }
 
 export async function createNativeAiProductionConfiguration(input: Readonly<{

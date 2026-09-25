@@ -1,3 +1,5 @@
+import { sha256Hex } from "../sha256";
+
 export interface SourceNativeVisibilityAssets {
   readonly executable: Uint8Array;
   readonly gameStat: Uint8Array;
@@ -70,8 +72,7 @@ export async function createSourceNativeVisibilityConfiguration(input: SourceNat
   const fields = ["executable", "gameStat", "scenario", "map", "bts", "mtg", "pth"] as const;
   const actual = Object.fromEntries(await Promise.all(fields.map(async key => {
     requireSource(source[key] instanceof Uint8Array, `missing ${key} bytes`);
-    const digest = await crypto.subtle.digest("SHA-256", Uint8Array.from(source[key]).buffer);
-    return [key, Array.from(new Uint8Array(digest), value => value.toString(16).padStart(2, "0")).join("")];
+    return [key, await sha256Hex(source[key])];
   }))) as Record<keyof SourceNativeVisibilityAssets, string>;
   for (const key of Object.keys(hashes) as (keyof typeof hashes)[])
     requireSource(actual[key] === hashes[key], `${key} hash mismatch`);

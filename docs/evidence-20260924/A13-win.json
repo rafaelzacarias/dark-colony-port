@@ -1,0 +1,25 @@
+{
+  "id": "A13",
+  "status": "WIN",
+  "tick": 21225,
+  "outcome": {
+    "resultCode": 0,
+    "reasonCode": 1,
+    "ready": true
+  },
+  "commands": 1586,
+  "purchases": 96,
+  "settings": {
+    "DC_ARMY_WAVE": 40
+  },
+  "proof": {
+    "id": "A13",
+    "status": "WIN",
+    "exact": true,
+    "fromTick": 21024,
+    "toTick": 21225,
+    "hash": "fbb02413da23ead054237e4f01432ca7b6818907174c9c61d188cac0bb993acb",
+    "sourceHash": "02557a536b644c8c6946c9045573ac6c6d91adaece2147c8fbba734e06983d5d",
+    "elapsedMs": 231162
+  }
+}

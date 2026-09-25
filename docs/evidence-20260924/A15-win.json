@@ -1,0 +1,23 @@
+{
+  "id": "A15",
+  "status": "WIN",
+  "tick": 9145,
+  "outcome": {
+    "resultCode": 0,
+    "reasonCode": 1,
+    "ready": true
+  },
+  "commands": 798,
+  "purchases": 72,
+  "constructions": 2,
+  "proof": {
+    "id": "A15",
+    "status": "WIN",
+    "exact": true,
+    "fromTick": 8944,
+    "toTick": 9145,
+    "hash": "7398ef2776ecadf0c90222845be3a3691202b98a8958219855296bacb50e59ee",
+    "sourceHash": "6a1feb71e3b41cbc5e4677a662f609ecd578acf8747a3dbe6d1a9b95fd4ba3c1",
+    "elapsedMs": 154788
+  }
+}

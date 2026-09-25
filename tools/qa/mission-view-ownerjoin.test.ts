@@ -61,7 +61,7 @@ for (const faction of ["human", "alien"] as const) {
       [destination.x, destination.y, unitType, 0, -1],
       [destination.x + 1, destination.y, human ? 42 : 41, human ? 3 : 1, -1],
     ] };
-    const fixture = { ...original, scenario, sourceProduction: undefined, browserEconomy: undefined,
+    const fixture = { ...original, scenario, sourceProduction: undefined, browserEconomy: undefined, browserResearch: undefined,
       triggers: original.triggers.map(trigger => (human ? [18, 19, 20] : [11, 12]).includes(trigger.id)
         ? trigger : { ...trigger, flag: 0 }) };
     const initial = initializeCampaignSession(sourceBrowserCampaignSessionOptions(fixture));

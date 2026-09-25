@@ -31,7 +31,9 @@ for (const faction of ["alien", "human"] as const) test(`${faction} real opening
   let view: MissionView | undefined;
   try {
     const mission = await loadCampaignMission(faction);
-    view = new MissionView(rendering.canvas(), {} as HTMLElement, { onStats() {}, onUnitsChanged() {} }, mission);
+    const canvas = rendering.canvas();
+    Object.defineProperty(canvas, "ownerDocument", { value: document });
+    view = new MissionView(canvas, {} as HTMLElement, { onStats() {}, onUnitsChanged() {} }, mission);
     await view.initialize();
     assert.equal(view.missionDiagnostic, undefined);
     assert.equal(view.terrainRendererStatus, "indexed-webgl2");

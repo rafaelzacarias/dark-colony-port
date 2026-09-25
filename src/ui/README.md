@@ -93,6 +93,66 @@ Options are `getUnits`, `getSelectedIds`, `onRecall`, optional `isEnabled`, and
 optional `ctrlNumberAlias`. Recall invokes the callback even for an empty group.
 The callback must replace selection, not toggle or append it.
 
+## Phone Controls
+
+`mobile-controls.ts` is an opt-in command deck. `main.ts` mounts it only when
+`isPhoneUserAgent(navigator.userAgent)` identifies a phone; small viewports,
+touch capability, and tablet user agents do not enable it. The phone CSS is
+scoped to that opt-in and an active mission. Portrait uses a bottom dock;
+landscape uses a side dock, outside the scaled original battlefield.
+
+The orchestrator supplies guarded camera, selection, and order callbacks.
+`tick(time)` drives held panning from the existing animation loop; positive Y
+means north. Its callback uses `panByCells(x, y, false)` before `update(time)`,
+so each animation frame draws the updated camera once without reducing the
+render cadence, changing simulation timing, or delaying movement by a frame.
+Other camera callers retain immediate rendering by default.
+`camera-pan.ts` drives held desktop arrow keys and mouse-edge panning from that
+same animation loop at the phone deck's 12 cells/second. Keyboard repeat does
+not advance the camera; each frame integrates elapsed time with normalized
+diagonals and an 80ms stall cap. Key release, canvas exit, pointer dragging,
+blur, hidden pages, resize, dialogs, and mission resets cancel applicable input.
+Pointer release/cancellation, capture loss, blur, hidden pages,
+and disabling controls stop held input. The Screen action uses the existing
+`selectUnitsInClientRect` over the canvas bounds, not map-wide selection or
+the infantry-only F2 action.
+
+`mobile-mission-menu.ts` presents touch-sized build/research entries derived
+from `baseMenuEntries`, plus mission objectives and game options. Each tap
+requests one purchase through the existing production/construction APIs;
+there is no separate phone economy or eligibility policy. Unlike the original
+staging grid, this menu submits immediately. The simulation continues while
+the dialog is open, but battlefield input is blocked.
+
+The phone deck and sheets use the shared black/steel/red palette in
+`game-menu.css`, retaining 44px minimum targets and their original layout.
+`mission-save-menu.ts` supplies the same three-slot manual save/load dialog on
+desktop and phones. Unlike the build/research sheet, this dialog pauses the
+mission through the orchestrator and blocks game shortcuts. It re-reads storage
+on every open and load, confirms overwrites, and surfaces storage failures.
+`main.ts` owns checkpoint creation/restoration and unsaved-progress warnings.
+The original one-save database migrates to slot 1; no autosave is performed.
+
+Phone integration coverage uses an existing Playwright/Chromium installation
+and a running development server:
+
+```sh
+node --import tsx --test tools/qa/mobile-controls.test.ts
+node tools/qa/mobile-mission-browser.mjs /tmp/dc-mobile http://127.0.0.1:5173/
+node tools/qa/start-menu-browser.mjs /tmp/dc-start-menu http://127.0.0.1:5173/
+node --import tsx --test tools/qa/camera-pan.test.ts tools/qa/mobile-camera-render.test.ts
+node tools/qa/fire-camera-browser.mjs /tmp/dc-fire-camera http://127.0.0.1:5173/
+```
+
+Set `DC_PLAYWRIGHT_CORE` and `DC_CHROMIUM` for non-default installations. The
+browser runner covers phone/tablet/desktop UA gating, portrait and landscape
+target sizes, held-camera cancellation, multitouch canvas selection, visible
+unit selection, orders, building, saving, and mission exit.
+The start-menu runner additionally covers keyboard navigation, opt-in movie
+playback, empty slots, overwrite cancellation, storage failures/retry, page
+reloads, and exact saved checkpoint/control-group restoration on desktop and
+phone layouts.
+
 ## Integration Sketch
 
 This sketch uses explicit **orchestrator-provided adapters**, not methods that

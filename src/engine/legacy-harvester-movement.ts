@@ -1,4 +1,5 @@
 import { legacyHarvesterIdleDiagnostic, reduceLegacyHarvesterIdle, type LegacyHarvesterIdleState } from "./legacy-harvester-idle";
+import { sha256Hex } from "../sha256";
 import { advanceLegacyResourceAnimation } from "./legacy-resource";
 import { sourceResourceProfiles } from "./source-resource-options";
 import { finSourceDuration } from "../render/fin-animation";
@@ -120,8 +121,7 @@ export async function sourceLegacyHarvesterMovementWorld(input: {
   readonly plane?: { readonly cells: readonly number[]; readonly tripWords: readonly number[] };
   readonly census?: LegacyHarvesterMovementWorld["census"];
 }): Promise<LegacyHarvesterMovementWorld> {
-  const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", Uint8Array.from(input.pth))),
-    byte => byte.toString(16).padStart(2, "0")).join("");
+  const hash = await sha256Hex(input.pth);
   if (input.typeId !== 6 && input.typeId !== 14) throw new Error("unverified-source-type");
   const width = input.width ?? 96, height = input.height ?? 84;
   if (!integer(width, 1, 256) || !integer(height, 1, 256) || input.pth.length !== 65536 + width * height) throw new Error("invalid-source-PTH");

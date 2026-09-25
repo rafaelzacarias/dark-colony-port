@@ -1,0 +1,25 @@
+{
+  "id": "H08",
+  "status": "WIN",
+  "tick": 24281,
+  "outcome": {
+    "resultCode": 0,
+    "reasonCode": 1,
+    "ready": true
+  },
+  "commands": 1793,
+  "purchases": 79,
+  "fired": [
+    4
+  ],
+  "proof": {
+    "id": "H08",
+    "status": "WIN",
+    "exact": true,
+    "fromTick": 24080,
+    "toTick": 24281,
+    "hash": "c6ef04062dfd5517a02cd48c28d6e065def224ab658ecd2e93fcde2eeaca8424",
+    "sourceHash": "608872bb5fa1bcb66ccd62d4a73c5db845bf6e055a46d2ad3bfcafa7f5888a9b",
+    "elapsedMs": 248752
+  }
+}

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { appendFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { fork } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { loadCampaignMission } from "../../src/game-data";
+import { loadReleaseMission, savedView } from "./fixtures/release-mission";
 import { MissionView } from "../../src/mission-view";
 import { areHostile } from "../../src/engine/diplomacy";
 import { calculateLegacyDamage } from "../../src/engine/legacy-balance";
@@ -194,7 +194,7 @@ async function attempt(output: string, proofDirectory?: string) {
     return new Response(bytes);
   };
   try {
-    const mission = await loadCampaignMission("alien", 5, "browser-adapted");
+    const mission = await loadReleaseMission("alien", 5, savedView(proofDirectory ? `${proofDirectory}/pending-win.json` : inputPath));
     const contract = inspectMission05(mission);
     write("source", { contract, before, originalInputHash, inputPath,
       limits: { initialMs: 500000, playMs: 300000, proofMs: 900000, noProgressTicks: 200, priorInitialMs, priorPlayMs },

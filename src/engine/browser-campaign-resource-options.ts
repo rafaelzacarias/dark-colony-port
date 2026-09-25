@@ -1,4 +1,5 @@
 import { assetUrl } from "../asset-url";
+import { sha256Hex as sha256 } from "../sha256";
 import type { CampaignMissionData } from "../game-data";
 import { parseScenario } from "../../tools/extractors/data/scenario";
 import { missionPaletteBank } from "../render/palette-init";
@@ -31,11 +32,6 @@ export interface SourceBrowserResourceMetadata {
 
 function requireSource(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`Browser resource source: ${message}`);
-}
-
-async function sha256(bytes: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", Uint8Array.from(bytes).buffer);
-  return Array.from(new Uint8Array(digest), value => value.toString(16).padStart(2, "0")).join("");
 }
 
 function freeze<Value>(value: Value): Value {

@@ -1,4 +1,5 @@
 import { assetUrl } from "./asset-url";
+import { sha256Hex as digest } from "./sha256";
 import {
   unitOptionsFromLegacy,
   type Faction,
@@ -216,10 +217,6 @@ async function validateCampaignPalette(scenario: MissionScenario): Promise<void>
     }
     return loadBytes(`${root}/${path}`);
   };
-  const digest = async (data: Uint8Array) => {
-    const hash = await crypto.subtle.digest("SHA-256", Uint8Array.from(data).buffer);
-    return Array.from(new Uint8Array(hash), (value) => value.toString(16).padStart(2, "0")).join("");
-  };
   const [manifestBytes, checksumBytes] = await Promise.all([bytes("index.json"), bytes("index.sha256")]);
   if (new TextDecoder().decode(checksumBytes).trim() !== `${await digest(manifestBytes)}  index.json`) {
     throw new Error("Indexed manifest checksum mismatch");
@@ -340,7 +337,7 @@ export async function loadCampaignMission(faction: Faction, missionNumber = 1,
     }
     return await loadCampaignMissionSource(faction, stem, runtimeProfile, missionNumber, construction);
   } catch (error) {
-    throw new Error(`Unsupported mission ${stem}: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`Unsupported mission ${stem}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
   }
 }
 
@@ -387,6 +384,9 @@ async function loadCampaignMissionSource(faction: Faction, stem: string,
     throw new Error("Unsupported native map dimensions");
   }
   if (typeof scenario.rawScenario !== "string") throw new Error("Missing original SCN bytes for production");
+  // Commando missions (e.g. H06, A09) have no player city location in the SCN, so there is nothing to construct.
+  const home = scenario.teams[0]?.coordinateRows[1];
+  if (construction && home?.[0] === 0 && home[1] === 0) construction = undefined;
   const sourceProduction = await loadSourceProductionOptions({
     sessionId: `${scenario.id}:browser`, mission: { faction, scenario, units },
     rawScenario: Uint8Array.from(atob(scenario.rawScenario), (character) => character.charCodeAt(0)),

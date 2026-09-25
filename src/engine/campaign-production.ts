@@ -1,6 +1,6 @@
 import { createLegacyProductionCatalog, type LegacyProductionEntry, type LegacyProductionSourceRecord } from "./legacy-production";
 import type { CampaignWorld } from "./campaign-world";
-import { allocateTransportProductionExit, reserveTransportProductionExit, transportHostState, transportProductionExitBlocked,
+import { allocateTransportProductionExit, readTransportHostState, reserveTransportProductionExit, transportHostState, transportProductionExitBlocked,
   type ProductionExitReservation } from "./transport-host";
 import { advanceLegacyResourceAnimation, resetLegacyResourceAnimation,
   type LegacyResourceAnimation, type LegacyResourceAnimationProfile } from "./legacy-resource";
@@ -736,7 +736,7 @@ export function allocateCampaignProductionUnit(state: CampaignProductionState, w
 }
 
 function requireAdaptedCollectorWorld(world: CampaignWorld): void {
-  const host = transportHostState(world);
+  const host = readTransportHostState(world);
   requireProduction(world.browserCasualtyPickup?.runtimeProfile === "browser-adapted"
     && !host.nativeCombat && !host.nativeAiTasks && !host.resourceLifecycle,
   "Adapted production requires browser-adapted world without native owners");

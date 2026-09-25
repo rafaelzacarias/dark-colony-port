@@ -1,0 +1,22 @@
+{
+  "id": "A11",
+  "status": "WIN",
+  "tick": 16481,
+  "outcome": {
+    "resultCode": 0,
+    "reasonCode": 1,
+    "ready": true
+  },
+  "commands": 301,
+  "purchases": 17,
+  "proof": {
+    "id": "A11",
+    "status": "WIN",
+    "exact": true,
+    "fromTick": 16280,
+    "toTick": 16481,
+    "hash": "14bf6459d5de1e05274934d1d56e2fd60e00f791c23bf04f0812d337fd9a6736",
+    "sourceHash": "9590bb2e53b3d10148bc4da294bde736d0999bba21327cb7c12493e1c1a6f3e5",
+    "elapsedMs": 167652
+  }
+}

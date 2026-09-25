@@ -1,4 +1,5 @@
 import { assetUrl } from "../asset-url.js";
+import { sha256Hex as digest } from "../sha256.js";
 import type { CampaignMissionData } from "../game-data.js";
 import {
   IndexedWebGLRenderer, IndexedWebGLUnavailableError, resolvePaletteLookup,
@@ -364,6 +365,10 @@ export interface MissionTerrain {
   readonly stats: MissionTerrainStats;
   readonly status: MissionTerrainStatus;
   render(frame: MissionTerrainFrame): HTMLCanvasElement;
+  /** Renders like render() but returns immediately; collectReadback() yields the pixels on a later frame. */
+  renderAsync(frame: MissionTerrainFrame): void;
+  collectReadback(): ImageData | null;
+  cancelReadback(): void;
   dispose(): void;
 }
 
@@ -372,11 +377,6 @@ function validateTexture(descriptor: TextureDescriptor, width: number, height: n
       descriptor.bytes !== width * height * (format === "RGB8UI" ? 3 : 1)) {
     throw new RangeError(`Invalid indexed texture descriptor: ${descriptor.path}`);
   }
-}
-
-async function digest(bytes: Uint8Array): Promise<string> {
-  const hash = await crypto.subtle.digest("SHA-256", Uint8Array.from(bytes).buffer);
-  return Array.from(new Uint8Array(hash), (value) => value.toString(16).padStart(2, "0")).join("");
 }
 
 export async function createMissionTerrain(
@@ -468,6 +468,24 @@ export async function createMissionTerrain(
   let fog: MissionTerrainFog = "overlay";
   let failure: string | null = null;
   const teamSelectors = Object.freeze(Array.from(initialized.teamSelectors));
+  function render(frame: MissionTerrainFrame): HTMLCanvasElement {
+    if (disposed || !renderer.ready || failure !== null) {
+      throw new IndexedWebGLUnavailableError(failure ?? "Terrain disposed or WebGL context lost");
+    }
+    const plan = planMissionTerrainFrame(mission, frame, initialized.dayNightBlend);
+    const nextBlend = frameBlend(frame, initialized.dayNightBlend);
+    try {
+      renderer.render(cache.layers(plan));
+    } catch (error) {
+      if (error instanceof IndexedWebGLUnavailableError) failure = error.message;
+      throw error;
+    }
+    frames++;
+    draws = plan.length;
+    blend = nextBlend;
+    fog = frame.fog ?? "overlay";
+    return canvas;
+  }
   return {
     canvas,
     indexed,
@@ -487,23 +505,16 @@ export async function createMissionTerrain(
         liveTextures: live ? stats.cachedImages * 2 + 2 : 0,
         textureBytes: live ? stats.cachedImages * 32 * 32 * 2 + 196608 + 768 : 0 };
     },
-    render(frame): HTMLCanvasElement {
-      if (disposed || !renderer.ready || failure !== null) {
-        throw new IndexedWebGLUnavailableError(failure ?? "Terrain disposed or WebGL context lost");
-      }
-      const plan = planMissionTerrainFrame(mission, frame, initialized.dayNightBlend);
-      const nextBlend = frameBlend(frame, initialized.dayNightBlend);
-      try {
-        renderer.render(cache.layers(plan));
-      } catch (error) {
-        if (error instanceof IndexedWebGLUnavailableError) failure = error.message;
-        throw error;
-      }
-      frames++;
-      draws = plan.length;
-      blend = nextBlend;
-      fog = frame.fog ?? "overlay";
-      return canvas;
+    render,
+    renderAsync(frame): void {
+      render(frame);
+      renderer.queueReadback();
+    },
+    collectReadback(): ImageData | null {
+      return disposed ? null : renderer.collectReadback();
+    },
+    cancelReadback(): void {
+      if (!disposed) renderer.cancelReadback();
     },
     dispose(): void {
       if (disposed) return;

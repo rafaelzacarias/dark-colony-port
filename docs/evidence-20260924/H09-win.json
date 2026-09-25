@@ -1,0 +1,22 @@
+{
+  "id": "H09",
+  "status": "WIN",
+  "tick": 57577,
+  "outcome": {
+    "resultCode": 0,
+    "reasonCode": 1,
+    "ready": true
+  },
+  "commands": 507,
+  "proof": {
+    "id": "H09",
+    "status": "WIN",
+    "exact": true,
+    "fromTick": 57376,
+    "toTick": 57577,
+    "hash": "4d4a8b4818543772370c77da9f3088e818ec86fb5fa1b02411ca7560f69229df",
+    "sourceHash": "50ae989dd50e4c7904abeff7d03a4c3b6c2ae5da2b4a1f817cc5a12897badf28",
+    "elapsedMs": 733720
+  },
+  "note": "s(4,3)==12 reached by destroying the remaining team-4 pods after both CITYs"
+}

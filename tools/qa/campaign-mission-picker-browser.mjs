@@ -15,6 +15,10 @@ try {
   const page = await context.newPage();
   page.setDefaultTimeout(30000);
   page.on("pageerror", error => report.errors.push(error.message));
+  page.on("dialog", dialog => {
+    if (/^Return to the main menu|^Overwrite save slot/.test(dialog.message())) void dialog.accept();
+    else { report.errors.push(`Unexpected dialog: ${dialog.message()}`); void dialog.dismiss(); }
+  });
   await page.goto(process.env.DC_BROWSER_URL ?? "http://127.0.0.1:5173/");
   await page.locator("#campaign-launcher").waitFor({ state: "visible" });
   assert.equal(await page.evaluate(async () => (await import("/src/mission-save.ts")).readMissionSave()), null);
@@ -68,6 +72,10 @@ try {
   await page.setViewportSize({ width: 1280, height: 900 });
   let saved;
   for (const [faction, number, sourceId] of [["human", "7", "HUMAN07"], ["alien", "15", "ALIEN15"]]) {
+    await page.locator('[data-menu-open="new"]').click();
+    if (!await page.locator(".mission-select-details").evaluate(details => details.open)) {
+      await page.locator(".mission-select-details summary").click();
+    }
     await page.locator(`input[name="mission-picker-faction"][value="${faction}"]`).check();
     const options = await page.locator("#campaign-mission-select option").allTextContents();
     assert.deepEqual(options, Array.from({ length: 15 }, (_, index) => `${faction.toUpperCase()}${String(index + 1).padStart(2, "0")}`));
@@ -98,7 +106,9 @@ try {
     report.missions.push({ sourceId, ...loaded });
     await page.screenshot({ path: `${output}/${sourceId.toLowerCase()}-desktop.png` });
     if (faction === "human") {
+      await page.locator('[data-original-tab="options"]').click();
       await page.locator("#save-mission").click();
+      await page.locator('[data-save-slot="slot-1"]').click();
       await page.waitForFunction(() => document.querySelector("#save-mission-status").textContent === "SAVED");
       saved = await readSave();
       assert.equal(saved.missionNumber, 7);
@@ -107,6 +117,7 @@ try {
       await page.setViewportSize({ width: 390, height: 844 });
       await page.screenshot({ path: `${output}/alien15-mobile.png`, fullPage: true });
     }
+    await page.locator('[data-original-tab="options"]').click();
     await page.locator("#exit-campaign").click();
     await page.locator("#campaign-launcher").waitFor({ state: "visible" });
     assert.equal(await page.locator("#campaign-mission-select").inputValue(), number);
@@ -120,7 +131,9 @@ try {
   assert.deepEqual(restored, saved.checkpoint);
   assert.deepEqual(await readSave(), saved);
   report.continueExact = true;
+  await page.locator('[data-original-tab="options"]').click();
   await page.locator("#exit-campaign").click();
+  await page.locator('[data-menu-open="new"]').click();
   await page.locator('#campaign-launcher [data-campaign-faction="alien"]').click();
   await page.locator("#campaign-controls").waitFor({ state: "visible", timeout: 90000 });
   const quickStart = await page.evaluate(() => ({ source: window.__pickerQA.view.mission.scenario.source.path,

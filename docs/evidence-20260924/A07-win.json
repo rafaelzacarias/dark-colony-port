@@ -1,0 +1,23 @@
+{
+  "id": "A07",
+  "status": "WIN",
+  "tick": 55761,
+  "outcome": {
+    "resultCode": 0,
+    "reasonCode": 1,
+    "ready": true
+  },
+  "commands": 190,
+  "purchases": 4,
+  "proof": {
+    "id": "A07",
+    "status": "WIN",
+    "exact": true,
+    "fromTick": 55560,
+    "toTick": 55761,
+    "hash": "bfd81d1019859d8244a20066db05750a7c1fcdf5d85a331975d2faf0d2fc4f91",
+    "sourceHash": "ab002ba545fcf64a991208f902f0752d419ff1cd760155f6ebb7b51756421767",
+    "elapsedMs": 737024
+  },
+  "note": "proof re-run standalone after the supervisor 600 s cap killed it under load"
+}

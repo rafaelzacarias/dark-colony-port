@@ -1,0 +1,257 @@
+.asset-lab.phone-controls-enabled.mission-running:has(.preview-panel.mobile-controls-visible) {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.asset-lab.phone-controls-enabled.mission-running:has(.preview-panel.mobile-controls-visible) .workbench {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.asset-lab.phone-controls-enabled.mission-running .preview-panel.mobile-controls-visible {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px);
+  overflow: hidden;
+  background: var(--game-black);
+}
+
+.asset-lab.phone-controls-enabled.mission-running .preview-panel.mobile-controls-visible > .preview-stage {
+  grid-area: 1 / 1;
+  align-self: stretch;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.asset-lab.phone-controls-enabled.mission-running .preview-panel.mobile-controls-visible #mission-canvas {
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.asset-lab.phone-controls-enabled.mission-running #mobile-controls {
+  --mobile-accent: var(--game-accent);
+  --mobile-edge: var(--game-steel);
+  display: none;
+  min-width: 0;
+  min-height: 0;
+  color: var(--game-text);
+  font: 500 12px / 1.25 ui-sans-serif, system-ui, sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: contain;
+}
+
+.asset-lab.phone-controls-enabled.mission-running .preview-panel.mobile-controls-visible > #mobile-controls:not([hidden]) {
+  display: grid;
+  grid-area: 2 / 1;
+  gap: 9px;
+  padding: 10px 10px max(10px, env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--game-steel);
+  background:
+    repeating-linear-gradient(0deg, #ffffff03 0 1px, transparent 1px 3px),
+    linear-gradient(#30302f, #151515);
+  box-shadow: inset 0 1px #bcb7a833, 0 -4px 16px #0005;
+}
+
+.asset-lab.phone-controls-enabled.mission-running #mobile-controls .mobile-command-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.asset-lab.phone-controls-enabled.mission-running #mobile-controls .mobile-command-heading {
+  flex: 0 0 auto;
+  padding-left: 7px;
+  border-left: 3px solid var(--mobile-accent);
+  color: var(--game-text);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+}
+
+.asset-lab.phone-controls-enabled.mission-running #mobile-controls .mobile-command-status {
+  min-width: 0;
+  color: var(--game-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.asset-lab.phone-controls-enabled.mission-running #mobile-controls .mobile-command-body {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  align-items: stretch;
+  gap: 10px;
+  min-width: 0;
+}
+
+.asset-lab.phone-controls-enabled.mission-running #mobile-controls .mobile-command-dpad {
+  display: grid;
+  grid-template-columns: repeat(3, 44px);
+  grid-template-rows: repeat(3, 44px);
+  grid-template-areas: ". up ." "left options right" ". down .";
+  gap: 4px;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #080808 35%, #5c595333 36%, #5c595333 60%, transparent 61%);
+}
+
+.asset-lab.phone-controls-enabled.mission-running #mobile-controls .mobile-command-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(44px, 1fr));
+  grid-template-areas: "select build" "move assault" "stop clear";
+  gap: 4px;
+  min-width: 0;
+}
+
+.asset-lab.phone-controls-enabled.mission-running #mobile-controls .mobile-command-button {
+  display: flex;
+  min-width: 44px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 4px 2px;
+  border: 1px solid var(--mobile-edge);
+  border-radius: 2px;
+  background: var(--game-button);
+  box-shadow: inset 1px 1px #bcb7a833, inset -1px -1px #0008, 0 2px 2px #0005;
+  color: var(--game-text);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.1;
+  text-align: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color 100ms ease, border-color 100ms ease, box-shadow 100ms ease;
+}
+
+.asset-lab.phone-controls-enabled.mission-running #mobile-controls .mobile-command-button svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.asset-lab.phone-controls-enabled.mission-running #mobile-controls .mobile-command-dpad .mobile-command-button {
+  font-size: 8px;
+  border-radius: 3px;
+}
+
+.asset-lab.phone-controls-enabled.mission-running #mobile-controls [data-mobile-action^="pan-"] {
+  touch-action: none;
+}
+
+.asset-lab.phone-controls-enabled.mission-running #mobile-controls [data-mobile-action="pan-up"] { grid-area: up; }
+.asset-lab.phone-controls-enabled.mission-running #mobile-controls [data-mobile-action="pan-left"] { grid-area: left; }
+.asset-lab.phone-controls-enabled.mission-running #mobile-controls [data-mobile-action="pan-right"] { grid-area: right; }
+.asset-lab.phone-controls-enabled.mission-running #mobile-controls [data-mobile-action="pan-down"] { grid-area: down; }
+.asset-lab.phone-controls-enabled.mission-running #mobile-controls [data-mobile-action="options"] { grid-area: options; background: #141414; }
+.asset-lab.phone-controls-enabled.mission-running #mobile-controls [data-mobile-action="select-screen"] { grid-area: select; }
+.asset-lab.phone-controls-enabled.mission-running #mobile-controls [data-mobile-action="build"] { grid-area: build; }
+.asset-lab.phone-controls-enabled.mission-running #mobile-controls [data-mobile-action="move"] { grid-area: move; }
+.asset-lab.phone-controls-enabled.mission-running #mobile-controls [data-mobile-action="assault"] { grid-area: assault; }
+.asset-lab.phone-controls-enabled.mission-running #mobile-controls [data-mobile-action="stop"] { grid-area: stop; }
+.asset-lab.phone-controls-enabled.mission-running #mobile-controls [data-mobile-action="clear"] { grid-area: clear; }
+
+.asset-lab.phone-controls-enabled.mission-running #mobile-controls .mobile-command-button[aria-pressed="true"] {
+  border-color: var(--game-accent);
+  background: linear-gradient(#50362e, #30231f);
+  color: var(--game-text);
+  box-shadow: inset 0 -2px var(--mobile-accent), inset 0 1px #d5b7ad26;
+}
+
+.asset-lab.phone-controls-enabled.mission-running #mobile-controls .mobile-command-button:enabled:active,
+.asset-lab.phone-controls-enabled.mission-running #mobile-controls .mobile-command-button.is-held {
+  border-color: var(--game-highlight);
+  background: #544036;
+  box-shadow: inset 0 2px 4px #0005;
+  color: #fff1df;
+}
+
+.asset-lab.phone-controls-enabled.mission-running #mobile-controls .mobile-command-button:focus-visible {
+  outline: 2px solid var(--game-highlight);
+  outline-offset: 2px;
+}
+
+.asset-lab.phone-controls-enabled.mission-running #mobile-controls .mobile-command-button:disabled {
+  opacity: 0.48;
+  cursor: default;
+  box-shadow: none;
+}
+
+@media (orientation: landscape) {
+  .asset-lab.phone-controls-enabled.mission-running .preview-panel.mobile-controls-visible {
+    grid-template-columns: minmax(0, 1fr) calc(224px + env(safe-area-inset-right, 0px));
+    grid-template-rows: minmax(0, 1fr);
+    padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  }
+
+  .asset-lab.phone-controls-enabled.mission-running .preview-panel.mobile-controls-visible > #mobile-controls:not([hidden]) {
+    grid-area: 1 / 2;
+    align-content: start;
+    align-content: safe center;
+    grid-template-rows: auto auto;
+    padding: 10px max(10px, env(safe-area-inset-right, 0px)) 10px 10px;
+    border-top: 0;
+    border-left: 1px solid var(--game-steel);
+    overflow-y: auto;
+    box-shadow: inset 1px 0 #bcb7a833, -4px 0 16px #0005;
+  }
+
+  .asset-lab.phone-controls-enabled.mission-running #mobile-controls .mobile-command-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+
+  .asset-lab.phone-controls-enabled.mission-running #mobile-controls .mobile-command-status {
+    text-align: left;
+    padding-left: 10px;
+  }
+
+  .asset-lab.phone-controls-enabled.mission-running #mobile-controls .mobile-command-body {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    gap: 10px;
+  }
+
+  .asset-lab.phone-controls-enabled.mission-running #mobile-controls .mobile-command-actions {
+    width: 100%;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: repeat(2, minmax(44px, 1fr));
+    grid-template-areas: "select build clear" "move assault stop";
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .asset-lab.phone-controls-enabled.mission-running #mobile-controls .mobile-command-button {
+    transition: none;
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "id": "H07",
+  "status": "WIN",
+  "tick": 43241,
+  "outcome": {
+    "resultCode": 0,
+    "reasonCode": 1,
+    "ready": true
+  },
+  "commands": 781,
+  "purchases": 7,
+  "proof": {
+    "id": "H07",
+    "status": "WIN",
+    "exact": true,
+    "fromTick": 43040,
+    "toTick": 43241,
+    "hash": "8e215ac5722b1b3606e646c9d45e76af412dc2c9cfc3e9adbaf1f55c91d21367",
+    "sourceHash": "bf7815077c6111a263a89cccf8319cf4e9a85a275d7bb85ff9f7f9e3d218da3f",
+    "elapsedMs": 641983
+  }
+}

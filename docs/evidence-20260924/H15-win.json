@@ -1,0 +1,28 @@
+{
+  "id": "H15",
+  "status": "WIN",
+  "tick": 8257,
+  "outcome": {
+    "resultCode": 0,
+    "reasonCode": 1,
+    "ready": true
+  },
+  "commands": 735,
+  "purchases": 65,
+  "fired": [
+    5,
+    21,
+    22,
+    2
+  ],
+  "proof": {
+    "id": "H15",
+    "status": "WIN",
+    "exact": true,
+    "fromTick": 8056,
+    "toTick": 8257,
+    "hash": "de38c966d35144f5784f16a47d78de571c1bc9f6c806fe031f28ee129dbac996",
+    "sourceHash": "49efcfaa1d4d4e6743de8999ef9e36e04fa7a848e98fbc889536bf02180bb5ed",
+    "elapsedMs": 145461
+  }
+}

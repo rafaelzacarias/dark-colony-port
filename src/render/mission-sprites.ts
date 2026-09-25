@@ -1,4 +1,5 @@
 import { assetUrl } from "../asset-url";
+import { sha256Hex as digest } from "../sha256";
 import type { CampaignMissionData } from "../game-data";
 import {
   finBodyPaletteLookup, initializePublishedMissionPalette, missionPaletteBank, validateMissionPaletteManifest,
@@ -49,10 +50,6 @@ export async function createMissionSpritePalettes(
     const response = await fetch(`${root}/${path}`);
     if (!response.ok) throw new Error(`Indexed sprite fetch ${response.status}: ${path}`);
     return new Uint8Array(await response.arrayBuffer());
-  };
-  const digest = async (data: Uint8Array) => {
-    const hash = await crypto.subtle.digest("SHA-256", Uint8Array.from(data).buffer);
-    return Array.from(new Uint8Array(hash), (value) => value.toString(16).padStart(2, "0")).join("");
   };
   const [manifestBytes, checksumBytes] = await Promise.all([bytes("index.json"), bytes("index.sha256")]);
   if (new TextDecoder().decode(checksumBytes).trim() !== `${await digest(manifestBytes)}  index.json`) {
@@ -146,6 +143,31 @@ export async function createMissionSpritePalettes(
       context.putImageData(data, 0, 0);
       registerNativePaletteImage(canvas, { ...source, palette, remap, selector });
       cache.set(key, canvas); used += size;
+      return canvas;
+    },
+    // Mode-3 light sources (e.g. the VENT geyser's SMSP glow) store illumination strength, not colours.
+    // Without the full-screen native illumination prepass, approximate it as an ember/gold glow.
+    emberImage(name: string): HTMLCanvasElement | undefined {
+      const source = sources.get(name.toUpperCase());
+      if (!source) return undefined;
+      const key = `${name.toUpperCase()}:ember`;
+      const existing = cache.get(key);
+      if (existing) return existing;
+      const canvas = document.createElement("canvas");
+      canvas.width = source.width; canvas.height = source.height;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Sprite remapping needs Canvas2D");
+      const data = context.createImageData(source.width, source.height);
+      for (let index = 0; index < source.indices.length; index += 1) {
+        if (!source.coverage[index]) continue;
+        const strength = Math.min(1, source.indices[index] / 160);
+        data.data[index * 4] = 255;
+        data.data[index * 4 + 1] = Math.round(90 + 130 * strength);
+        data.data[index * 4 + 2] = Math.round(20 + 50 * strength * strength);
+        data.data[index * 4 + 3] = Math.round(200 * strength);
+      }
+      context.putImageData(data, 0, 0);
+      cache.set(key, canvas); used += source.width * source.height * 4;
       return canvas;
     },
     dispose() {

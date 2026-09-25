@@ -1,4 +1,5 @@
 import { parseDamageMatrix, parseUnitStats, parseWeaponStats } from "../../tools/extractors/data/tables";
+import { sha256Hex } from "../sha256";
 import { parseFin, type FinAnimation, type FinTimelineEntry } from "../../tools/extractors/animations/fin";
 import { parseSprite } from "../../tools/extractors/sprites/spr";
 import { parseScenario, type ScenarioDefinition } from "../../tools/extractors/data/scenario";
@@ -343,8 +344,7 @@ function ordinaryBoom(bytes: Uint8Array): number[] {
 
 async function hash(bytes: Uint8Array): Promise<string> {
   requireSource(bytes instanceof Uint8Array, "source bytes required");
-  return Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", Uint8Array.from(bytes).buffer)),
-    value => value.toString(16).padStart(2, "0")).join("");
+  return sha256Hex(bytes);
 }
 
 export function isAuthenticatedSourceNativeCombatProof(value: unknown): value is SourceNativeCombatProof {

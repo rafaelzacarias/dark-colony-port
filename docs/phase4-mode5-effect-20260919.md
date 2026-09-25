@@ -79,6 +79,20 @@ that source index. Palette zero is opaque when coverage is set; SPR holes do
 not read or change their destination. Rejection never commits partial exact
 pixels before the ordinary diagnostic fallback.
 
+### Browser presentation fallback
+
+The live view now sends mode-5 layers that cannot use the verified native path
+(including carrier exhaust, mirrored sprites, elevation, and RGB fog) through
+`drawBrowserMode5Canvas`. This is explicitly a **screen-space approximation**,
+not an expansion of native admission. It uses the original mission bank-1
+source/destination blend table and SPR coverage, including mirroring and viewport
+clipping, rather than drawing the grayscale preview atlas as opaque RGB.
+Only this fallback quantizes non-palette RGB destinations to the nearest active
+palette color; the verified adapter's rejection/atomicity rules remain unchanged.
+Bodies retain their team-color mapping, and smoke retains its own source blend.
+`browser-fire-colors.test.ts` checks original GLIT exhaust colors for all four
+terrain banks. `fire-camera-browser.mjs` exercises the actual live consumer.
+
 [Palette loading](../src/render/mission-sprites.ts) registers sources in a
 mission-keyed WeakMap and unregisters on disposal. Different missions do not
 share an active-palette singleton. Registered arrays must remain immutable.

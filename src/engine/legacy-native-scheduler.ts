@@ -1,3 +1,5 @@
+import { sha256Hex } from "../sha256";
+
 export const LEGACY_NATIVE_SCHEDULER_EXE_SHA256 =
   "65028ee7dca7db0fffd32160e282a5b360d8cf505fd55b53d1002063357a582b";
 
@@ -13,8 +15,7 @@ const authenticatedPlans = new WeakSet<LegacyNativeSchedulerPlan>();
 
 export async function authenticateLegacyNativeSchedulerSource(executable: Uint8Array): Promise<LegacyNativeSchedulerSource> {
   const bytes = Uint8Array.from(executable);
-  const digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))]
-    .map((value) => value.toString(16).padStart(2, "0")).join("");
+  const digest = await sha256Hex(bytes);
   if (digest !== LEGACY_NATIVE_SCHEDULER_EXE_SHA256) throw new RangeError("Unrecognized scheduler executable");
   const view = new DataView(bytes.buffer);
   const header = view.getUint32(0x3c, true);

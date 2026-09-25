@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync, type SpawnSyncOptions } from "node:child_process";
 import { appendFileSync, closeSync, mkdirSync, openSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { loadCampaignMission } from "../../src/game-data";
+import { loadReleaseMission, savedView } from "./fixtures/release-mission";
 import { MissionView } from "../../src/mission-view";
 import { areHostile } from "../../src/engine/diplomacy";
 import { findPath } from "../../src/engine/pathfinding";
@@ -102,7 +102,7 @@ export async function runEscort(output: string, proof?: string, budgetMs = 18000
   const emit = (kind: string, data: unknown) => appendFileSync(`${output}/journal.jsonl`, JSON.stringify({
     kind, tick: view?.simulation.snapshot.tick ?? 0, elapsedMs: Math.round(performance.now() - started), data }) + "\n");
   try {
-    const mission = await loadCampaignMission("alien", 9, "browser-adapted");
+    const mission = await loadReleaseMission("alien", 9, savedView(proof && `${proof}/pending.json`));
     assert.equal(mission.scenario.source.sha256, contract.sources.SCN);
     assert.deepEqual(mission.triggers, contract.triggers);
     const sourceHash = hash(JSON.stringify(mission));
