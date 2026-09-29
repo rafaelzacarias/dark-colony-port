@@ -1,6 +1,6 @@
 import type { FinCompositionPart } from "./fin-composition";
 import type { RemapTable } from "./palette";
-import { composeSceneBodyMasks, nativeSceneCutoff, type NativeScenePosition, type SceneTerrainCommand } from "./scene-composition";
+import { cachedSceneTerrainCells, composeSceneBodyMasks, nativeSceneCutoff, type NativeScenePosition, type SceneTerrainCommand } from "./scene-composition";
 
 export interface NativeIndexedSprite {
   readonly width: number;
@@ -38,7 +38,11 @@ export function composeNativeMode1(input: {
     diagnostics: part.diagnostics.filter((issue) => issue !== "native-shadow-pass-unimplemented") };
   const body = composeSceneBodyMasks({ terrain: input.terrain, sprites: [{ part: bodyPart, position }] })[0];
   if (body.clips === null) throw new RangeError(body.diagnostics.join(","));
-  const cells = new Map(input.terrain.map((cell) => [`${cell.column},${cell.row}`, cell]));
+  const cells = cachedSceneTerrainCells(input.terrain);
+  const cellAt = (column: number, row: number) => column < 0 || row < 0 || column > 255 || row > 255
+    ? undefined : cells.get(column * 4096 + row);
+  const baselineRow = Math.floor(position.y / 32);
+  let cutoffColumn = NaN, cutoff = 0;
   const outputHeight = frame.height + Math.floor(frame.height * 40 / 256);
   const left = body.topLeft.x - Math.floor(outputHeight / 2);
   const top = position.y - outputHeight;
@@ -54,11 +58,15 @@ export function composeNativeMode1(input: {
       const worldX = left + column + Math.floor(row / 2);
       const worldY = top + row;
       const maskX = worldX - (part.mirrored ? 1 : 0);
-      const baseline = cells.get(`${Math.floor(maskX / 32)},${Math.floor(position.y / 32)}`);
-      if (!baseline) throw new RangeError("Native mode1 missing shadow baseline");
-      const cutoff = nativeSceneCutoff(frame.height, position.y, baseline.attributes, baseline.foregroundIndex);
+      const maskColumn = Math.floor(maskX / 32);
+      if (maskColumn !== cutoffColumn) {
+        const baseline = cellAt(maskColumn, baselineRow);
+        if (!baseline) throw new RangeError("Native mode1 missing shadow baseline");
+        cutoff = nativeSceneCutoff(frame.height, position.y, baseline.attributes, baseline.foregroundIndex);
+        cutoffColumn = maskColumn;
+      }
       if (row > cutoff) {
-        const ground = cells.get(`${Math.floor(maskX / 32)},${Math.floor(worldY / 32)}`);
+        const ground = cellAt(maskColumn, Math.floor(worldY / 32));
         if (!ground || (ground.foregroundIndex && !ground.foregroundMask)) throw new RangeError("Native mode1 missing shadow ground mask");
         const bit = ground.attributes & 0x40 ? maskX & 31 : 31 - (maskX & 31);
         if (ground.foregroundIndex && ((ground.foregroundMask![worldY & 31] >>> bit) & 1)) continue;

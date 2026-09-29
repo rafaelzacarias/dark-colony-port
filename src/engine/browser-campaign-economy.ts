@@ -369,7 +369,10 @@ export class BrowserCampaignEconomy {
 export function consumeBrowserEconomyIncome(world: CampaignWorld, ledger: BrowserEconomyIncomeLedger,
   receipts: readonly BrowserEconomyIncome[]): { world: CampaignWorld; ledger: BrowserEconomyIncomeLedger; earnedDelta: number } {
   requireEconomy(world.sessionId === ledger.sessionId && ledger.profileId.length > 0, "ledger identity mismatch");
-  const earned = { ...ledger.earned }, exomoney = { ...world.exomoney }, statistics = { ...world.statistics };
+  if (receipts.length === 0) return { world, ledger, earnedDelta: 0 };
+  const earned = { ...ledger.earned };
+  // Copy-on-write: large statistics/exomoney records are cloned only when a value actually changes.
+  let exomoney: Record<number, number> = world.exomoney, statistics: Record<string, number> = world.statistics;
   let earnedDelta = 0;
   for (const receipt of receipts) {
     requireEconomy(receipt.scope === "browser-adapted-economy-v1" && receipt.profileId === ledger.profileId
@@ -382,11 +385,17 @@ export function consumeBrowserEconomyIncome(world: CampaignWorld, ledger: Browse
     const credits = exomoney[receipt.team];
     requireEconomy(Number.isSafeInteger(credits) && Number.isSafeInteger(credits + delta)
       && credits + delta <= 0x7fffffff, "invalid campaign money");
-    exomoney[receipt.team] = credits + delta;
+    if (delta !== 0) {
+      if (exomoney === world.exomoney) exomoney = { ...exomoney };
+      exomoney[receipt.team] = credits + delta;
+    }
     const incomeKey = `${receipt.team},1`;
     const income = statistics[incomeKey] ?? 0;
     requireEconomy(Number.isSafeInteger(income) && Number.isSafeInteger(income + delta), "invalid campaign income counter");
-    statistics[incomeKey] = income + delta;
+    if (delta !== 0 || !Object.hasOwn(statistics, incomeKey)) {
+      if (statistics === world.statistics) statistics = { ...statistics };
+      statistics[incomeKey] = income + delta;
+    }
     earned[receipt.team] = receipt.earnedTotal;
     earnedDelta += delta;
   }

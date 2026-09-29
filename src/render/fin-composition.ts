@@ -1,3 +1,4 @@
+import { drawMirroredPaletteImage } from "./mode1-canvas";
 import { finSourceDuration, type FinAnimationData, type FinAtlasFrame, type FinChildData,
   type FinPoint, type FinSample, type FinSelection } from "./fin-animation";
 
@@ -91,11 +92,15 @@ export function drawFinComposition(
   origin: FinPoint,
   scale: number,
   drawEffect?: (part: FinCompositionPart, origin: FinPoint, scale: number) => boolean,
+  // Only when no Canvas clip is active: palette parts are then blitted into the shadow mirror instead of the canvas.
+  mirrorPalette = false,
 ): void {
   for (const part of parts) {
     if (part.child.valueA === 5 && drawEffect?.(part, origin, scale)) continue;
     const image = imageLookup(part.child.sprite, part);
     const frame = part.frame;
+    const dx = Math.round(origin.x + part.x * scale), dy = Math.round(origin.y + part.y * scale);
+    if (mirrorPalette && scale === 1 && image && frame && drawMirroredPaletteImage(context, image, frame, dx, dy, part.mirrored)) continue;
     context.save();
     context.translate(Math.round(origin.x + part.x * scale), Math.round(origin.y + part.y * scale));
     context.scale(scale, scale);

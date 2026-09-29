@@ -918,6 +918,22 @@ export function baseNodeCells(core: GridPoint, radius = 2): readonly GridPoint[]
   ];
 }
 
+// Lazy equivalent of the per-unit blocked-cell snapshot: a cell blocks unless this unit is its only owner.
+class ReservationBlockedView {
+  constructor(private readonly reservations: ReadonlyMap<number, ReadonlySet<number>>, private readonly unitId: number) {}
+
+  has(index: number): boolean {
+    const owners = this.reservations.get(index);
+    return owners !== undefined && (owners.size > 1 || !owners.has(this.unitId));
+  }
+
+  materialize(): Set<number> {
+    const blocked = new Set<number>();
+    for (const [index] of this.reservations) if (this.has(index)) blocked.add(index);
+    return blocked;
+  }
+}
+
 export class DeterministicSimulation implements Simulation {
   readonly grid: NavigationGrid;
   readonly random: DeterministicRandom;
@@ -1001,19 +1017,21 @@ export class DeterministicSimulation implements Simulation {
   /** Exact copy for transactional staging; the source is already valid, so the checkpoint round-trip checks are skipped. */
   fork(): DeterministicSimulation {
     // The map-sized cost grid is copied as a typed array; boxing it into a plain array for structuredClone cost ~0.5 ms per tick.
-    return DeterministicSimulation.#fromCheckpoint(this.#capture(false), this.grid.costs);
+    return DeterministicSimulation.#fromCheckpoint(this.#capture(false, true), this.grid.costs);
   }
 
-  #capture(includeCosts = true): SimulationCheckpoint {
+  // With shallowUnits, units are copied one level deep instead of structuredClone: #fromCheckpoint re-copies every nested unit field.
+  #capture(includeCosts = true, shallowUnits = false): SimulationCheckpoint {
     if (this.#nativeInspire) throw new RangeError("Cannot checkpoint external nativeInspire: no verified adapter state export/import contract");
-    return structuredClone({
+    const unitRecords = [...this.#units.values()].map(({ team, ...unit }) => ({ ...unit, ...(team === undefined ? {} : { team }) }));
+    const captured = structuredClone({
       version: (this.#resourceActors.size ? 2 : 1) as 1 | 2,
       ...(this.#diagonalGround ? { groundMovement: "eight-way-v1" as const } : {}),
       grid: { width: this.grid.width, height: this.grid.height, costs: includeCosts ? Array.from(this.grid.costs) : [] },
       tick: this.#tick, nextEntityId: this.#nextEntityId, nextCommandSequence: this.#nextCommandSequence,
       randomState: this.random.state, dayNightCycleTicks: this.dayNightCycleTicks,
       sourceDayNight: this.#sourceDayNight, teamAlliances: this.#teamAlliances, resources: this.#resources,
-      units: [...this.#units.values()].map(({ team, ...unit }) => ({ ...unit, ...(team === undefined ? {} : { team }) })),
+      units: shallowUnits ? [] : unitRecords,
       resourceNodes: [...this.#resourceNodes.values()], buildings: [...this.#buildings.values()],
       staticTargets: [...this.#staticTargets.values()].map(({ team, ...target }) => ({ ...target, ...(team === undefined ? {} : { team }) })),
       staticBlockers: [...this.#staticBlockers].map(([index, blocker]) => ({ index, ...blocker })),
@@ -1027,6 +1045,7 @@ export class DeterministicSimulation implements Simulation {
       resourceActors: [...this.#resourceActors.values()], resourceActorEvents: this.#resourceActorEvents,
       ...this.#adaptedInspireCheckpoint(),
     });
+    return shallowUnits ? { ...captured, units: unitRecords } : captured;
   }
 
   #adaptedInspireCheckpoint(): { adaptedInspire?: AdaptedInspireCheckpoint } {
@@ -1061,11 +1080,12 @@ export class DeterministicSimulation implements Simulation {
     simulation.#sourceDayNight = saved.sourceDayNight;
     for (const unit of saved.units) {
       simulation.#units.set(unit.id, { ...unit,
-        path: Object.freeze(unit.path.map((point) => Object.freeze(point))),
+        path: Object.freeze(unit.path.map((point) => Object.freeze({ ...point }))),
         weapon: unit.weapon ? Object.freeze({ ...unit.weapon, ...(unit.weapon.sourceDamage ? { sourceDamage: copySourceDamageProfile(unit.weapon.sourceDamage) } : {}) }) : null,
         sourceDefense: unit.sourceDefense ? copyLegacyDefenseProfile(unit.sourceDefense) : null,
-        vision: unit.vision ? Object.freeze(unit.vision) : null,
-        harvester: unit.harvester ? Object.freeze(unit.harvester) : null,
+        vision: unit.vision ? Object.freeze({ ...unit.vision }) : null,
+        harvester: unit.harvester ? Object.freeze({ ...unit.harvester }) : null,
+        dropoff: unit.dropoff ? { ...unit.dropoff } : null,
       });
     }
     for (const target of saved.staticTargets) simulation.#staticTargets.set(target.id, { ...target,
@@ -1416,25 +1436,27 @@ export class DeterministicSimulation implements Simulation {
   }
 
   get snapshot(): SimulationSnapshot {
-    const units = [...this.#units.values()]
-      .sort((left, right) => left.id - right.id)
-      .map((unit): UnitSnapshot => Object.freeze({
-        id: unit.id,
-        ...(unit.movementPlane === undefined ? {} : { movementPlane: unit.movementPlane }),
-        faction: unit.faction,
-        ...(unit.team === undefined ? {} : { team: unit.team }),
-        activity: unit.activity,
-        xSubcells: unit.xSubcells,
-        ySubcells: unit.ySubcells,
-        cellX: Math.floor(unit.xSubcells / SUBCELLS_PER_CELL),
-        cellY: Math.floor(unit.ySubcells / SUBCELLS_PER_CELL),
-        health: unit.health,
-        maxHealth: unit.maxHealth,
-        cargo: unit.cargo,
-        cargoCapacity: unit.harvester?.cargoCapacity ?? 0,
-        targetId: unit.attackTargetId ?? unit.resourceTargetId,
-        ...(this.#resourceActors.has(unit.id) ? { resourceActor: copyResourceActor(this.#resourceActors.get(unit.id)!) } : {}),
-      }));
+    const units: UnitSnapshot[] = [];
+    for (const unit of [...this.#units.values()].sort((left, right) => left.id - right.id)) {
+      // Same key order as the former spread literal, without per-unit spread allocations.
+      const snapshot: { -readonly [K in keyof UnitSnapshot]?: UnitSnapshot[K] } = { id: unit.id };
+      if (unit.movementPlane !== undefined) snapshot.movementPlane = unit.movementPlane;
+      snapshot.faction = unit.faction;
+      if (unit.team !== undefined) snapshot.team = unit.team;
+      snapshot.activity = unit.activity;
+      snapshot.xSubcells = unit.xSubcells;
+      snapshot.ySubcells = unit.ySubcells;
+      snapshot.cellX = Math.floor(unit.xSubcells / SUBCELLS_PER_CELL);
+      snapshot.cellY = Math.floor(unit.ySubcells / SUBCELLS_PER_CELL);
+      snapshot.health = unit.health;
+      snapshot.maxHealth = unit.maxHealth;
+      snapshot.cargo = unit.cargo;
+      snapshot.cargoCapacity = unit.harvester?.cargoCapacity ?? 0;
+      snapshot.targetId = unit.attackTargetId ?? unit.resourceTargetId;
+      const actor = this.#resourceActors.get(unit.id);
+      if (actor) snapshot.resourceActor = copyResourceActor(actor);
+      units.push(Object.freeze(snapshot) as UnitSnapshot);
+    }
     const resourceNodes = [...this.#resourceNodes.values()]
       .sort((left, right) => left.id - right.id)
       .map((node): ResourceNodeSnapshot => ({
@@ -2094,7 +2116,7 @@ export class DeterministicSimulation implements Simulation {
   }
 
   #findMovementPath(grid: NavigationGrid, start: GridPoint, goal: GridPoint,
-    blocked?: ReadonlySet<number>): readonly GridPoint[] | null {
+    blocked?: { has(index: number): boolean }): readonly GridPoint[] | null {
     if (grid !== this.#airGrid) return findPath(grid, start, goal, { blocked, diagonal: this.#diagonalGround });
     if (!grid.contains(start.x, start.y) || !grid.contains(goal.x, goal.y)) return null;
     const direct = [start];
@@ -2200,13 +2222,15 @@ export class DeterministicSimulation implements Simulation {
     if (actor && this.#resourceOwned(unit.id)) return actor.profile.occupancy.map((point) => this.grid.index(point.x, point.y));
     const centerX = (unit.xSubcells - SUBCELLS_PER_CELL / 2) / SUBCELLS_PER_CELL;
     const centerY = (unit.ySubcells - SUBCELLS_PER_CELL / 2) / SUBCELLS_PER_CELL;
-    const cells = new Set<number>();
-    for (const cellY of [Math.floor(centerY), Math.ceil(centerY)]) {
-      for (const cellX of [Math.floor(centerX), Math.ceil(centerX)]) {
-        if (this.grid.contains(cellX, cellY)) cells.add(this.grid.index(cellX, cellY));
-      }
+    const floorX = Math.floor(centerX), ceilX = Math.ceil(centerX), floorY = Math.floor(centerY), ceilY = Math.ceil(centerY);
+    const cells: number[] = [];
+    for (let pass = 0; pass < 4; pass++) {
+      const cellX = pass & 1 ? ceilX : floorX, cellY = pass & 2 ? ceilY : floorY;
+      if (!this.grid.contains(cellX, cellY)) continue;
+      const index = this.grid.index(cellX, cellY);
+      if (!cells.includes(index)) cells.push(index);
     }
-    return [...cells];
+    return cells;
   }
 
   #reserveMovement(index: number, unitId: number): void {
@@ -2216,12 +2240,8 @@ export class DeterministicSimulation implements Simulation {
     reservations.set(index, owners);
   }
 
-  #movementBlocked(unit: UnitState): ReadonlySet<number> {
-    const blocked = new Set<number>();
-    for (const [index, owners] of unit.movementPlane === "air" ? this.#airMovementReservations : this.#movementReservations) {
-      if (owners.size > 1 || !owners.has(unit.id)) blocked.add(index);
-    }
-    return blocked;
+  #movementBlocked(unit: UnitState): ReservationBlockedView {
+    return new ReservationBlockedView(unit.movementPlane === "air" ? this.#airMovementReservations : this.#movementReservations, unit.id);
   }
 
   #setPath(unit: UnitState, path: readonly GridPoint[]): void {
@@ -2259,7 +2279,7 @@ export class DeterministicSimulation implements Simulation {
               && next?.x === start.x && next.y === start.y;
           });
           if (oncoming) {
-            const detourBlocked = new Set(blocked);
+            const detourBlocked = blocked.materialize();
             detourBlocked.delete(this.grid.index(goal.x, goal.y));
             detourBlocked.add(this.grid.index(start.x, start.y));
             for (const neighbor of grid.neighbors(this.grid.index(start.x, start.y))) {

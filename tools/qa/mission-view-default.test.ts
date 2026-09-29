@@ -12,10 +12,10 @@ test("default AL01: initialized 120-frame movement/render has bounded snapshot r
   assert.equal(result.render.count, 120);
   assert.equal(result.playerUnits, 5);
   assert.equal(result.entities, 52);
-  assert.equal(result.frameCounters["session.snapshot"].calls, 240);
-  assert.equal(result.renderCounters["session.snapshot"].calls, 1);
+  assert.equal(result.frameCounters["session.snapshot"].calls, 120);
+  assert.ok((result.renderCounters["session.snapshot"]?.calls ?? 0) <= 1);
   assert.equal(result.renderCounters["simulation.snapshot"].calls, 1);
-  assert.equal(result.selectionCounters["session.snapshot"].calls, 1);
+  assert.ok((result.selectionCounters["session.snapshot"]?.calls ?? 0) <= 1);
   assert.equal(result.frameCounters["view.renderBoundedMode3"], undefined);
   assert.equal(result.callbackCount, 120);
   assert.equal(result.spriteDraws, 524);

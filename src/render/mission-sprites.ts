@@ -8,6 +8,13 @@ import { RemapTable } from "./palette";
 import { registerNativePaletteImage } from "./mode1-canvas";
 import { registerNativeEffectMission } from "./mode5-canvas";
 
+// A sprite canvas kept on the GPU makes every later getImageData on the destination canvas a ~0.3 ms GPU sync (~30% of
+// mission CPU). Software sprite canvases (willReadFrequently) remove that, but the destination is then rasterised on the
+// CPU, whose translucent blends and sub-pixel sampling differ from the GPU by up to a few 8-bit levels. Off keeps the
+// existing pixel output bit-identical.
+const SPRITE_CANVASES_READ_FREQUENTLY = false;
+const spriteContextOptions: CanvasRenderingContext2DSettings = { willReadFrequently: SPRITE_CANVASES_READ_FREQUENTLY };
+
 export function remapSpritePixels(indices: Uint8Array, coverage: Uint8Array,
   remap: RemapTable, palette: Uint8Array, selector: number): Uint8ClampedArray {
   if (indices.length !== coverage.length || palette.length !== 768 ||
@@ -136,7 +143,7 @@ export async function createMissionSpritePalettes(
       }
       const canvas = document.createElement("canvas");
       canvas.width = source.width; canvas.height = source.height;
-      const context = canvas.getContext("2d");
+      const context = canvas.getContext("2d", spriteContextOptions);
       if (!context) throw new Error("Sprite remapping needs Canvas2D");
       const data = context.createImageData(source.width, source.height);
       data.data.set(remapSpritePixels(source.indices, source.coverage, remap, palette, selector));
@@ -155,7 +162,7 @@ export async function createMissionSpritePalettes(
       if (existing) return existing;
       const canvas = document.createElement("canvas");
       canvas.width = source.width; canvas.height = source.height;
-      const context = canvas.getContext("2d");
+      const context = canvas.getContext("2d", spriteContextOptions);
       if (!context) throw new Error("Sprite remapping needs Canvas2D");
       const data = context.createImageData(source.width, source.height);
       for (let index = 0; index < source.indices.length; index += 1) {

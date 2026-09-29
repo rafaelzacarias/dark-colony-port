@@ -577,48 +577,83 @@ function hostOf(world: CampaignWorld): TransportHostState {
   return host;
 }
 
+const statisticKeys = (category: number) => Array.from({ length: 8 }, (_, team) => Array.from({ length: 110 }, (_, unitType) => `${team},${category},${unitType}`));
+const STAT_KEYS_0 = statisticKeys(0), STAT_KEYS_1 = statisticKeys(1), STAT_KEYS_3 = statisticKeys(3);
+
+const hudCloneCache = new WeakMap<object, object>();
+
 function refreshFeedback(state: CampaignSessionState, options: CampaignSessionOptions): CampaignSessionState {
   const host = hostOf(state.world);
-  const statistics = { ...state.controller.runtime.statistics };
-  const consumedLosses = { ...state.controller.consumedLosses };
+  const baseStatistics = state.controller.runtime.statistics;
+  let statistics: Record<string, number> = baseStatistics;
+  // Copy-on-write: the statistics record is only cloned when a value actually differs.
+  const setStat = (key: string, value: number) => {
+    if (statistics[key] === value && Object.hasOwn(statistics, key)) return;
+    if (statistics === baseStatistics) statistics = { ...baseStatistics };
+    statistics[key] = value;
+  };
+  let consumedLosses: { -readonly [K in keyof typeof state.controller.consumedLosses]: (typeof state.controller.consumedLosses)[K] } = state.controller.consumedLosses;
   if (host.nativeCombat?.death) {
-    for (const request of host.requests) if (request.type === "combat-death") consumedLosses[request.loss.id] = request.loss;
+    for (const request of host.requests) if (request.type === "combat-death") {
+      if (consumedLosses === state.controller.consumedLosses) consumedLosses = { ...consumedLosses };
+      consumedLosses[request.loss.id] = request.loss;
+    }
     for (let team = 0; team < 8; team++) {
-      for (const category of [2, 3]) statistics[`${team},${category}`] = host.nativeCombat.projectiles.statistics[team * 12 + category];
-      for (let unitType = 0; unitType < 110; unitType++) for (const category of [0, 3])
-        statistics[`${team},${category},${unitType}`] = host.nativeCombat.death.typeStatistics[team * 440 + unitType * 4 + category];
+      for (const category of [2, 3]) setStat(`${team},${category}`, host.nativeCombat.projectiles.statistics[team * 12 + category]);
+      for (let unitType = 0; unitType < 110; unitType++) {
+        setStat(STAT_KEYS_0[team][unitType], host.nativeCombat.death.typeStatistics[team * 440 + unitType * 4]);
+        setStat(STAT_KEYS_3[team][unitType], host.nativeCombat.death.typeStatistics[team * 440 + unitType * 4 + 3]);
+      }
     }
   }
-  const buildingSlots = { ...state.world.buildingSlots };
-  const commanderSlots = { ...state.world.commanderSlots };
   const bytes = state.world.entityBytes!;
-  for (let team = 0; team < 8; team += 1) {
-    if (options.runtimeProfile === "browser-adapted" && !legacyFeedbackOptions.has(options)) statistics[`${team},6`] = 0;
-    for (let unitType = 0; unitType < 110; unitType += 1) statistics[`${team},1,${unitType}`] = 0;
-  }
-  if (options.runtimeProfile === "browser-adapted" && !legacyFeedbackOptions.has(options)) {
+  const browserCensus = options.runtimeProfile === "browser-adapted" && !legacyFeedbackOptions.has(options);
+  const census = new Float64Array(8);
+  if (browserCensus) {
     for (let slot = 152; slot < 800; slot += 1) {
       if (host.registry[slot] === null) continue;
       const entity = host.slots[slot];
       requireSession(entity && entity.key === host.registry[slot] && entity.slot === slot, "Inconsistent census registry");
-      if (entity.team < 8) statistics[`${entity.team},6`] += 1;
+      if (entity.team < 8) census[entity.team] += 1;
     }
   }
+  const counts = new Float64Array(8 * 110);
+  let extra: Map<string, number> | undefined;
   const staticSet = new Set(state.staticSlots);
-  for (const entity of state.world.entities) {
+  const entities = state.world.entities;
+  for (const entity of entities) {
     const slot = entity.rawSlot!;
     const registered = staticSet.has(slot) ? bytes[slot * 220 + 0x2c] !== 0 : host.registry[slot] === entity.key;
-    if (slot >= 152 && registered && entity.team < 8) statistics[`${entity.team},1,${entity.unitType}`] += 1;
+    if (slot >= 152 && registered && entity.team < 8) {
+      if (entity.unitType >= 0 && entity.unitType < 110 && Number.isInteger(entity.unitType)) counts[entity.team * 110 + entity.unitType] += 1;
+      else (extra ??= new Map()).set(`${entity.team},1,${entity.unitType}`, ((extra.get(`${entity.team},1,${entity.unitType}`)) ?? 0) + 1);
+    }
   }
-  for (const key of Object.keys(buildingSlots)) {
+  for (let team = 0; team < 8; team += 1) {
+    if (browserCensus) setStat(`${team},6`, census[team]);
+    for (let unitType = 0; unitType < 110; unitType += 1) setStat(STAT_KEYS_1[team][unitType], counts[team * 110 + unitType]);
+  }
+  if (extra) for (const [key, count] of extra) setStat(key, count);
+  const byRawSlot = new Map<number, (typeof entities)[number]>();
+  for (const entity of entities) if (!byRawSlot.has(entity.rawSlot!)) byRawSlot.set(entity.rawSlot!, entity);
+  let buildingSlots: Record<string, number> = state.world.buildingSlots;
+  for (const key of Object.keys(state.world.buildingSlots)) {
     const [team, slot] = key.split(",").map(Number);
-    buildingSlots[key] = state.world.entities.find((entity) => entity.rawSlot === team * 15 + slot)?.health ?? 0;
+    const health = byRawSlot.get(team * 15 + slot)?.health ?? 0;
+    if (buildingSlots[key] !== health) {
+      if (buildingSlots === state.world.buildingSlots) buildingSlots = { ...buildingSlots };
+      buildingSlots[key] = health;
+    }
   }
+  let commanderSlots: Record<number, number> = state.world.commanderSlots;
   for (const mapping of options.commanders) {
-    const matches = state.world.entities.filter((entity) => entity.team === mapping.team && entity.unitType === mapping.unitType &&
+    const matches = entities.filter((entity) => entity.team === mapping.team && entity.unitType === mapping.unitType &&
       bytes[entity.rawSlot! * 220 + 0x2c] !== 0 && bytes[entity.rawSlot! * 220 + 0x2c] !== 10);
     requireSession(matches.length <= 1, `Ambiguous commander mapping for team ${mapping.team}`);
-    if (matches.length === 1) commanderSlots[mapping.team] = matches[0].rawSlot!;
+    if (matches.length === 1 && commanderSlots[mapping.team] !== matches[0].rawSlot!) {
+      if (commanderSlots === state.world.commanderSlots) commanderSlots = { ...commanderSlots };
+      commanderSlots[mapping.team] = matches[0].rawSlot!;
+    }
   }
   return { ...state, world: { ...state.world, buildingSlots, commanderSlots, statistics },
     controller: { ...state.controller, consumedLosses, runtime: { ...state.controller.runtime, statistics } } };
@@ -1607,7 +1642,11 @@ function deepFreeze<Value>(value: Value): Value {
 
 function cloneSessionState(state: CampaignSessionState, shareBrowserHistory = false): CampaignSessionState {
   const { world, aiSelectorInputs, production, ...operational } = state;
-  return { ...structuredClone(operational), world: cloneTransportHostWorld(world),
+  const { controller } = operational;
+  // Statistics are ~2.7k-key flat number records; a shallow copy is several times faster than structuredClone.
+  const runtime = { ...structuredClone({ ...controller.runtime, statistics: undefined }), statistics: { ...controller.runtime.statistics } };
+  return { ...structuredClone({ ...operational, controller: undefined }),
+    controller: { ...structuredClone({ ...controller, runtime: undefined }), runtime } as typeof controller, world: cloneTransportHostWorld(world),
     ...(production ? { production: shareBrowserHistory ? production : structuredClone(production) } : {}),
     ...(aiSelectorInputs ? { aiSelectorInputs: shareBrowserHistory ? aiSelectorInputs : structuredClone(aiSelectorInputs) } : {}) };
 }
@@ -1720,11 +1759,18 @@ export class CampaignSession {
   }
   private buildHudSnapshot() {
     const { world, controller, production, browserConstruction } = this.current, host = hostOf(world);
-    return deepFreeze(structuredClone({ controller: { runtime: { statistics: controller.runtime.statistics } },
-      world: { entities: world.entities.filter(entity => entity.unitType === 40 && entity.team === 8), exomoney: world.exomoney },
-      transport: { slots: host.slots.map(slot => slot?.unitType === 40 && slot.team === 8 ? slot : null) },
-      ...(browserConstruction ? { browserConstruction } : {}),
-      ...(production ? { production: { ...production, journal: [], requests: [] } } : {}) }));
+    // Session states are immutable, so frozen clones of unchanged sub-objects are reused across ticks.
+    const frozenClone = <T extends object>(source: T, project: (source: T) => T = value => value): T => {
+      let cached = hudCloneCache.get(source) as T | undefined;
+      if (!cached) hudCloneCache.set(source, cached = deepFreeze(structuredClone(project(source))));
+      return cached;
+    };
+    return deepFreeze({ controller: { runtime: { statistics: frozenClone(controller.runtime.statistics) } },
+      world: { entities: structuredClone(world.entities.filter(entity => entity.unitType === 40 && entity.team === 8)),
+        exomoney: frozenClone(world.exomoney) },
+      transport: { slots: structuredClone(host.slots.map(slot => slot?.unitType === 40 && slot.team === 8 ? slot : null)) },
+      ...(browserConstruction ? { browserConstruction: frozenClone(browserConstruction) } : {}),
+      ...(production ? { production: frozenClone(production, value => ({ ...value, journal: [], requests: [] })) } : {}) });
   }
 
   get browserConstructionStatus() {

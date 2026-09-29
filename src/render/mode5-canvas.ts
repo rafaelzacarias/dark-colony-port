@@ -88,18 +88,25 @@ export function drawBrowserMode5Canvas(input: {
     return { drawn: false, diagnostic: "browser-effect-readback-unavailable" };
   }
   const offsetX = mirror ? 0 : left, offsetY = mirror ? 0 : top;
+  const { palette, remap } = effect, data = image.data, stride = image.width;
+  // Runs of identical destination colors and source indices (fog, flat terrain) reuse the previous remapped color.
+  let lastKey = -1, lastResult = 0;
   for (let row = top; row < bottom; row++) for (let column = left; column < right; column++) {
     const sourceX = part.mirrored ? frame.width - 1 - (column - x) : column - x;
     const sourceOffset = (frame.y + row - y) * source.width + frame.x + sourceX;
     if (!source.coverage[sourceOffset]) continue;
-    const offset = ((row - offsetY) * image.width + column - offsetX) * 4;
+    const offset = ((row - offsetY) * stride + column - offsetX) * 4;
+    const sourceIndex = source.indices[sourceOffset];
     // Fog and antialiased overlays are RGB, so only this browser fallback quantizes their destination.
-    const destination = browserPaletteIndex(effect.palette, image.data[offset], image.data[offset + 1], image.data[offset + 2]);
-    const result = effect.remap.lookup(1, source.indices[sourceOffset], destination) * 3;
-    image.data[offset] = effect.palette[result];
-    image.data[offset + 1] = effect.palette[result + 1];
-    image.data[offset + 2] = effect.palette[result + 2];
-    image.data[offset + 3] = 255;
+    const key = (data[offset] * 65536 + data[offset + 1] * 256 + data[offset + 2]) * 256 + sourceIndex;
+    if (key !== lastKey) {
+      lastKey = key;
+      lastResult = remap.lookup(1, sourceIndex, browserPaletteIndex(palette, data[offset], data[offset + 1], data[offset + 2])) * 3;
+    }
+    data[offset] = palette[lastResult];
+    data[offset + 1] = palette[lastResult + 1];
+    data[offset + 2] = palette[lastResult + 2];
+    data[offset + 3] = 255;
   }
   if (mirror) writeMirroredRegion(context, mirror, region);
   else context.putImageData(image, left, top);

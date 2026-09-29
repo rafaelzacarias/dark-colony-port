@@ -76,7 +76,8 @@ export function mirroredRegion(context: CanvasRenderingContext2D, region: Rect):
   const surface = surfaces.get(context);
   if (!surface?.active || !prototype || !mirrorEnabled) return undefined;
   const width = context.canvas.width, height = context.canvas.height;
-  // The first shadow of a frame reads the whole canvas once; later shadows only re-read what was drawn since.
+  // The first shadow of a frame reads the whole canvas once; later shadows only re-read what was drawn since. Reading lazily
+  // per region instead was measured 30% slower: many small readbacks cost more than one full one.
   if (!surface.image || surface.image.width !== width || surface.image.height !== height) {
     surface.image = prototype.getImageData.call(context, 0, 0, width, height);
     surface.dirty.length = 0;
@@ -112,6 +113,56 @@ export function writeMirroredRegion(context: CanvasRenderingContext2D, mirror: I
   prototype!.putImageData.call(context, mirror, 0, 0, region.x, region.y, region.width, region.height);
 }
 
+function paletteColors(atlas: NativePaletteAtlas): Uint32Array {
+  let colors = bodyColors.get(atlas);
+  if (!colors) {
+    const rgba = new Uint8Array(256 * 4);
+    for (let index = 0; index < 256; index++) {
+      const mapped = atlas.remap.lookup(2, 128 + atlas.selector, index) * 3;
+      rgba[index * 4] = atlas.palette[mapped];
+      rgba[index * 4 + 1] = atlas.palette[mapped + 1];
+      rgba[index * 4 + 2] = atlas.palette[mapped + 2];
+      rgba[index * 4 + 3] = 255;
+    }
+    colors = new Uint32Array(rgba.buffer);
+    bodyColors.set(atlas, colors);
+  }
+  return colors;
+}
+
+/**
+ * Blits an opaque/transparent palette frame into the mirror at an integer 1:1 position, the same pixels drawImage would
+ * write, so a later shadow or body reads the mirror instead of re-reading the canvas. Only valid with no Canvas clip active.
+ */
+export function drawMirroredPaletteImage(context: CanvasRenderingContext2D, image: CanvasImageSource,
+  frame: Rect, x: number, y: number, mirrored: boolean): boolean {
+  const surface = surfaces.get(context), atlas = images.get(image);
+  if (!mirrorEnabled || !bodyMirrorEnabled || !surface?.active || !surface.image || !atlas) return false;
+  if (![frame.x, frame.y, frame.width, frame.height, x, y].every(Number.isInteger) || frame.x < 0 || frame.y < 0 ||
+    frame.width < 1 || frame.height < 1 || frame.x + frame.width > atlas.width || frame.y + frame.height > atlas.height ||
+    frame.width * frame.height > MODE1_CANVAS_PIXEL_BUDGET) return false;
+  const transform = context.getTransform();
+  if (transform.a !== 1 || transform.b !== 0 || transform.c !== 0 || transform.d !== 1 ||
+    transform.e !== 0 || transform.f !== 0 || context.globalAlpha !== 1 || context.globalCompositeOperation !== "source-over" ||
+    context.filter !== "none" || context.shadowBlur !== 0 || context.shadowOffsetX !== 0 || context.shadowOffsetY !== 0) return false;
+  const left = Math.max(0, x), top = Math.max(0, y);
+  const right = Math.min(context.canvas.width, x + frame.width), bottom = Math.min(context.canvas.height, y + frame.height);
+  if (right <= left || bottom <= top) return true;
+  const region = { x: left, y: top, width: right - left, height: bottom - top };
+  const mirror = mirroredRegion(context, region);
+  if (!mirror) return false;
+  const colors = paletteColors(atlas), output = new Uint32Array(mirror.data.buffer, mirror.data.byteOffset, mirror.data.byteLength / 4);
+  for (let row = top; row < bottom; row++) {
+    const sourceRow = (frame.y + row - y) * atlas.width + frame.x;
+    for (let column = left; column < right; column++) {
+      const source = sourceRow + (mirrored ? frame.width - 1 - (column - x) : column - x);
+      if (atlas.coverage[source]) output[row * mirror.width + column] = colors[atlas.indices[source]];
+    }
+  }
+  writeMirroredRegion(context, mirror, region);
+  return true;
+}
+
 /** Draw an indexed body into the mirror. Caller supplies the full clip mask; no external Canvas clip may be active. */
 export function drawMirroredPaletteBody(input: {
   readonly context: CanvasRenderingContext2D;
@@ -145,19 +196,7 @@ export function drawMirroredPaletteBody(input: {
   const region = { x: left, y: top, width: right - left, height: bottom - top };
   const mirror = mirroredRegion(context, region);
   if (!mirror) return false;
-  let colors = bodyColors.get(atlas);
-  if (!colors) {
-    const rgba = new Uint8Array(256 * 4);
-    for (let index = 0; index < 256; index++) {
-      const mapped = atlas.remap.lookup(2, 128 + atlas.selector, index) * 3;
-      rgba[index * 4] = atlas.palette[mapped];
-      rgba[index * 4 + 1] = atlas.palette[mapped + 1];
-      rgba[index * 4 + 2] = atlas.palette[mapped + 2];
-      rgba[index * 4 + 3] = 255;
-    }
-    colors = new Uint32Array(rgba.buffer);
-    bodyColors.set(atlas, colors);
-  }
+  const colors = paletteColors(atlas);
   const output = new Uint32Array(mirror.data.buffer, mirror.data.byteOffset, mirror.data.byteLength / 4);
   for (const span of body.clips) {
     const x0 = Math.max(left, body.topLeft.x + span.x), x1 = Math.min(right, body.topLeft.x + span.x + span.width);
@@ -203,6 +242,25 @@ function shadeMap(atlas: NativePaletteAtlas): ReadonlyMap<number, number> {
   return result;
 }
 
+const frameSprites = new WeakMap<NativePaletteAtlas, Map<number, NativeIndexedSprite>>();
+
+function frameSprite(atlas: NativePaletteAtlas, frame: { x: number; y: number; width: number; height: number }): NativeIndexedSprite {
+  let sprites = frameSprites.get(atlas);
+  if (!sprites) { sprites = new Map(); frameSprites.set(atlas, sprites); }
+  const key = ((frame.y * atlas.width + frame.x) * 1024 + frame.width) * 1024 + frame.height;
+  const cached = sprites.get(key);
+  if (cached && cached.width === frame.width && cached.height === frame.height) return cached;
+  const indices = new Uint8Array(frame.width * frame.height), coverage = new Uint8Array(indices.length);
+  for (let row = 0; row < frame.height; row++) {
+    const start = (frame.y + row) * atlas.width + frame.x;
+    indices.set(atlas.indices.subarray(start, start + frame.width), row * frame.width);
+    coverage.set(atlas.coverage.subarray(start, start + frame.width), row * frame.width);
+  }
+  const sprite = { width: frame.width, height: frame.height, indices, coverage };
+  if (frame.width < 1024 && frame.height < 1024) sprites.set(key, sprite);
+  return sprite;
+}
+
 export function drawNativeMode1CanvasShadow(input: {
   readonly context: CanvasRenderingContext2D;
   readonly image: CanvasImageSource;
@@ -230,14 +288,8 @@ export function drawNativeMode1CanvasShadow(input: {
     || context.filter !== "none" || context.shadowBlur !== 0 || context.shadowOffsetX !== 0 || context.shadowOffsetY !== 0) {
     return { diagnostic: "mode1-shadow-canvas-state-unverified" } as const;
   }
-  const indices = new Uint8Array(frame.width * frame.height), coverage = new Uint8Array(indices.length);
-  for (let row = 0; row < frame.height; row++) {
-    const start = (frame.y + row) * atlas.width + frame.x;
-    indices.set(atlas.indices.subarray(start, start + frame.width), row * frame.width);
-    coverage.set(atlas.coverage.subarray(start, start + frame.width), row * frame.width);
-  }
   let plan: ReturnType<typeof composeNativeMode1>;
-  try { plan = composeNativeMode1({ ...input, sprite: { width: frame.width, height: frame.height, indices, coverage } }); }
+  try { plan = composeNativeMode1({ ...input, sprite: frameSprite(atlas, frame) }); }
   catch (error) { return { diagnostic: `mode1-shadow-unverified:${error instanceof Error ? error.message : String(error)}` } as const; }
   const pixels = plan.shadow.filter(({ x, y }) => x >= camera.x && y >= camera.y
     && x < camera.x + camera.width && y < camera.y + camera.height);

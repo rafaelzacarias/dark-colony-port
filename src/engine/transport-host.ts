@@ -553,7 +553,9 @@ function transportHostState(world: CampaignWorld): TransportHostState {
 export function cloneTransportHostWorld(world: CampaignWorld): CampaignWorld {
   if ((world.transportState as TransportHostState | null)?.kind !== "transport-host-v1") return structuredClone(world);
   const transportState = transportHostState(world);
-  return { ...structuredClone({ ...world, transportState: undefined }), transportState };
+  const statistics = world.statistics && typeof world.statistics === "object" ? { ...world.statistics } : world.statistics;
+  // source is an immutable scenario description, shared rather than deep-copied every step.
+  return { ...structuredClone({ ...world, transportState: undefined, statistics: undefined, source: undefined }), source: world.source, statistics, transportState };
 }
 
 function definition(state: TransportHostState, unitType: number): HostDefinition {

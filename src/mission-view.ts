@@ -584,6 +584,10 @@ export class MissionView {
   #spritePalettes: Awaited<ReturnType<typeof createMissionSpritePalettes>> | null = null;
   #disposed = false;
   #previousSnapshot: SimulationSnapshot;
+  #renderLookups: { snapshot: SimulationSnapshot; previous: SimulationSnapshot;
+    staticStates: Map<number, SimulationSnapshot["staticTargets"][number]>;
+    currentById: Map<number, SimulationSnapshot["units"][number]>;
+    previousById: Map<number, SimulationSnapshot["units"][number]> } | null = null;
   #interpolation = 0;
   #lastTime: number | null = null;
   #cameraX = 0;
@@ -1238,8 +1242,21 @@ export class MissionView {
     return this.#outcome ? { ...this.#outcome } : null;
   }
   get campaignSnapshot() { return this.#session?.snapshot ?? null; }
+  #viewSnapshotCache: { session: CampaignSession; epoch: number; value: CampaignSession["snapshot"] } | null = null;
   get #sessionViewSnapshot() {
-    return this.#session?.runtimeProfile === "browser-adapted" ? this.#session.browserHudSnapshot : this.#session?.snapshot;
+    const session = this.#session;
+    if (!session) return undefined;
+    return session.runtimeProfile === "browser-adapted" ? session.browserHudSnapshot : this.#cachedSessionSnapshot();
+  }
+  #cachedSessionSnapshot() {
+    const session = this.#session;
+    if (!session) return undefined;
+    // Full session clones are read-only here and only change when the session steps, so share one per tick.
+    const cache = this.#viewSnapshotCache;
+    if (cache && cache.session === session && cache.epoch === this.#sessionEpoch) return cache.value;
+    const value = session.snapshot;
+    this.#viewSnapshotCache = { session, epoch: this.#sessionEpoch, value };
+    return value;
   }
   get nativeCombatFrameState() {
     if (!this.#nativeViewState) throw new TypeError("Native combat frame state requires an active native view");
@@ -1445,6 +1462,17 @@ export class MissionView {
       { width: this.grid.width, height: this.grid.height, groundWords, teamVisibilityMasks });
   }
   get browserAiState(): BrowserCampaignViewState | undefined { return this.#browserAi && structuredClone(this.#browserAi); }
+  // Sources only change when the session steps or resumes an idle harvester; the render path reuses one projection per tick.
+  #resourceSourcesCache: { session: CampaignSession | null; epoch: number; sources: MissionView["resourceSources"] } | null = null;
+  #sessionEpoch = 0;
+  #cachedResourceSources(): MissionView["resourceSources"] {
+    if (this.#nativeViewState || this.#browserEconomy) return this.resourceSources;
+    const cache = this.#resourceSourcesCache;
+    if (cache && cache.session === this.#session && cache.epoch === this.#sessionEpoch) return cache.sources;
+    const sources = this.resourceSources;
+    this.#resourceSourcesCache = { session: this.#session, epoch: this.#sessionEpoch, sources };
+    return sources;
+  }
   get resourceSources() {
     const snapshot = this.#nativeViewState ? undefined : this.#sessionViewSnapshot;
     const world = this.#nativeViewState?.world ?? snapshot?.world;
@@ -1996,7 +2024,7 @@ export class MissionView {
       updates.push({ type: "combat-death", slot: binding.slot, generation: binding.generation });
     }
     const current = this.#browserAi ? this.#session.browserFrameContext(this.mission.sourceProduction?.initialPopulationCeiling ?? 150)
-      : this.#session.snapshot;
+      : this.#cachedSessionSnapshot()!;
     const productionVisits = "world" in current ? current.production && this.mission.sourceProduction
       && sourceProductionVisits(current.world, current.production, this.mission.sourceProduction.initialPopulationCeiling)
       : current.productionVisits;
@@ -2012,6 +2040,7 @@ export class MissionView {
       ? this.#session.browserResearchFrame(this.#research, { ...observation, updates })
       : observeBrowserType37Frame(type37World, this.#browserAi!, { ...observation, spyTeams: Array(8).fill(false) }));
     const step = this.#browserAi ? this.#session.stepForBrowserView.bind(this.#session) : this.#session.step.bind(this.#session);
+    this.#sessionEpoch += 1;
     const result = step({ clockMilliseconds: ((this.simulation.snapshot.tick + Number(Boolean(this.#browserAi))) * MISSION_BROWSER_POLICY.fixedStepMilliseconds) >>> 0,
       updates, reservations: this.#pendingReservations.splice(0),
       ...(type37Frame ? { type37Frame } : {}),
@@ -2032,6 +2061,7 @@ export class MissionView {
       } : {}),
       ...(constructionInput ?? {}),
     });
+    this.#sessionEpoch += 1;
     if (!result.ok) throw new Error(JSON.stringify(result.diagnostics));
     this.#publishResources(this.simulation, result.value.world);
     this.#pendingProduction = undefined;
@@ -2584,6 +2614,7 @@ export class MissionView {
     this.#assertConstructionProjection();
     for (const actor of this.simulation.resourceActors) {
       if (actor.owner !== "simulation") continue;
+      this.#sessionEpoch += 1;
       const result = this.#session!.resumeResourceIdle(actor.slot, actor.generation);
       if (!result.ok) throw new Error(result.diagnostics.map(entry => entry.message).join("; "));
       const record = transportHostState(result.value).slots[actor.slot]!;
@@ -2693,6 +2724,7 @@ export class MissionView {
 
   #commitRuntime(candidate: MissionView, transfer = false): void {
     this.#simulation = candidate.#simulation; this.#session = candidate.#session;
+    this.#sessionEpoch += 1;
     this.#browserAi = candidate.#browserAi;
     this.#browserEconomy = candidate.#browserEconomy;
     this.#type37World = candidate.#type37World;
@@ -2709,15 +2741,16 @@ export class MissionView {
     this.#guardAttacks = candidate.#guardAttacks;
     this.#previousSnapshot = candidate.#previousSnapshot;
     // A committed candidate is discarded, so its private copies can be taken over instead of cloned a second time.
-    const copyMap = <Key, Value>(target: Map<Key, Value>, source: Map<Key, Value>) => {
-      target.clear(); source.forEach((value, key) => target.set(key, transfer ? value : structuredClone(value)));
+    const copyMap = <Key, Value>(target: Map<Key, Value>, source: Map<Key, Value>, share = false) => {
+      target.clear(); source.forEach((value, key) => target.set(key, transfer || share ? value : structuredClone(value)));
     };
-    copyMap(this.#sceneIdentities, candidate.#sceneIdentities);
-    copyMap(this.#nativeBindings, candidate.#nativeBindings); copyMap(this.#simulationBindings, candidate.#simulationBindings);
-    copyMap(this.#unitStats, candidate.#unitStats); copyMap(this.#unitWeaponIds, candidate.#unitWeaponIds);
-    copyMap(this.#unitTeams, candidate.#unitTeams); copyMap(this.#waypointRoutes, candidate.#waypointRoutes);
-    copyMap(this.#animationStates, candidate.#animationStates);
-    copyMap(this.#combatReveals, candidate.#combatReveals);
+    // These values are only ever replaced, never mutated in place, so the two views can share them; routes advance nextIndex in place.
+    copyMap(this.#sceneIdentities, candidate.#sceneIdentities, true);
+    copyMap(this.#nativeBindings, candidate.#nativeBindings, true); copyMap(this.#simulationBindings, candidate.#simulationBindings, true);
+    copyMap(this.#unitStats, candidate.#unitStats, true); copyMap(this.#unitWeaponIds, candidate.#unitWeaponIds, true);
+    copyMap(this.#unitTeams, candidate.#unitTeams, true); copyMap(this.#waypointRoutes, candidate.#waypointRoutes);
+    copyMap(this.#animationStates, candidate.#animationStates, true);
+    copyMap(this.#combatReveals, candidate.#combatReveals, true);
     for (const [target, source] of [[this.#selectedIds, candidate.#selectedIds], [this.#detachedIds, candidate.#detachedIds],
       [this.#recordedDeaths, candidate.#recordedDeaths]]) { target.clear(); source.forEach(value => target.add(value)); }
     this.#staticObjects.splice(0, this.#staticObjects.length, ...candidate.#staticObjects);
@@ -2728,7 +2761,7 @@ export class MissionView {
     this.#cameraX = candidate.#cameraX; this.#cameraY = candidate.#cameraY; this.#awaitingPlayerFocus = candidate.#awaitingPlayerFocus;
     this.#carriers = candidate.#carriers; this.#outcome = candidate.#outcome; this.#latestMessage = candidate.#latestMessage;
     this.#orderMode = candidate.#orderMode; this.#movementStance = candidate.#movementStance;
-    this.#waypointDraft = structuredClone(candidate.#waypointDraft);
+    this.#waypointDraft = candidate.#waypointDraft && structuredClone(candidate.#waypointDraft);
     this.#resourceDiagnostic = candidate.#resourceDiagnostic;
   }
 
@@ -2954,17 +2987,15 @@ export class MissionView {
         for (let x = firstX; x <= lastX; x += 1) this.#drawTerrainCell(context, x, y, width, height);
       }
     }
+    const fogSize = this.#tileSize + 1;
+    let fogStyle = "";
     // Entity visibility is checked at its tile; fog must not clip a revealed sprite's head or muzzle.
     for (let y = firstY; y <= lastY; y += 1) {
       for (let x = firstX; x <= lastX; x += 1) {
         if (visibility[y * this.grid.width + x]) continue;
-        context.fillStyle = this.#explored[y * this.grid.width + x] ? "rgba(3, 4, 3, .72)" : "#000000";
-        context.fillRect(
-          this.#screenX(x, width),
-          this.#screenY(y + 1, height),
-          this.#tileSize + 1,
-          this.#tileSize + 1,
-        );
+        const style = this.#explored[y * this.grid.width + x] ? "rgba(3, 4, 3, .72)" : "#000000";
+        if (style !== fogStyle) context.fillStyle = fogStyle = style;
+        context.fillRect(this.#screenX(x, width), this.#screenY(y + 1, height), fogSize, fogSize);
       }
     }
     const drawables: { y: number; draw: () => void }[] = [];
@@ -2989,7 +3020,7 @@ export class MissionView {
         undefined, { rawSlot: actor.nativeId, xSubcells: actor.position.x * 4, ySubcells: actor.position.y * 4,
           heightSubcells: actor.position.height * 4 }) });
     }
-    for (const source of this.resourceSources) {
+    for (const source of this.#cachedResourceSources()) {
       if (this.#browserEconomy) continue;
       const worldX = source.position.x / 256, worldY = source.position.y / 256;
       if (source.status === 0 || !visibility[Math.floor(worldY) * this.grid.width + Math.floor(worldX)]) continue;
@@ -3009,7 +3040,14 @@ export class MissionView {
         } catch (error) { this.#failMission(error); }
       } });
     }
-    const staticStates = new Map(snapshot.staticTargets.map((target) => [target.id, target]));
+    let lookups = this.#renderLookups;
+    if (lookups?.snapshot !== snapshot || lookups.previous !== this.#previousSnapshot) {
+      lookups = this.#renderLookups = { snapshot, previous: this.#previousSnapshot,
+        staticStates: new Map(snapshot.staticTargets.map((target) => [target.id, target])),
+        currentById: new Map(snapshot.units.map((unit) => [unit.id, unit])),
+        previousById: new Map(this.#previousSnapshot.units.map((unit) => [unit.id, unit])) };
+    }
+    const { staticStates, currentById, previousById } = lookups;
     for (const object of this.#staticObjects) {
       const { x, y } = object.entity;
       if (x < firstX || x > lastX || y < firstY || y > lastY) continue;
@@ -3025,7 +3063,6 @@ export class MissionView {
         },
       });
     }
-    const previousById = new Map(this.#previousSnapshot.units.map((unit) => [unit.id, unit]));
     for (const unit of snapshot.units) {
       if (unit.cellX < firstX || unit.cellX > lastX || unit.cellY < firstY || unit.cellY > lastY) continue;
       if (!this.isOwnedUnit(unit.id) && !visibility[unit.cellY * this.grid.width + unit.cellX]) continue;
@@ -3040,7 +3077,7 @@ export class MissionView {
         }
         action = missionUnitAction(unit, previous, this.#genericPendingPaths.ids.has(unit.id));
       }
-      const target = action === "Attack" ? snapshot.units.find(({ id }) => id === unit.targetId) ??
+      const target = action === "Attack" ? currentById.get(unit.targetId ?? -1) ??
         staticStates.get(unit.targetId ?? -1) : undefined;
       const facing = directionFromMotion(
         target ? target.xSubcells - unit.xSubcells : unit.xSubcells - previous.xSubcells,
@@ -3085,7 +3122,7 @@ export class MissionView {
           (part.child.valueA === 0 || part.child.valueA === 1) && this.#spritePalettes
             ? this.#spritePalettes.image(name, carrier.team)
             : visual.atlases.get(name.toUpperCase())?.image,
-        { x: screenX, y: screenY }, 1, (part, origin, scale) => this.#drawBrowserEffect(context, part, origin, scale));
+        { x: screenX, y: screenY }, 1, (part, origin, scale) => this.#drawBrowserEffect(context, part, origin, scale), true);
       } catch (error) {
         this.#failMission(error);
       }
@@ -3094,8 +3131,10 @@ export class MissionView {
     for (const overlay of overlays) overlay();
     for (const marker of commanderMarkers) marker();
     const darkness = this.#indexedTerrain ? 0 : ((1000 - snapshot.daylightPermille) / 1000) * 0.24;
-    context.fillStyle = `rgba(5, 8, 18, ${darkness.toFixed(3)})`;
-    context.fillRect(0, 0, width, height);
+    if (darkness > 0) {
+      context.fillStyle = `rgba(5, 8, 18, ${darkness.toFixed(3)})`;
+      context.fillRect(0, 0, width, height);
+    }
     if (this.#waypointDraft && this.#selectedIds.size > 0) {
       const points = this.#waypointDraft.points.map(({ x, y }) => ({
         x: this.#screenX(x + 0.5, width), y: this.#screenY(y + 0.5, height),
@@ -3380,7 +3419,7 @@ export class MissionView {
       } else {
         for (const part of parts) for (const diagnostic of part.diagnostics) reportRenderDiagnostic(`${sprite}:${part.child.sprite}:${diagnostic}`);
         drawFinComposition(context, parts, imageLookup, { x: screenX, y: screenY }, this.#tileSize / 32,
-          (part, origin, scale) => this.#drawBrowserEffect(context, part, origin, scale));
+          (part, origin, scale) => this.#drawBrowserEffect(context, part, origin, scale), true);
       }
     } catch (error) {
       reportRenderDiagnostic(`unsupported-timeline:${sprite}:${selection?.state.name ?? nativeTask?.animation.profile}`, error);

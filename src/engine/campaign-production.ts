@@ -208,7 +208,7 @@ function signed32(value: number): boolean {
 }
 
 function freeze<Value>(value: Value): Immutable<Value> {
-  if (value !== null && typeof value === "object") {
+  if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
     for (const child of Object.values(value)) freeze(child);
     Object.freeze(value);
   }
@@ -493,6 +493,19 @@ function actionable(state: ProductionData, team: TeamState, dependency: number):
   return entry;
 }
 
+// Static source tables and journal entries are deep-frozen and never mutated by the reducer, so they are shared rather than cloned.
+// Only the event's team is mutated, so the other (deep-frozen) teams are shared too.
+function cloneProductionForReduce(previous: CampaignProductionState, teamId: number): ProductionData {
+  const shared = ["catalog", "units", "sourceProfiles", "adaptedCollectorProfiles", "adaptedUnitProfiles", "adaptedUpgrades"];
+  const state: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(previous)) {
+    state[key] = key === "journal" ? [...(value as unknown[])] : shared.includes(key) ? value
+      : key === "teams" ? (value as readonly TeamState[]).map(team => team.team === teamId ? structuredClone(team) : team)
+      : structuredClone(value);
+  }
+  return state as unknown as ProductionData;
+}
+
 export function reduceCampaignProduction(previous: CampaignProductionState, event: ProductionEvent): CampaignProductionState {
   requireProduction(previous.kind === "campaign-production-v1" && event.id.length > 0, "Invalid production event");
   const prior = previous.journal.find((entry) => entry.id === event.id);
@@ -500,7 +513,7 @@ export function reduceCampaignProduction(previous: CampaignProductionState, even
     requireProduction(JSON.stringify(prior) === JSON.stringify(event), "Production event ID reused with different payload");
     return productionSnapshot(previous);
   }
-  const state = structuredClone(previous) as ProductionData;
+  const state = cloneProductionForReduce(previous, event.team);
   const team = state.teams.find((candidate) => candidate.team === event.team);
   requireProduction(team, "Unknown production team");
   const action = event.action;

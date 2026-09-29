@@ -75,7 +75,8 @@ test("native cursor last-entry cache is read-only, bounded, and invalidated by v
   view.commandAt(failed.x, failed.y);
   assert.deepEqual(view.checkpoint().session, beforeFailure.session);
   assert.deepEqual(view.checkpoint().simulation, beforeFailure.simulation);
-  counted(2, () => assert.equal(cursor(), "move"));
+  // The failed command already populated the per-tick view snapshot for this unchanged session.
+  counted(1, () => assert.equal(cursor(), "move"));
   view.update(0); view.update(50);
   assert.equal(view.missionDiagnostic, undefined);
   assert.equal(view.simulation.snapshot.tick, 1);

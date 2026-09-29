@@ -56,7 +56,7 @@ class MinHeap {
 
 export interface PathfindingOptions {
   readonly diagonal?: boolean;
-  readonly blocked?: ReadonlySet<number>;
+  readonly blocked?: { has(index: number): boolean };
   readonly maximumVisited?: number;
 }
 
@@ -79,25 +79,31 @@ export function findPath(
   })) return null;
 
   const maximumVisited = options.maximumVisited ?? grid.costs.length;
-  const costs = new Float64Array(grid.costs.length).fill(Number.POSITIVE_INFINITY);
-  const previous = new Int32Array(grid.costs.length).fill(-1);
-  const closed = new Uint8Array(grid.costs.length);
+  const area = grid.costs.length, width = grid.width, height = grid.height, gridCosts = grid.costs;
+  const scratch = acquireScratch(area);
+  const generation = scratch.generation, costs = scratch.costs, stamp = scratch.stamp, previous = scratch.previous;
+  const closedStamp = scratch.closed;
+  const blocked = options.blocked, diagonalMoves = options.diagonal === true;
+  const goalX = goal.x, goalY = goal.y;
   const open = new MinHeap();
   const heuristic = (index: number) => {
-    const point = grid.point(index);
-    const dx = Math.abs(point.x - goal.x), dy = Math.abs(point.y - goal.y);
-    return dx + dy + (options.diagonal ? (Math.SQRT2 - 2) * Math.min(dx, dy) : 0);
+    const dx = Math.abs(index % width - goalX), dy = Math.abs(Math.floor(index / width) - goalY);
+    return dx + dy + (diagonalMoves ? (Math.SQRT2 - 2) * Math.min(dx, dy) : 0);
   };
+  stamp[startIndex] = generation;
   costs[startIndex] = 0;
+  previous[startIndex] = -1;
   open.push({ index: startIndex, cost: 0, heuristic: heuristic(startIndex) });
   let visited = 0;
+  const offsets = diagonalMoves ? NEIGHBOR_OFFSETS : NEIGHBOR_OFFSETS.slice(0, 4);
 
   while (open.size > 0 && visited < maximumVisited) {
     const current = open.pop()!;
-    if (closed[current.index] || current.cost !== costs[current.index]) continue;
-    closed[current.index] = 1;
+    const currentIndex = current.index;
+    if (closedStamp[currentIndex] === generation || current.cost !== costs[currentIndex]) continue;
+    closedStamp[currentIndex] = generation;
     visited += 1;
-    if (current.index === goalIndex) {
+    if (currentIndex === goalIndex) {
       const indices: number[] = [];
       for (let index = goalIndex; index >= 0; index = previous[index]) {
         indices.push(index);
@@ -106,19 +112,43 @@ export function findPath(
       indices.reverse();
       return indices.map((index) => grid.point(index));
     }
-    const from = grid.point(current.index);
-    for (const neighbor of grid.neighbors(current.index, options.diagonal)) {
-      if (closed[neighbor] || (neighbor !== startIndex && options.blocked?.has(neighbor))) continue;
-      const to = grid.point(neighbor);
-      const diagonal = from.x !== to.x && from.y !== to.y;
-      if (diagonal && (options.blocked?.has(grid.index(from.x, to.y)) ||
-        options.blocked?.has(grid.index(to.x, from.y)))) continue;
-      const nextCost = current.cost + grid.costs[neighbor] * (diagonal ? Math.SQRT2 : 1);
-      if (nextCost >= costs[neighbor]) continue;
+    const fromX = currentIndex % width, fromY = (currentIndex - fromX) / width;
+    for (let step = 0; step < offsets.length; step++) {
+      const dx = offsets[step][0], dy = offsets[step][1];
+      const toX = fromX + dx, toY = fromY + dy;
+      if (toX < 0 || toY < 0 || toX >= width || toY >= height) continue;
+      const neighbor = toY * width + toX;
+      const neighborCost = gridCosts[neighbor];
+      if (neighborCost === 0) continue;
+      const diagonal = dx !== 0 && dy !== 0;
+      if (diagonal && (gridCosts[fromY * width + toX] === 0 || gridCosts[toY * width + fromX] === 0)) continue;
+      if (closedStamp[neighbor] === generation || (neighbor !== startIndex && blocked?.has(neighbor))) continue;
+      if (diagonal && (blocked?.has(fromY * width + toX) || blocked?.has(toY * width + fromX))) continue;
+      const nextCost = current.cost + neighborCost * (diagonal ? Math.SQRT2 : 1);
+      if (stamp[neighbor] === generation && nextCost >= costs[neighbor]) continue;
+      stamp[neighbor] = generation;
       costs[neighbor] = nextCost;
-      previous[neighbor] = current.index;
+      previous[neighbor] = currentIndex;
       open.push({ index: neighbor, cost: nextCost, heuristic: heuristic(neighbor) });
     }
   }
   return null;
+}
+
+const NEIGHBOR_OFFSETS: readonly (readonly [number, number])[] = [[0, -1], [1, 0], [0, 1], [-1, 0], [1, -1], [1, 1], [-1, 1], [-1, -1]];
+
+// Generation-stamped scratch buffers avoid reallocating and refilling map-sized arrays per search.
+const scratchState = { area: 0, generation: 0, costs: new Float64Array(0), stamp: new Uint32Array(0),
+  closed: new Uint32Array(0), previous: new Int32Array(0) };
+function acquireScratch(area: number) {
+  if (scratchState.area !== area || scratchState.generation >= 0xfffffffe) {
+    scratchState.area = area;
+    scratchState.generation = 0;
+    scratchState.costs = new Float64Array(area);
+    scratchState.stamp = new Uint32Array(area);
+    scratchState.closed = new Uint32Array(area);
+    scratchState.previous = new Int32Array(area);
+  }
+  scratchState.generation += 1;
+  return scratchState;
 }

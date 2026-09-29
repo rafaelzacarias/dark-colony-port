@@ -52,7 +52,31 @@ export function createBrowserAiSelectorConfiguration(source: CampaignWorld["sour
       phase: "view-before-generic-engine", stateOwner: "mission-view" } };
 }
 
+// Source scenarios are never mutated; a passing check is reusable while the configuration still has the exact validated fields.
+interface ValidatedFingerprint { readonly source: object; readonly scope: string; readonly sourceId: string; readonly sourceCanonical: string;
+  readonly profileId: string; readonly kind: string; readonly phase: string; readonly stateOwner: string; readonly extra: number }
+const validatedConfigurations = new WeakMap<object, ValidatedFingerprint>();
+
+function fingerprintMatches(entry: ValidatedFingerprint, configuration: BrowserAiSelectorConfiguration, source: object): boolean {
+  const { processor } = configuration;
+  return entry.source === source && entry.scope === configuration.scope && entry.sourceId === configuration.sourceId
+    && entry.sourceCanonical === configuration.sourceCanonical && entry.profileId === configuration.profileId
+    && entry.kind === processor?.kind && entry.phase === processor.phase && entry.stateOwner === processor.stateOwner
+    && entry.extra === Object.keys(configuration).length + Object.keys(processor).length;
+}
+
 export function validateBrowserAiSelectorConfiguration(configuration: BrowserAiSelectorConfiguration,
+  source: CampaignWorld["source"]): void {
+  const cached = validatedConfigurations.get(configuration);
+  if (cached && fingerprintMatches(cached, configuration, source)) return;
+  validateBrowserAiSelectorConfigurationUncached(configuration, source);
+  const { processor } = configuration;
+  validatedConfigurations.set(configuration, { source, scope: configuration.scope, sourceId: configuration.sourceId,
+    sourceCanonical: configuration.sourceCanonical, profileId: configuration.profileId, kind: processor.kind, phase: processor.phase,
+    stateOwner: processor.stateOwner, extra: Object.keys(configuration).length + Object.keys(processor).length });
+}
+
+function validateBrowserAiSelectorConfigurationUncached(configuration: BrowserAiSelectorConfiguration,
   source: CampaignWorld["source"]): void {
   requireBrowser(aiSelectorSourceCanonical(configuration as unknown as CampaignWorld["source"])
     === aiSelectorSourceCanonical(createBrowserAiSelectorConfiguration(source) as unknown as CampaignWorld["source"]),
@@ -102,8 +126,9 @@ export function projectBrowserCampaign(configuration: BrowserAiSelectorConfigura
   cycleCounter: number): BrowserCampaignProjection {
   validateBrowserAiSelectorConfiguration(configuration, world.source);
   requireBrowser(world.aiSelectors, "initialized selectors required");
-  const projection: BrowserCampaignProjection = structuredClone({ runtimeProfile: "browser-adapted", configuration, cycleCounter,
-    selectors: world.aiSelectors, money: world.exomoney, statistics: world.statistics });
+  const projection: BrowserCampaignProjection = { runtimeProfile: "browser-adapted",
+    configuration: Object.isFrozen(configuration) && Object.isFrozen(configuration.processor) ? configuration : structuredClone(configuration),
+    cycleCounter, selectors: structuredClone(world.aiSelectors), money: { ...world.exomoney }, statistics: { ...world.statistics } };
   const freeze = (value: object): void => {
     for (const entry of Object.values(value)) if (entry !== null && typeof entry === "object") freeze(entry);
     Object.freeze(value);

@@ -85,8 +85,17 @@ export function nativeSceneCutoff(height: number, baselineY: number, attributes:
   return signedWord(height + 31 - (Math.max(0, baselineY) & 31) - 32 * (foregroundIndex ? attributes & 15 : 0));
 }
 
-function sceneTerrainCells(terrain: readonly SceneTerrainCommand[]): Map<string, SceneTerrainCommand> {
-  const cells = new Map<string, SceneTerrainCommand>();
+const validatedCells = new WeakMap<readonly SceneTerrainCommand[], Map<number, SceneTerrainCommand>>();
+
+/** Validated cells keyed column * 4096 + row; a terrain array is validated once however many sprites reuse it. */
+export function cachedSceneTerrainCells(terrain: readonly SceneTerrainCommand[]): ReadonlyMap<number, SceneTerrainCommand> {
+  let cells = validatedCells.get(terrain);
+  if (!cells) { cells = sceneTerrainCells(terrain); validatedCells.set(terrain, cells); }
+  return cells;
+}
+
+function sceneTerrainCells(terrain: readonly SceneTerrainCommand[]): Map<number, SceneTerrainCommand> {
+  const cells = new Map<number, SceneTerrainCommand>();
   for (const cell of terrain) {
     integer(cell.column, 0, 255, "MAP column out of range");
     integer(cell.row, 0, 255, "MAP row out of range");
@@ -97,7 +106,7 @@ function sceneTerrainCells(terrain: readonly SceneTerrainCommand[]): Map<string,
       if (cell.foregroundMask.length !== 32) throw new RangeError("Foreground coverage needs 32 source-order rows");
       for (let row = 0; row < 32; row += 1) integer(cell.foregroundMask[row], 0, 0xffffffff, "Coverage rows must be uint32");
     }
-    const key = `${cell.column},${cell.row}`;
+    const key = cell.column * 4096 + cell.row;
     if (cells.has(key)) throw new RangeError("Duplicate MAP cell");
     cells.set(key, cell);
   }
@@ -108,7 +117,7 @@ export function composeSceneBodyMasks<Source extends SceneBodyInput>(input: {
   readonly terrain: readonly SceneTerrainCommand[];
   readonly sprites: readonly Source[];
 }): readonly SceneSpriteCommand<Source>[] {
-  const cells = sceneTerrainCells(input.terrain);
+  const cells = cachedSceneTerrainCells(input.terrain);
   return input.sprites.map((source) => composeSceneBodyMask(source, cells));
 }
 
@@ -143,7 +152,7 @@ export function composeSceneFrame(input: {
 }
 
 function composeSceneBodyMask<Source extends SceneBodyInput>(
-  source: Source, cells: ReadonlyMap<string, SceneTerrainCommand>,
+  source: Source, cells: ReadonlyMap<number, SceneTerrainCommand>,
 ): SceneSpriteCommand<Source> {
     const { part, position } = source;
     const frame = part.frame;
@@ -171,20 +180,31 @@ function composeSceneBodyMask<Source extends SceneBodyInput>(
     if (!issues.length && frame) {
       const cutoffByColumn = new Map<number, number>();
       for (let column = Math.floor(topLeft.x / 32); column <= Math.floor((topLeft.x + frame.width - 1) / 32); column += 1) {
-        const cell = cells.get(`${column},${Math.floor(position.y / 32)}`);
+        const cell = cells.get(column * 4096 + Math.floor(position.y / 32));
         if (!cell) issues.push("scene-missing-baseline-cell");
         else cutoffByColumn.set(column, nativeSceneCutoff(frame.height, position.y, cell.attributes, cell.foregroundIndex));
       }
       if (!issues.length) {
+        const spriteMasked = (child.layer & 255) !== 2;
         for (let row = 0; row < frame.height; row += 1) {
           let start = -1;
+          const worldY = topLeft.y + row;
+          const cellRow = Math.floor(worldY / 32);
+          let cachedColumn = NaN;
+          let cachedCell: SceneTerrainCommand | undefined;
+          let cachedCutoff = 0;
           for (let column = 0; column <= frame.width; column += 1) {
             let visible = column < frame.width;
-            if (visible && (child.layer & 255) !== 2) {
+            if (visible && spriteMasked) {
               const worldX = topLeft.x + column;
-              const worldY = topLeft.y + row;
-              if (row > cutoffByColumn.get(Math.floor(worldX / 32))!) {
-                const cell = cells.get(`${Math.floor(worldX / 32)},${Math.floor(worldY / 32)}`);
+              const cellColumn = Math.floor(worldX / 32);
+              if (cellColumn !== cachedColumn) {
+                cachedColumn = cellColumn; cachedCutoff = cutoffByColumn.get(cellColumn)!;
+                cachedCell = undefined;
+              }
+              if (row > cachedCutoff) {
+                cachedCell ??= cells.get(cellColumn * 4096 + cellRow);
+                const cell = cachedCell;
                 if (!cell || (cell.foregroundIndex && !cell.foregroundMask)) {
                   issues.push("scene-missing-foreground-coverage");
                 } else if (cell.foregroundIndex) {
