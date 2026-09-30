@@ -25,6 +25,7 @@ function harness() {
   class View {
     constructor() { events.push("construct"); }
     static restore() { events.push("restore"); return new View(); }
+    static async restoreAsync() { return View.restore(); }
     static importLegacy() { events.push("import"); return { view: new View() }; }
   }
   const context = vm.createContext({
@@ -36,7 +37,7 @@ function harness() {
     loadCampaignMission() { events.push("load"); return new Promise((resolve) => { finishLoad = resolve; }); },
     shouldShowCampaignIntro,
     showCampaignIntro() { events.push("intro"); return new Promise<"deploy" | "cancel">((resolve) => { finishIntro = resolve; }); },
-    showCampaignLauncher() { events.push("launcher"); }, MissionView: View,
+    showCampaignLauncher() { events.push("launcher"); }, setLoadProgress() {}, MissionView: View,
     missionCanvas: {}, previewStage: {}, updateSkirmishStats() {}, renderArchiveList() {},
     ...Object.fromEntries(["missionResult", "missionResultAction", "missionShell", "campaignControls", "objectivesPanel",
       "assetLab", "campaignLauncher", "continueMissionButton", "loadState"].map((name) => [name, node()])),

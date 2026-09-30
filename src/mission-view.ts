@@ -69,6 +69,7 @@ import { composeFinSample, createAtlasCache, createFinFrameLookup, createFinSele
   directionFromMotion, drawFinComposition, TRSC_GRAY_VISUAL_DIRECTIONS,
   type FinAction, type CompassDirection, type FinAnimationData, type FinAtlasFrame, type FinStateData } from "./render";
 import { finBodyBounds, type FinBodyBounds } from "./render/fin-composition";
+import { runRestoreSteps, runRestoreStepsAsync, type RestoreProgress } from "./engine/restore-progress";
 import { drawBrowserMode5Canvas } from "./render/mode5-canvas";
 
 export function prepareNativeDeathSoundEffects(
@@ -749,11 +750,12 @@ export class MissionView {
     if (nativeCombatOptions && !this.#missionDiagnostic) this.#nativeCombatProjection = canonicalSource(this.simulation.checkpoint());
   }
 
-  checkpoint(): MissionViewCheckpoint {
+  /** `stateOnly` writes the compact save format: current state without the replay history, restored without replaying. */
+  checkpoint(options: { readonly stateOnly?: boolean } = {}): MissionViewCheckpoint {
     requireCheckpoint(!this.#disposed, "disposed view");
     this.#assertNativeCombatProjection();
     return structuredClone({ version: this.mission.sourceResource?.resourceLifecycle.nativeHarvest ? 2 : 1, kind: "mission-view", sourceIdentity: canonicalSource(this.mission),
-      simulation: this.simulation.checkpoint(), session: this.#session?.checkpoint() ?? null,
+      simulation: this.simulation.checkpoint(), session: this.#session?.checkpoint({ stateOnly: options.stateOnly }) ?? null,
       ...(this.#research && this.#type37World ? { research: { presentationPolicy: "adapted-original-cursor-v1" as const,
         state: observeBrowserResearch(this.#type37World, this.#research, this.#research.scienceOwner) } } : {}),
       ...(this.#browserAi ? { browserAi: this.#browserAi } : {}),
@@ -839,6 +841,19 @@ export class MissionView {
 
   static restore(canvas: HTMLCanvasElement, stage: HTMLElement, callbacks: SkirmishCallbacks,
     mission: SourceNativeCombatMission & SourceBrowserCampaignMission, checkpoint: unknown, audio?: WebAudioManager): MissionView {
+    return runRestoreSteps(MissionView.#restoreSteps(canvas, stage, callbacks, mission, checkpoint, audio));
+  }
+
+  /** Same authenticated restore, yielding to the event loop during the session replay so a loading bar can repaint. */
+  static restoreAsync(canvas: HTMLCanvasElement, stage: HTMLElement, callbacks: SkirmishCallbacks,
+    mission: SourceNativeCombatMission & SourceBrowserCampaignMission, checkpoint: unknown, audio: WebAudioManager | undefined,
+    onProgress: (progress: RestoreProgress) => void, isCurrent?: () => boolean): Promise<MissionView | undefined> {
+    return runRestoreStepsAsync(MissionView.#restoreSteps(canvas, stage, callbacks, mission, checkpoint, audio), onProgress, isCurrent);
+  }
+
+  static *#restoreSteps(canvas: HTMLCanvasElement, stage: HTMLElement, callbacks: SkirmishCallbacks,
+    mission: SourceNativeCombatMission & SourceBrowserCampaignMission, checkpoint: unknown, audio?: WebAudioManager,
+  ): Generator<RestoreProgress, MissionView> {
     const authenticated = MissionView.#authenticateCheckpoint(canvas, stage, callbacks, mission, checkpoint, audio);
     mission = authenticated.mission;
     const { saved, view } = authenticated;
@@ -858,7 +873,7 @@ export class MissionView {
           actor.status !== 0 && entry.health === Math.max(0, actor.health), "native combat projection health");
       }
     }
-    const session = saved.session === null ? null : CampaignSession.restore(saved.session,
+    const session = saved.session === null ? null : yield* CampaignSession.restoreSteps(saved.session,
       mission.sourceConstruction?.campaignAi, nativeCombatOptions?.nativeAiTasks, sourceConstructionSources(mission), nativeCombatOptions?.nativeCombat,
       undefined, mission.browserConstruction);
     if (mission.runtimeProfile === "browser-adapted") requireCheckpoint(

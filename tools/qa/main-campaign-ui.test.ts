@@ -157,6 +157,9 @@ function harness() {
       restores.push(args[4]);
       return new FakeMission(args[0], args[1], args[2], args[3]);
     }
+    static async restoreAsync(...args: [...ConstructorParameters<typeof FakeMission>, unknown, ...unknown[]]) {
+      return FakeMission.restore(args[0], args[1], args[2], args[3], args[4]);
+    }
     async initialize() { await this.initialization?.promise; }
     dispose() { this.disposals += 1; }
     resetClock() {}
@@ -199,7 +202,7 @@ function harness() {
     updateMobileControls() {}, requestUnitMenu() {}, showMenuScreen() {},
     cancelCampaignIntro() {}, cancelCinematic() {}, shouldShowCampaignIntro: () => false,
     outcomeCinematic: () => undefined, assetUrl: (path: string) => path,
-    updateMissionProduction() {}, updateMissionCursor() {}, updateMissionRadar() {}, updateDeploymentControl() {},
+    setLoadProgress() {}, updateMissionProduction() {}, updateMissionCursor() {}, updateMissionRadar() {}, updateDeploymentControl() {},
     layoutMissionShell() {}, renderArchiveList() {}, stopMedia() {}, setPlayback() {}, configureArchiveBrowser() {},
     campaignResultAction,
     campaignConstructionPolicy,

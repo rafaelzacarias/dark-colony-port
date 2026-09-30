@@ -87,6 +87,16 @@ then select a slot. Replacing an occupied slot requires confirmation.
 **Load game** is available both in-game and on the main menu; **Continue**
 resumes the most recently committed save. The save/load dialog pauses the
 mission while it is open. Existing single-slot saves migrate to slot 1.
+Saves store only the current mission state, not the full input history. A
+save of about 3,000 ticks in mission 2 is roughly 1.2 MB instead of 11 MB, and
+it loads in about 0.2 seconds instead of 5. Loading checks the state's
+structure and consistency plus a SHA-256 checksum, which detects corruption
+but does not seal the file against editing. Continuing play from a state-only
+save matches a full-history replay exactly. Older full-history saves still
+load by replaying their history. **Load game** and **Continue** show a
+progress bar while that runs, and saving such a game again writes the compact
+format. Compact saves also stay far below the 32 MiB save limit that long
+full-history missions could exceed.
 
 Saves preserve the mission checkpoint and control groups in IndexedDB in this
 browser, on this device and site address. They survive reloads, but are not cloud

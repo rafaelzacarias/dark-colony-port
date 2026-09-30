@@ -220,6 +220,11 @@ app.innerHTML = `
               <button id="menu-back" type="button" hidden>Back to main menu</button>
               <p id="continue-status" role="status" hidden></p>
             </div>
+            <div id="load-progress" class="load-progress" role="progressbar" aria-label="Loading saved game"
+              aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden>
+              <div class="load-progress-track"><div class="load-progress-fill"></div></div>
+              <span class="load-progress-label"></span>
+            </div>
             <footer class="start-menu-footer">Human &amp; alien campaigns <span>Manual saves / 3 slots / This device</span></footer>
           </section>
           <div id="mission-shell" class="mission-shell" hidden>
@@ -356,6 +361,19 @@ Object.assign(radarCanvas.style, {
 });
 const selectionBox = element<HTMLDivElement>("#selection-box");
 const loadState = element<HTMLDivElement>("#load-state");
+const loadProgress = element<HTMLDivElement>("#load-progress");
+const loadProgressFill = element<HTMLDivElement>(".load-progress-fill");
+const loadProgressLabel = element<HTMLSpanElement>(".load-progress-label");
+
+function setLoadProgress(percent: number | null, label = ""): void {
+  loadProgress.hidden = percent === null;
+  if (percent === null) return;
+  const value = Math.max(0, Math.min(100, Math.round(percent)));
+  loadProgress.setAttribute("aria-valuenow", String(value));
+  loadProgress.setAttribute("aria-valuetext", `${label} ${value}%`);
+  loadProgressFill.style.width = `${value}%`;
+  loadProgressLabel.textContent = `${label} ${value}%`;
+}
 const frameWatermark = element<HTMLSpanElement>("#frame-watermark");
 const previousFrame = element<HTMLButtonElement>("#previous-frame");
 const togglePlayback = element<HTMLButtonElement>("#toggle-playback");
@@ -1297,12 +1315,15 @@ async function startCampaign(faction: Faction, missionNumber = 1, checkpoint?: u
   continueMissionButton.disabled = true;
   loadState.hidden = false;
   loadState.textContent = `DEPLOYING ${faction.toUpperCase()} ${String(missionNumber).padStart(2, "0")}`;
+  const restoringSave = checkpoint !== undefined && !legacyConsent;
+  setLoadProgress(restoringSave ? 0 : null, "LOADING MISSION DATA");
   try {
     const runtimeProfile = checkpoint !== undefined ? checkpointRuntimeProfile(checkpoint)
       : profile ? profile.runtimeProfile : missionNumber >= 2 ? "browser-adapted" : undefined;
     const construction = campaignConstructionPolicy(faction, missionNumber, runtimeProfile, checkpoint);
     const mission = await loadCampaignMission(faction, missionNumber, runtimeProfile, construction);
     if (token !== loadingToken) return;
+    if (restoringSave) setLoadProgress(10, "RESTORING BATTLE");
     if (shouldShowCampaignIntro(faction, missionNumber, launchReason, checkpoint)) {
       loadState.hidden = true;
       const decision = await showCampaignIntro({ briefing: mission.briefing, isCurrent: () => token === loadingToken });
@@ -1320,9 +1341,17 @@ async function startCampaign(faction: Faction, missionNumber = 1, checkpoint?: u
       };
     const imported = legacyConsent
       ? MissionView.importLegacy(missionCanvas, previewStage, callbacks, mission, checkpoint, legacyConsent, audio) : undefined;
-    nextSkirmish = imported ? imported.view : checkpoint === undefined
-      ? new MissionView(missionCanvas, previewStage, callbacks, mission, audio)
-      : MissionView.restore(missionCanvas, previewStage, callbacks, mission, checkpoint, audio);
+    if (imported || checkpoint === undefined) {
+      nextSkirmish = imported ? imported.view : new MissionView(missionCanvas, previewStage, callbacks, mission, audio);
+    } else {
+      // Saves are authenticated by replaying their full history; run it in slices so the progress bar repaints.
+      const restored = await MissionView.restoreAsync(missionCanvas, previewStage, callbacks, mission, checkpoint, audio,
+        ({ done, total }) => setLoadProgress(10 + 80 * (total ? done / total : 1), "RESTORING BATTLE"),
+        () => token === loadingToken);
+      if (!restored || token !== loadingToken) { restored?.dispose(); return; }
+      nextSkirmish = restored;
+      setLoadProgress(90, "LOADING GRAPHICS");
+    }
     pendingMission = nextSkirmish;
     await nextSkirmish.initialize();
     if (token !== loadingToken) { nextSkirmish.dispose(); return; }
@@ -1418,6 +1447,7 @@ async function startCampaign(faction: Faction, missionNumber = 1, checkpoint?: u
     layoutMissionShell();
   } finally {
     if (token === loadingToken) {
+      setLoadProgress(null);
       campaignLauncher.inert = false;
       campaignMissionPicker.setDisabled(false);
       campaignFactionButtons.forEach((button) => { button.disabled = false; });
@@ -1784,7 +1814,7 @@ async function saveCurrentMission(slot: MissionSaveSlot): Promise<void> {
   saveMissionStatus.title = "";
   try {
     const save: SavedMission = { version: 1, faction: mission.playerFaction, missionNumber: campaignMissionNumber,
-      savedAt: new Date().toISOString(), checkpoint: mission.checkpoint(), controlGroups: controlGroups.state.groups };
+      savedAt: new Date().toISOString(), checkpoint: mission.checkpoint({ stateOnly: true }), controlGroups: controlGroups.state.groups };
     await writeMissionSave(save, indexedDB, slot);
     if (token === loadingToken) {
       saveMissionStatus.textContent = "SAVED";

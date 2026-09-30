@@ -1,3 +1,4 @@
+import { runRestoreSteps, type RestoreProgress } from "./restore-progress";
 import { stepBrowserType37, type BrowserType37Frame } from "./browser-type37";
 import { observeBrowserResearchType37Frame } from "./browser-type37-presentation";
 import type { BrowserResearchConfiguration } from "./browser-research";
@@ -177,9 +178,19 @@ type CampaignSnapshotState = Omit<CampaignSessionState, "world"> & {
   };
 };
 
+/** Browser-adapted saves may omit the source caller history and restore their authenticated state directly. */
+export const STATE_ONLY_HISTORY_POLICY = "state-only-v1" as const;
+
+function campaignStateDigest(state: unknown): string {
+  return bytesToHex(sha256(new TextEncoder().encode(JSON.stringify(state))));
+}
+
 export interface CampaignSessionCheckpoint {
   readonly schemaVersion: 2 | 3;
   readonly replayPolicy?: typeof CURRENT_CAMPAIGN_REPLAY_POLICY;
+  readonly historyPolicy?: typeof STATE_ONLY_HISTORY_POLICY;
+  /** SHA-256 of the JSON state; detects corrupted state-only saves (it is not a tamper seal). */
+  readonly stateDigest?: string;
   readonly kind: "campaign-session-snapshot";
   readonly options: CampaignSessionReplayCheckpoint["options"];
   readonly state: CampaignSnapshotState;
@@ -1271,7 +1282,8 @@ function validateDirectCheckpoint(value: unknown): asserts value is CampaignSess
       nativeAiInputs: checkpointArray((input) => requireSession(input !== null && typeof input === "object", "Checkpoint native AI caller input")),
       nativeSourceInputs: checkpointArray((input) => requireSession(input !== null && typeof input === "object", "Checkpoint native source caller input")),
         campaignAiInputs: checkpointArray((input) => requireSession(input !== null && typeof input === "object", "Checkpoint full caller input")) }) },
-      { replayPolicy: checkpointChoice(CURRENT_CAMPAIGN_REPLAY_POLICY) })(value);
+      { replayPolicy: checkpointChoice(CURRENT_CAMPAIGN_REPLAY_POLICY), historyPolicy: checkpointChoice(STATE_ONLY_HISTORY_POLICY),
+        stateDigest: (digest) => requireSession(typeof digest === "string" && /^[0-9a-f]{64}$/.test(digest), "Checkpoint state digest") })(value);
 }
 
 const checkpointProductionAction = checkpointUnion("type", Object.fromEntries([
@@ -1322,7 +1334,9 @@ const checkpointProductionState = checkpointObject({ kind: checkpointChoice("cam
   adaptedUpgrades: checkpointObject({ runtimeProfile: checkpointChoice("browser-adapted") }),
   adaptedUnitProfiles: checkpointArray(checkpointAdaptedUnitProfile) });
 
-function validateRestoredSession(state: CampaignSessionState, initial: CampaignSessionState, options: CampaignSessionOptions): CampaignAiSessionState | undefined {
+// `provenance` checks every entity against the complete request history; state-only browser saves no longer carry it.
+function validateRestoredSession(state: CampaignSessionState, initial: CampaignSessionState, options: CampaignSessionOptions,
+  provenance = true): CampaignAiSessionState | undefined {
   const equal = (left: unknown, right: unknown, label: string) => requireSession(sameCheckpointValue(left, right), `Checkpoint ${label}`);
   const unique = <Entry>(entries: readonly Entry[], key: (entry: Entry) => unknown, label: string) =>
     requireSession(new Set(entries.map(key)).size === entries.length, `Checkpoint duplicate ${label}`);
@@ -1359,7 +1373,7 @@ function validateRestoredSession(state: CampaignSessionState, initial: CampaignS
   const bytes = world.entityBytes!, raw = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const identities = new Map(initial.world.entities.map((entity) => [`${entity.rawSlot}:${entity.generation}`, entity]));
   const deaths = new Set<string>(), detached = new Set<string>();
-  for (const request of host.requests) {
+  for (const request of provenance ? host.requests : []) {
     const identity = `${request.slot}:${request.generation}`;
     if (request.type === "create") {
       requireSession(!identities.has(identity) && request.slot >= 152 && request.slot < host.highWater &&
@@ -1380,7 +1394,7 @@ function validateRestoredSession(state: CampaignSessionState, initial: CampaignS
     }
     if (["remove-noncombat", "clear-collision", "unregister"].includes(request.type)) detached.add(identity);
   }
-  equal(Object.keys(state.controller.consumedLosses).length, deaths.size, "loss provenance count");
+  if (provenance) equal(Object.keys(state.controller.consumedLosses).length, deaths.size, "loss provenance count");
   const lossCounts: Record<string, number> = {};
   for (const [id, loss] of Object.entries(state.controller.consumedLosses)) {
     equal(id, loss.id, "loss ID");
@@ -1403,9 +1417,9 @@ function validateRestoredSession(state: CampaignSessionState, initial: CampaignS
       [record.unitType, record.team, record.status, record.position.x, record.position.y, record.height], "raw slot identity/position");
     if (record.task !== "transport" && !(record.team === 8 && [92, 93].includes(record.unitType))) {
       const identity = `${slot}:${record.generation}`, origin = identities.get(identity);
-      requireSession(origin && origin.key === record.key && origin.team === record.team, "Checkpoint slot provenance");
+      if (provenance) requireSession(origin && origin.key === record.key && origin.team === record.team, "Checkpoint slot provenance");
       equal(raw.getUint32(offset + 12, true), record.health >>> 0, "raw slot health");
-      requireSession(record.status !== 10 || record.resourceTask || deaths.has(identity) || detached.has(identity), "Checkpoint inactive provenance");
+      if (provenance) requireSession(record.status !== 10 || record.resourceTask || deaths.has(identity) || detached.has(identity), "Checkpoint inactive provenance");
     }
     if (record.resource) equal([raw.getUint16(offset + 0x32, true), record.unitType, record.team],
       [record.resource.rateWord, 40, 8], "resource rate/type");
@@ -1471,12 +1485,14 @@ function validateRestoredSession(state: CampaignSessionState, initial: CampaignS
   }
   for (const entity of world.entities) {
     const record = host.slots[entity.rawSlot!]!, origin = identities.get(`${entity.rawSlot}:${entity.generation}`);
-    requireSession(record && origin && origin.key === entity.key && origin.sourceRow === entity.sourceRow &&
+    requireSession(record && (!provenance || origin && origin.key === entity.key && origin.sourceRow === entity.sourceRow) &&
       entity.tileX < host.width && entity.tileY < host.height, "Checkpoint world entity provenance");
     equal([entity.key, entity.generation, entity.team, entity.unitType, entity.health],
       [record.key, record.generation, record.team, record.unitType, record.health], "world/host entity");
-    equal(entity.rawTail, origin.rawTail, "entity source tail");
-    equal(entity.maxHealth, origin.maxHealth, "entity source health");
+    if (origin) {
+      equal(entity.rawTail, origin.rawTail, "entity source tail");
+      equal(entity.maxHealth, origin.maxHealth, "entity source health");
+    }
     equal(entity.resource, record.resource, "world resource");
     requireSession(entity.simulationId === null && options.units.some((unit) => unit.index === entity.unitType), "Checkpoint world type/binding");
   }
@@ -1672,6 +1688,8 @@ export class CampaignSession {
   private journalStart = 0;
   private journalTotal = 0;
   private includeReplayPolicy = true;
+  // Restored from a state-only save: the source caller history before that point is gone, so none is recorded.
+  private stateOnlyHistory = false;
   private adaptedProjectionCache?: { state: CampaignSessionState; value: AdaptedTroProjection };
   private browserProjectionCache?: { state: CampaignSessionState; value: BrowserCampaignProjection };
   // Per committed state; values are deep-frozen because every caller shares them.
@@ -1686,6 +1704,7 @@ export class CampaignSession {
     }
     this.options = fork?.options ?? retainSessionOptions(options);
     this.includeReplayPolicy = fork?.includeReplayPolicy ?? true;
+    this.stateOnlyHistory = fork?.stateOnlyHistory ?? false;
     if (legacyFeedbackOptions.has(options)) legacyFeedbackOptions.add(this.options);
     this.journalLimit = this.options.journalLimit === undefined ? 4096 : this.options.journalLimit;
     requireSession(this.journalLimit === "all" || (Number.isSafeInteger(this.journalLimit) && this.journalLimit >= 0),
@@ -1868,20 +1887,32 @@ export class CampaignSession {
     return structuredClone(identityEvents(hostOf(this.current.world).requests));
   }
 
-  checkpoint(): CampaignSessionCheckpoint {
+  /** `stateOnly` omits the browser source caller history; sessions restored from such a save always omit it. */
+  checkpoint(options: { readonly stateOnly?: boolean } = {}): CampaignSessionCheckpoint {
     const world = this.current.world;
-    const { aiSelectorOwner: _unusedSelectorOwner, ...options } = this.options;
-    return structuredClone({ schemaVersion: this.options.resourceLifecycle?.nativeHarvest || this.options.browserEconomy ? 3 : 2, kind: "campaign-session-snapshot",
+    const { aiSelectorOwner: _unusedSelectorOwner, ...sessionOptions } = this.options;
+    const stateOnly = Boolean(this.options.browserAi && this.current.aiSelectorInputs && (options.stateOnly || this.stateOnlyHistory));
+    const checkpoint = structuredClone({ schemaVersion: this.options.resourceLifecycle?.nativeHarvest || this.options.browserEconomy ? 3 : 2, kind: "campaign-session-snapshot",
       ...(this.options.browserAi && this.includeReplayPolicy ? { replayPolicy: CURRENT_CAMPAIGN_REPLAY_POLICY } : {}),
-      options: { ...options, pathGrid: Array.from(this.options.pathGrid), tags: Array.from(this.options.tags) },
-      state: { ...this.current, world: { ...world, entityBytes: Array.from(world.entityBytes!),
+      options: { ...sessionOptions, pathGrid: Array.from(this.options.pathGrid), tags: Array.from(this.options.tags) },
+      state: { ...this.current, ...(stateOnly ? { aiSelectorInputs: [] } : {}), world: { ...world, entityBytes: Array.from(world.entityBytes!),
         typeMovementClasses: Array.from(world.typeMovementClasses!), transportState: hostOf(world),
-        placementState: { ...world.placementState, renatBytes: Array.from(world.placementState.renatBytes) } } } });
+        placementState: { ...world.placementState, renatBytes: Array.from(world.placementState.renatBytes) } } } }) as CampaignSessionCheckpoint;
+    return stateOnly ? { ...checkpoint, historyPolicy: STATE_ONLY_HISTORY_POLICY, stateDigest: campaignStateDigest(checkpoint.state) } : checkpoint;
   }
 
   static restore(value: unknown, expectedCampaignAi?: CampaignAiConfiguration, expectedNativeAiTasks?: NativeAiTaskConfiguration,
     expectedConstruction?: readonly NativeConstructionConfiguration[], expectedNativeCombat?: SourceNativeCombatConfiguration,
     expectedAiSelectorOwner?: AiSelectorSchedulingOwner, expectedBrowserConstruction?: BrowserConstructionConfiguration): CampaignSession {
+    return runRestoreSteps(CampaignSession.restoreSteps(value, expectedCampaignAi, expectedNativeAiTasks, expectedConstruction,
+      expectedNativeCombat, expectedAiSelectorOwner, expectedBrowserConstruction));
+  }
+
+  /** Same authenticated restore as `restore`, yielding after each replayed source frame so callers can report progress. */
+  static restoreSteps(value: unknown, expectedCampaignAi?: CampaignAiConfiguration, expectedNativeAiTasks?: NativeAiTaskConfiguration,
+    expectedConstruction?: readonly NativeConstructionConfiguration[], expectedNativeCombat?: SourceNativeCombatConfiguration,
+    expectedAiSelectorOwner?: AiSelectorSchedulingOwner, expectedBrowserConstruction?: BrowserConstructionConfiguration,
+  ): Generator<RestoreProgress, CampaignSession> {
     return CampaignSession.#restore(value, expectedCampaignAi, expectedNativeAiTasks, expectedConstruction,
       expectedNativeCombat, expectedAiSelectorOwner, expectedBrowserConstruction);
   }
@@ -1889,16 +1920,16 @@ export class CampaignSession {
   static importLegacy(value: unknown, consent: LegacyCampaignImportConsent) {
     requireSession(consent?.policy === "legacy-unmaintained-population-v0" && consent.acknowledgeAmbiguousUnversionedSave === true,
       "Legacy import requires explicit acknowledgement: unversioned legacy saves cannot be distinguished from edited current saves");
-    const session = CampaignSession.#restore(value, undefined, undefined, undefined, undefined, undefined, undefined, true);
+    const session = runRestoreSteps(CampaignSession.#restore(value, undefined, undefined, undefined, undefined, undefined, undefined, true));
     const checkpoint = session.checkpoint();
     const differences = campaignReplayDifferences((value as CampaignSessionCheckpoint).state, checkpoint.state);
     return { session, checkpoint, differences, notice: "Explicit legacy import authenticated by full replay. Population feedback migrated to current semantics; original bytes unchanged." };
   }
 
-  static #restore(value: unknown, expectedCampaignAi?: CampaignAiConfiguration, expectedNativeAiTasks?: NativeAiTaskConfiguration,
+  static *#restore(value: unknown, expectedCampaignAi?: CampaignAiConfiguration, expectedNativeAiTasks?: NativeAiTaskConfiguration,
     expectedConstruction?: readonly NativeConstructionConfiguration[], expectedNativeCombat?: SourceNativeCombatConfiguration,
     expectedAiSelectorOwner?: AiSelectorSchedulingOwner, expectedBrowserConstruction?: BrowserConstructionConfiguration,
-    importLegacy = false): CampaignSession {
+    importLegacy = false): Generator<RestoreProgress, CampaignSession> {
     validateSessionJson(value);
     requireSession(value !== null && typeof value === "object" && "schemaVersion" in value, "Invalid campaign checkpoint");
     if (value.schemaVersion === 2 || value.schemaVersion === 3) {
@@ -1954,6 +1985,18 @@ export class CampaignSession {
         placementState: { ...saved.world.placementState, renatBytes: Uint8Array.from(saved.world.placementState.renatBytes) } } };
       if (legacyBrowserCasualtyOwner) state = { ...state,
         world: initializeBrowserCasualtyPickup(state.world, { runtimeProfile: "browser-adapted" }) };
+      if (checkpoint.historyPolicy === STATE_ONLY_HISTORY_POLICY || checkpoint.stateDigest !== undefined) {
+        requireSession(!importLegacy && checkpoint.historyPolicy === STATE_ONLY_HISTORY_POLICY && session.options.browserAi
+          && !expectedAiSelectorOwner && Array.isArray(state.aiSelectorInputs) && state.aiSelectorInputs.length === 0,
+        "State-only checkpoint requires a browser-adapted session without caller history");
+        requireSession(checkpoint.stateDigest === campaignStateDigest(checkpoint.state), "State-only checkpoint is corrupted");
+        validateRestoredSession(state, session.current, session.options, false);
+        session.current = { ...state, world: { ...state.world, transportState: transportHostState(state.world) },
+          ...(state.production ? { production: productionSnapshot(state.production) } : {}) };
+        session.stateOnlyHistory = true;
+        session.includeReplayPolicy = checkpoint.replayPolicy !== undefined;
+        return session;
+      }
       if (expectedAiSelectorOwner || session.options.browserAi) {
         requireSession(Array.isArray(state.aiSelectorInputs)
           && state.aiSelectorInputs.filter(input => !("visibilityFrame" in input)).length === state.cycleCounter,
@@ -1965,7 +2008,10 @@ export class CampaignSession {
           if (difference) divergence = { difference, tick: session.current.cycleCounter };
         };
         compareMigration();
+        const total = state.aiSelectorInputs.length;
+        let replayed = 0;
         for (const input of state.aiSelectorInputs) {
+          yield { phase: "replay", done: replayed++, total };
           const legacyFrame = "visibilityFrame" in input ? unwrap(session.stepVisibilityForNativeView(input))
             : unwrap<CampaignSessionFrame | BrowserViewFrame>(session.options.browserAi ? session.stepForBrowserView(input) : session.step(input));
           if (migrated && !divergence) {
@@ -2129,7 +2175,7 @@ export class CampaignSession {
       const staged = cloneSessionState(this.current);
       const result = unwrap(stepTransportHostVisibility(staged.world, input.visibilityFrame));
       const next = { ...staged, world: result.world, nativeSourceInputs: [...staged.nativeSourceInputs!, input],
-        ...(staged.aiSelectorInputs ? { aiSelectorInputs: [...staged.aiSelectorInputs, input] } : {}) };
+        ...(staged.aiSelectorInputs && !this.stateOnlyHistory ? { aiSelectorInputs: [...staged.aiSelectorInputs, input] } : {}) };
       const entry: CampaignSessionJournalEntry = { cycleCounter: next.cycleCounter,
         clockMilliseconds: next.world.clockMilliseconds, commands: [], receipts: [], trace: [], fired: [], requests: [], messages: [],
         bail: next.controller.runtime.bail, visibility: result.event };
@@ -2428,7 +2474,7 @@ export class CampaignSession {
       const bailExpired = unwrap(missionBailDeadlineExceeded(entry.bail, input.clockMilliseconds));
       if (staged.production) staged = { ...staged, production: compactProduction(staged.production, !!staged.campaignAi) };
       if (staged.campaignAiInputs) staged = { ...staged, campaignAiInputs: [...staged.campaignAiInputs, input] };
-      if (staged.aiSelectorInputs) {
+      if (staged.aiSelectorInputs && !this.stateOnlyHistory) {
         const retained = this.runtimeProfile === "browser-adapted" ? cloneSessionInput(input) : input;
         if (this.runtimeProfile === "browser-adapted") {
           freezeSessionHistory(retained);
