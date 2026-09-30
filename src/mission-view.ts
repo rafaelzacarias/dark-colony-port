@@ -111,6 +111,8 @@ interface StaticMissionObject {
   readonly stat: LegacyUnitStat;
 }
 
+const COMPASS_BY_OCTANT: readonly CompassDirection[] = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+
 function browserMovementPlane(mission: SourceBrowserCampaignMission,
   stat: LegacyUnitStat & { readonly rawTail?: readonly number[] }): MovementPlane {
   if (mission.runtimeProfile !== "browser-adapted" || stat.movementSpeed <= 0 || stat.rawTail === undefined) return "ground";
@@ -125,7 +127,50 @@ function browserStaticWeapon(mission: SourceBrowserCampaignMission, stat: Legacy
     throw new TypeError(`Unsupported browser stationary weapon: ${stat.index}:${stat.weapons[level]}`);
   }
   return { damage: source.damage, rangeCells: source.range, cooldownTicks: source.rateOfFire,
+    ...(source.speed !== undefined && source.speed > 0 && source.speed <= 1024 ? { projectileSpeed: source.speed, weaponId: source.id, splash: source.shots } : {}),
     sourceDamage: copyLegacyDamageProfile({ coefficients: mission.damageMatrix[source.rawPrefix], callerFactor: 256, specialFlag: false }) };
+}
+
+/**
+ * Saves written before projectile flight, BOOM2 mines and turn-before-move stored hit-scan weapon records, the old
+ * mine fallback policy and no turn speed. Upgrade those records from the mission's own source tables so older saves
+ * keep loading and every restored unit follows the same rules as newly produced ones.
+ */
+function migrateLegacyCombatCheckpoint(mission: SourceBrowserCampaignMission, checkpoint: unknown): unknown {
+  const saved = checkpoint as MissionViewCheckpoint | null;
+  if (mission.runtimeProfile !== "browser-adapted" || !saved?.simulation || !Array.isArray(saved.state?.unitStats)) return checkpoint;
+  const types = new Map(saved.state.unitStats.map(entry => [entry.id, mission.units.find(unit => unit.index === entry.type)]));
+  const upgradeWeapon = (id: number, weapon: WeaponStats | null | undefined): WeaponStats | null | undefined => {
+    if (!weapon || weapon.projectileSpeed !== undefined) return weapon;
+    const stat = types.get(id);
+    const matches = [...new Set(stat?.weapons ?? [])].map(weaponId => mission.weapons.find(entry => entry.id === weaponId))
+      .filter(source => source && source.damage === weapon.damage && source.range === weapon.rangeCells
+        && source.rateOfFire === weapon.cooldownTicks && source.speed !== undefined && source.speed > 0 && source.speed <= 1024);
+    const source = matches[0];
+    if (!source || matches.some(entry => entry!.speed !== source.speed || entry!.shots !== source.shots)) return weapon;
+    return { ...weapon, projectileSpeed: source.speed!, weaponId: source.id, splash: source.shots };
+  };
+  const migrated = structuredClone(saved) as { -readonly [K in keyof MissionViewCheckpoint]: MissionViewCheckpoint[K] };
+  const simulation = migrated.simulation as unknown as { units: Record<string, unknown>[]; staticTargets: Record<string, unknown>[] };
+  // Browser-economy harvesters are created with their own options and have no turn speed.
+  const harvesters = new Set((saved.economy?.bindings ?? []).map(binding => binding.simulationId));
+  simulation.units = simulation.units.map(unit => {
+    const id = unit.id as number, stat = types.get(id);
+    const next: Record<string, unknown> = { ...unit, weapon: upgradeWeapon(id, unit.weapon as WeaponStats | null) };
+    const turnSpeed = stat?.turnSpeed;
+    if (next.turnSpeed === undefined && unit.movementPlane !== "air" && !harvesters.has(id) && turnSpeed !== undefined
+      && Number.isInteger(turnSpeed) && turnSpeed > 0 && turnSpeed < 256) Object.assign(next, { turnSpeed, facing: 64 });
+    return next;
+  });
+  simulation.staticTargets = simulation.staticTargets.map(target => {
+    const id = target.id as number, stat = types.get(id);
+    const next: Record<string, unknown> = { ...target };
+    if (target.weapon) next.weapon = upgradeWeapon(id, target.weapon as WeaponStats);
+    const mine = target.mine as { radiusPolicy?: string } | undefined;
+    if (mine && mine.radiusPolicy !== "boom2-7x7-cell-grid" && stat) next.mine = browserMineOptions(mission, stat) ?? mine;
+    return next;
+  });
+  return migrated;
 }
 
 function currentUpgradeLevels(mission: SourceBrowserCampaignMission, production: CampaignProductionState | undefined,
@@ -152,6 +197,7 @@ export interface MissionViewMode3Frame extends MissionMode3Prepass {
 }
 
 import { additionalMissionAnimationArchives } from "./engine/mission-animation-archives";
+import { ProjectileEffects, type ProjectileVisualHost } from "./render/projectiles";
 
 const ASSET_ROOT = assetUrl("/assets/generated");
 // SARGE (human) and PSYC (alien) share the DC.EXE income-interception deployment.
@@ -618,6 +664,7 @@ export class MissionView {
     currentById: Map<number, SimulationSnapshot["units"][number]>;
     previousById: Map<number, SimulationSnapshot["units"][number]> } | null = null;
   #interpolation = 0;
+  readonly #projectileEffects = new ProjectileEffects();
   #lastTime: number | null = null;
   #cameraX = 0;
   #cameraY = 0;
@@ -785,6 +832,7 @@ export class MissionView {
   static #authenticateCheckpoint(canvas: HTMLCanvasElement, stage: HTMLElement, callbacks: SkirmishCallbacks,
     mission: SourceNativeCombatMission & SourceBrowserCampaignMission, checkpoint: unknown, audio?: WebAudioManager) {
     requireCheckpointJson(checkpoint);
+    checkpoint = migrateLegacyCombatCheckpoint(mission, checkpoint);
     const savedOptions = (checkpoint as MissionViewCheckpoint | null)?.session?.options;
     const researchConfiguration = mission.browserResearch ?? legacyResearchConfigurations.get(mission);
     if (researchConfiguration) {
@@ -2364,7 +2412,11 @@ export class MissionView {
   }
 
   #recordCombatReveals(): void {
-    const shots = this.simulation.combatEvents;
+    // The original stamps the reveal timer in the fire prelude (0x412d00), i.e. at launch for projectile weapons;
+    // "shot" events for those arrive at impact, so only instant weapons (no projectile impact) use them.
+    const impactAttackers = new Set(this.simulation.impactEvents.map(event => event.attackerId));
+    const shots = [...this.simulation.launchEvents,
+      ...this.simulation.combatEvents.filter(shot => !impactAttackers.has(shot.attackerId))];
     if (!shots.length && !this.#combatReveals.size) return;
     const snapshot = this.simulation.snapshot;
     const actors = new Map([...snapshot.units, ...snapshot.staticTargets].map(actor => [actor.id, actor]));
@@ -2707,11 +2759,28 @@ export class MissionView {
       this.#browserAi = plan.state;
       activeTeams = projection.selectors.modes.flatMap((mode, team) => [1, 2, 3].includes(mode) ? [team] : []);
     }
+    let localVisibility: Uint8Array | undefined;
+    const targetTraits = (targetId: number) => {
+      const stat = this.#unitStats.get(targetId) as (LegacyUnitStat & { readonly rawTail?: readonly number[] }) | undefined;
+      // GAMESTAT tokens 13 (+0x60 priority) and 32 (+0 excluded type) sit at rawTail[2] and rawTail[21].
+      return { armed: (stat?.weapons[0] ?? -1) >= 0, priority: (stat?.rawTail?.[2] ?? 0) !== 0,
+        excluded: (stat?.rawTail?.[21] ?? 0) !== 0 };
+    };
     const guards = this.simulation.snapshot.units.filter(unit => !activeTeams.includes(unit.team ?? -1) &&
       (this.#unitStats.get(unit.id)?.weapons[0] ?? -1) >= 0).map(unit => {
-      const stat = this.#unitStats.get(unit.id)!;
+      const stat = this.#unitStats.get(unit.id)! as LegacyUnitStat & { readonly rawTail?: readonly number[] };
+      const weaponId = this.#unitWeaponIds.get(unit.id) ?? stat.weapons[0];
+      const weapon = this.mission.weapons.find(({ id }) => id === weaponId);
       return { id: unit.id, dayRangeCells: stat.observationDay, nightRangeCells: stat.observationNight,
         autonomousAttack: this.#combatMovement.interrupted(unit.id),
+        ...(weapon ? { weaponRangeCells: weapon.range, splash: (weapon.shots ?? 0) !== 0 } : {}),
+        // 0x414b73/0x414ba1: immobile types and +0x60 priority types skip the wider idle scan.
+        mobile: stat.movementSpeed > 0 && (stat.rawTail?.[2] ?? 0) === 0,
+        targetTraits, grid: { width: this.grid.width, height: this.grid.height },
+        ...(unit.team === 0 ? { isCellVisible: (x: number, y: number) => {
+          localVisibility ??= this.#visibilityForSnapshot(this.simulation.snapshot, 0);
+          return localVisibility[y * this.grid.width + x] === 1;
+        } } : {}),
         targetCanDamage: (targetId: number) => this.simulation.canAutoTarget(unit.id, targetId) };
     });
     const guardSnapshot = this.#browserEconomy ? { ...this.simulation.snapshot,
@@ -3128,11 +3197,14 @@ export class MissionView {
       }
       const target = action === "Attack" ? currentById.get(unit.targetId ?? -1) ??
         staticStates.get(unit.targetId ?? -1) : undefined;
-      const facing = directionFromMotion(
-        target ? target.xSubcells - unit.xSubcells : unit.xSubcells - previous.xSubcells,
-        target ? unit.ySubcells - target.ySubcells : previous.ySubcells - unit.ySubcells,
-        oldAnimation?.facing ?? "S",
-      );
+      // Steered units carry the simulation's 256-step facing (0 = +x, 64 = +y); attackers still face their target.
+      const facing = !target && unit.facing !== undefined
+        ? COMPASS_BY_OCTANT[(((unit.facing + 80) & 255) >> 5) & 7]
+        : directionFromMotion(
+          target ? target.xSubcells - unit.xSubcells : unit.xSubcells - previous.xSubcells,
+          target ? unit.ySubcells - target.ySubcells : previous.ySubcells - unit.ySubcells,
+          oldAnimation?.facing ?? "S",
+        );
       this.#animationStates.set(unit.id, {
         action, facing,
         since: oldAnimation?.action === action && oldAnimation.facing === facing ? oldAnimation.since : snapshot.tick,
@@ -3151,6 +3223,11 @@ export class MissionView {
         commanderMarkers.push(() => this.#drawCommanderMarker(context, unit, screenX, screenY));
       }
     }
+    drawables.push(...this.#projectileEffects.drawables(this.simulation, this.#projectileHost(context, snapshot.tick),
+      (worldX, worldY) => ({ x: this.#screenX(worldX, width), y: this.#screenY(worldY, height) }), this.#interpolation,
+      // Like units, shots and impacts in cells the player cannot currently see stay hidden under the fog.
+      (worldX, worldY) => this.grid.contains(Math.floor(worldX), Math.floor(worldY))
+        && Boolean(visibility[Math.floor(worldY) * this.grid.width + Math.floor(worldX)])));
     drawables.sort((left, right) => right.y - left.y).forEach(({ draw }) => draw());
 
     for (const carrier of this.carrierVisuals) {
@@ -3267,8 +3344,24 @@ export class MissionView {
     }
   }
 
+  #projectileHost(context: CanvasRenderingContext2D | undefined, tick: number): ProjectileVisualHost {
+    return {
+      weaponClass: (id) => this.mission.weapons.find(weapon => weapon.id === id)?.visualClass,
+      finState: (name) => {
+        for (const sprite of this.#visuals.keys()) {
+          const found = this.#finState(sprite, name);
+          if (found) return { sprite, state: found };
+        }
+        return undefined;
+      },
+      draw: (sprite, state, since, x, y) => !context ||
+        this.#drawVisual(context, sprite, "idle", x, y, tick, undefined, undefined, { state, action: "Die", since, overlay: true }),
+    };
+  }
+
   #presentCombatEvents(): void {
     const snapshot = this.simulation.snapshot;
+    this.#projectileEffects.observe(this.simulation, snapshot.tick, this.#projectileHost(undefined, snapshot.tick));
     const units = new Map([...snapshot.units, ...snapshot.staticTargets].map((unit) => [unit.id, unit]));
     for (const target of snapshot.staticTargets) {
       if (target.weapon && target.health > 0 && target.targetId === null) {
@@ -3282,13 +3375,14 @@ export class MissionView {
       this.#buildingReactions.delete(event.targetId);
     }
     for (const event of this.simulation.combatEvents) {
-      if (event.damage <= 0 || !((units.get(event.targetId)?.health ?? 0) > 0)
-        || !this.#staticObjects.some(({ id }) => id === event.targetId)) continue;
+      if (event.damage <= 0 || !((units.get(event.targetId)?.health ?? 0) > 0)) continue;
       const reaction = this.#buildingReactions.get(event.targetId);
       if (reaction) reaction.pending = true;
       else this.#buildingReactions.set(event.targetId, { pending: true, since: event.tick });
     }
-    for (const event of this.simulation.combatEvents) {
+    // Projectile weapons start their Attack animation at launch; their impact "shot" events must not restart it.
+    const impactAttackers = new Set(this.simulation.impactEvents.map(event => event.attackerId));
+    for (const event of [...this.simulation.launchEvents, ...this.simulation.combatEvents.filter(shot => !impactAttackers.has(shot.attackerId))]) {
       const attacker = units.get(event.attackerId);
       const target = units.get(event.targetId) ?? this.#staticTargetPosition(event.targetId);
       const stat = this.#unitStats.get(event.attackerId);
@@ -3305,10 +3399,13 @@ export class MissionView {
         ...snapshot.units, ...snapshot.staticTargets].map(actor => [actor.id, actor]));
       const actors = new Map([...positions].flatMap(([id, actor]) => {
         const stat = this.#unitStats.get(id);
-        return stat ? [[id, { unitType: stat.index, weaponId: this.#unitWeaponIds.get(id) ?? stat.weapons[0],
+        const weaponId = this.#unitWeaponIds.get(id) ?? stat?.weapons[0];
+        return stat && weaponId !== undefined ? [[id, { unitType: stat.index, weaponId,
+          boomProfile: this.mission.weapons.find((weapon) => weapon.id === weaponId)?.shots,
+          projectile: (this.mission.weapons.find((weapon) => weapon.id === weaponId)?.speed ?? 0) > 0,
           x: actor.xSubcells / SUBCELLS_PER_CELL, y: actor.ySubcells / SUBCELLS_PER_CELL }] as const] : [];
       }));
-      this.#audioFeedback.present({ tick: snapshot.tick, shots: this.simulation.combatEvents,
+      this.#audioFeedback.present({ tick: snapshot.tick, shots: this.simulation.combatEvents, launches: this.simulation.launchEvents,
         deaths: this.simulation.deathEvents, actors,
         listener: { x: this.#cameraX, y: this.#cameraY, halfWidth: 8, audibleRadius: 24 } });
     }
@@ -3355,8 +3452,10 @@ export class MissionView {
     const miningType = stat && (stat.index === 6 || stat.index === 14)
       ? missionMiningVisualType(unit, stat.index, this.#browserEconomy?.checkpoint()) : undefined;
     const miningSprite = miningType === undefined ? undefined : this.mission.units.find(entry => entry.index === miningType)?.sprite;
-    if (stat) this.#drawVisual(context, deployed ? this.#interceptorTypes.deployedSprite : miningSprite ?? stat.sprite,
-      unit.activity === "move" && !deployed ? "move" : "idle", screenX, screenY, tick, unit.id, scene);
+    if (!stat) return;
+    const sprite = deployed ? this.#interceptorTypes.deployedSprite : miningSprite ?? stat.sprite;
+    this.#drawVisual(context, sprite, unit.activity === "move" && !deployed ? "move" : "idle", screenX, screenY, tick, unit.id, scene);
+    if (unit.activity !== "die") this.#drawBuildingReaction(context, { id: unit.id, stat }, unit, screenX, screenY, tick, scene, sprite);
   }
 
   #drawUnitOverlay(context: CanvasRenderingContext2D, unit: UnitSnapshot, screenX: number, screenY: number): void {
@@ -3406,13 +3505,14 @@ export class MissionView {
     return state && { state, action: "Stand", since: 0 };
   }
 
-  #drawBuildingReaction(context: CanvasRenderingContext2D, object: StaticMissionObject, target: StaticTargetSnapshot,
-    screenX: number, screenY: number, tick: number,
-    scene: Pick<MissionSceneEntity, "rawSlot" | "xSubcells" | "ySubcells" | "heightSubcells"> | undefined): void {
+  /** BLOOD hit-reaction overlay for a structure or mobile unit; the banks are not directional. */
+  #drawBuildingReaction(context: CanvasRenderingContext2D, object: { readonly id: number; readonly stat: { readonly sprite: string } },
+    target: { readonly health: number }, screenX: number, screenY: number, tick: number,
+    scene: Pick<MissionSceneEntity, "rawSlot" | "xSubcells" | "ySubcells" | "heightSubcells"> | undefined, spriteName?: string): void {
     const reaction = this.#buildingReactions.get(object.id);
     if (!reaction) return;
     if (target.health <= 0) { this.#buildingReactions.delete(object.id); return; }
-    const sprite = object.stat.sprite;
+    const sprite = spriteName ?? object.stat.sprite;
     if (!reaction.state && reaction.pending) {
       const banks: FinStateData[] = [];
       for (let index = 0; index < 7; index++) {

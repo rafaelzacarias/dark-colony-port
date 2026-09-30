@@ -1,6 +1,9 @@
 import { SUBCELLS_PER_CELL } from "./constants";
 import { validateBrowserMineOptions, type BrowserMineOptions } from "./browser-mines";
+import { PROJECTILE_SUBSTEPS_PER_TICK, projectileLaunchVector, boom2Percent,
+  type ProjectileImpactEvent, type ProjectileLaunchEvent, type ProjectileSnapshot, type ProjectileState } from "./projectiles";
 import { areHostile, copyTeamAlliances, validateTeam, type TeamAlliances } from "./diplomacy";
+import { legacyHarvesterTurnDirection, nativeDirection } from "./legacy-harvester-movement";
 import { NavigationGrid, type GridPoint } from "./grid";
 import {
   calculateLegacyDamage,
@@ -107,6 +110,8 @@ export interface UnitSnapshot {
   readonly cargo: number;
   readonly cargoCapacity: number;
   readonly targetId: number | null;
+  /** 256-step facing (0 = +x, 64 = +y) for units with turn-speed steering. */
+  readonly facing?: number;
   readonly resourceActor?: ResourceActorOwnership;
 }
 
@@ -313,6 +318,18 @@ export interface WeaponStats {
   readonly rangeCells: number;
   readonly cooldownTicks: number;
   readonly sourceDamage?: SourceDamageProfile;
+  /** WEAPSTAT speed. Present only for source weapons: enables projectile flight and the native reload overhead. */
+  readonly projectileSpeed?: number;
+  readonly weaponId?: number;
+  /** WEAPSTAT `shots` (BOOM profile index); nonzero projectiles are positional. */
+  readonly splash?: number;
+}
+
+/** DC.EXE reload task: countdown of rateOfFire, then a pop update and the launching update (0,17,34,51 for rate 15). */
+const FIRE_RELOAD_OVERHEAD_TICKS = 2;
+
+function maxCooldown(weapon: WeaponStats): number {
+  return weapon.cooldownTicks + (weapon.projectileSpeed === undefined ? 0 : FIRE_RELOAD_OVERHEAD_TICKS);
 }
 
 export interface HarvesterStats {
@@ -359,6 +376,9 @@ interface UnitState {
   displacement?: number;
   /** Ticks left in the blocked-mover wait (DC.EXE pushes wait task 3 with count 4). */
   moveWait?: number;
+  /** GAMESTAT turn speed; when set, `facing` is steered toward each route leg before the unit moves. */
+  turnSpeed?: number;
+  facing?: number;
 }
 
 interface ResourceNodeState {
@@ -406,6 +426,8 @@ export interface SimulationCheckpoint {
   readonly resourceActors?: readonly ResourceActorOwnership[];
   readonly resourceActorEvents?: readonly ResourceActorEvent[];
   readonly adaptedInspire?: AdaptedInspireCheckpoint;
+  readonly projectiles?: readonly ProjectileState[];
+  readonly nextProjectileId?: number;
 }
 
 type CheckpointCheck = (value: unknown) => void;
@@ -571,7 +593,8 @@ function validateSimulationCheckpoint(input: unknown): asserts input is Simulati
     }
     copySourceDamageProfile(value as SourceDamageProfile);
   };
-  const weapon = checkpointObject({ damage: integer, rangeCells: integer, cooldownTicks: positive }, { sourceDamage: damage });
+  const weapon = checkpointObject({ damage: integer, rangeCells: integer, cooldownTicks: positive }, { sourceDamage: damage,
+    projectileSpeed: checkpointInteger(1, 1024), weaponId: integer, splash: integer });
   const construction = checkpointObject({ kind, targetCellX: integer, targetCellY: integer,
     remainingTicks: positive, totalTicks: positive, cost: integer, maxHealth: positive });
   const command: CheckpointCheck = (value) => {
@@ -605,7 +628,8 @@ function validateSimulationCheckpoint(input: unknown): asserts input is Simulati
       harvester: checkpointNullable(checkpointObject({ cargoCapacity: positive, harvestPerTick: positive })), cargo: integer,
       resourceTargetId: nullableId, dropoff: checkpointNullable(point), harvestPhase: checkpointChoice(null, "collecting", "to-dropoff", "to-resource"),
     }, { team: integer, movementPlane: checkpointChoice("ground", "air"),
-      displacement: checkpointInteger(0, 7), moveWait: checkpointInteger(1, SOURCE_BLOCKED_WAIT_TICKS) })),
+      displacement: checkpointInteger(0, 7), moveWait: checkpointInteger(1, SOURCE_BLOCKED_WAIT_TICKS),
+      turnSpeed: checkpointInteger(1, 255), facing: checkpointInteger(0, 255) })),
     resourceNodes: checkpointArray(checkpointObject({ id: positive, cell: point, remaining: integer })),
     buildings: checkpointArray(checkpointObject({ id: positive, faction, kind, cell: point, health: integer, maxHealth: positive, constructionQueue: checkpointArray(construction) })),
     staticTargets: checkpointArray(checkpointObject({ id: positive, faction, xSubcells: position, ySubcells: position,
@@ -624,6 +648,12 @@ function validateSimulationCheckpoint(input: unknown): asserts input is Simulati
     sourceDamageDiagnostics: checkpointArray(checkpointObject({ tick: integer, attackerId: positive, targetId: positive, reason: (value) => checkpointRequire(typeof value === "string") })),
     reservationEvents: checkpointArray(checkpointObject({ unitId: positive, tileX: integer, tileY: integer })),
   }, { groundMovement: checkpointChoice("eight-way-v1"),
+    nextProjectileId: positive,
+    projectiles: checkpointArray(checkpointObject({ id: positive, attackerId: positive, targetId: positive, weaponId: integer,
+      damage: integer, inspireQ8: integer, splash: checkpointChoice(true, false), xQ8: checkpointInteger(-1 << 30, 1 << 30),
+      yQ8: checkpointInteger(-1 << 30, 1 << 30), vxQ8: checkpointInteger(-1 << 20, 1 << 20), vyQ8: checkpointInteger(-1 << 20, 1 << 20),
+      heading: checkpointInteger(0, 255), age: integer, life: integer, launchTick: integer },
+    { attackerTeam: integer, sourceDamage: damage })),
     movementFinishedEvents: checkpointArray(checkpointObject({ unitId: positive, tick: integer,
     finalXQ8: integer, finalYQ8: integer }, { nativeIdentity: checkpointObject(resourceIdentityChecks) })),
     resourceActors: checkpointArray(checkpointObject({ ...resourceIdentityChecks,
@@ -761,7 +791,7 @@ function validateSimulationCheckpoint(input: unknown): asserts input is Simulati
     if (unit.resourceTargetId !== null) checkpointRequire(nodes.has(unit.resourceTargetId));
     if (unit.dropoff) cell(unit.dropoff);
     checkpointRequire(unit.cargo <= (unit.harvester?.cargoCapacity ?? 0));
-    checkpointRequire(unit.attackCooldown <= (unit.weapon?.cooldownTicks ?? 0));
+    checkpointRequire(unit.attackCooldown <= (unit.weapon ? maxCooldown(unit.weapon) : 0));
     if (unit.weapon) checkpointRequire(unit.weapon.sourceDamage ? unit.weapon.damage <= 0x7fffffff : unit.weapon.damage > 0);
     if (unit.activity === "attack") checkpointRequire(unit.weapon !== null && unit.attackTargetId !== null);
     if (unit.activity === "harvest") checkpointRequire(unit.harvester !== null && unit.resourceTargetId !== null && unit.dropoff !== null && unit.harvestPhase !== null);
@@ -789,7 +819,7 @@ function validateSimulationCheckpoint(input: unknown): asserts input is Simulati
       && target.team !== undefined && target.team <= 8
       && (target.sourceDefense?.sourceTypeIndex === undefined || target.sourceDefense.sourceTypeIndex === target.mine.sourceTypeIndex));
     if (target.weapon) {
-      checkpointRequire(target.attackCooldown !== undefined && target.attackCooldown <= target.weapon.cooldownTicks
+      checkpointRequire(target.attackCooldown !== undefined && target.attackCooldown <= maxCooldown(target.weapon)
         && target.attackTargetId !== undefined);
       checkpointRequire(target.weapon.sourceDamage ? target.weapon.damage <= 0x7fffffff : target.weapon.damage > 0);
       if (target.attackTargetId !== null) {
@@ -884,6 +914,8 @@ export interface AddUnitOptions {
   readonly team?: number;
   readonly cell: GridPoint;
   readonly speedSubcellsPerTick?: number;
+  /** Facing steps (of 256) per update for ground units; enables turn-before-move steering. */
+  readonly turnSpeed?: number;
   readonly maxHealth?: number;
   readonly health?: number;
   readonly positionSubcells?: GridPoint;
@@ -935,6 +967,8 @@ const SOURCE_RING_TO_DIRECTION = [0, 1, 2, 4, 7, 6, 5, 3] as const;
 const SOURCE_DIRECTION_TO_RING = [0, 1, 2, 7, 3, 6, 5, 4] as const;
 const SOURCE_DISPLACEMENT_TRIES = [2, -2, 1, -1, 3, -3, 0] as const;
 // A blocked mover pushes wait task 3 with count 4: four decrements, one pop update, then the route resumes.
+/** Default actor facing (south, the renderer's former default). */
+const SOURCE_INITIAL_FACING = 64;
 const SOURCE_BLOCKED_WAIT_TICKS = 5;
 // DC.EXE 0x444540 local reroute executes at most 256 queue pops.
 const SOURCE_LOCAL_REROUTE_VISITS = 256;
@@ -969,6 +1003,10 @@ export class DeterministicSimulation implements Simulation {
   readonly #dormantUnits = new Set<number>();
   readonly #commands: QueuedCommand[] = [];
   readonly #combatEvents: CombatEvent[] = [];
+  readonly #projectiles: ProjectileState[] = [];
+  readonly #launchEvents: ProjectileLaunchEvent[] = [];
+  readonly #impactEvents: ProjectileImpactEvent[] = [];
+  #nextProjectileId = 1;
   readonly #sourceDamageDiagnostics: { tick: number; attackerId: number; targetId: number; reason: string }[] = [];
   readonly #deathEvents: DeathEvent[] = [];
   readonly #reservationEvents: { unitId: number; tileX: number; tileY: number }[] = [];
@@ -1065,6 +1103,8 @@ export class DeterministicSimulation implements Simulation {
       movementFinishedEvents: this.#movementFinishedEvents,
       resourceActors: [...this.#resourceActors.values()], resourceActorEvents: this.#resourceActorEvents,
       ...this.#adaptedInspireCheckpoint(),
+      ...(this.#projectiles.length ? { projectiles: this.#projectiles } : {}),
+      ...(this.#nextProjectileId > 1 ? { nextProjectileId: this.#nextProjectileId } : {}),
     });
     return shallowUnits ? { ...captured, units: unitRecords } : captured;
   }
@@ -1125,6 +1165,8 @@ export class DeterministicSimulation implements Simulation {
     for (const event of saved.movementFinishedEvents ?? []) simulation.#movementFinishedEvents.push(event);
     for (const actor of saved.resourceActors ?? []) simulation.#resourceActors.set(actor.simulationId, copyResourceActor(actor));
     for (const event of saved.resourceActorEvents ?? []) simulation.#resourceActorEvents.push(event);
+    for (const projectile of saved.projectiles ?? []) simulation.#projectiles.push({ ...projectile });
+    if (saved.nextProjectileId !== undefined) simulation.#nextProjectileId = saved.nextProjectileId;
     if (saved.adaptedInspire) {
       simulation.#adaptedInspireRandomIndex = saved.adaptedInspire.randomIndex;
       for (const { unitId, typeId, charge } of saved.adaptedInspire.casters) simulation.#adaptedInspireCasters.set(unitId, { typeId, charge });
@@ -1292,6 +1334,22 @@ export class DeterministicSimulation implements Simulation {
         .set(reservation.index, new Set(reservation.owners));
     }
     this.#resourceActorEvents.push(...structuredClone(events));
+  }
+
+  /** Projectiles launched during the last advance (presentation only). */
+  get launchEvents(): readonly ProjectileLaunchEvent[] {
+    return Object.freeze(this.#launchEvents.map((event) => Object.freeze({ ...event })));
+  }
+
+  /** Projectile impacts/expiries during the last advance, including misses (presentation only). */
+  get impactEvents(): readonly ProjectileImpactEvent[] {
+    return Object.freeze(this.#impactEvents.map((event) => Object.freeze({ ...event })));
+  }
+
+  /** In-flight projectiles, oldest first. */
+  get projectiles(): readonly ProjectileSnapshot[] {
+    return this.#projectiles.map(({ id, attackerId, targetId, weaponId, xQ8, yQ8, vxQ8, vyQ8, heading, age, launchTick }) =>
+      ({ id, attackerId, targetId, weaponId, xQ8, yQ8, vxQ8, vyQ8, heading, age, launchTick }));
   }
 
   get combatEvents(): readonly CombatEvent[] {
@@ -1474,6 +1532,7 @@ export class DeterministicSimulation implements Simulation {
       snapshot.cargo = unit.cargo;
       snapshot.cargoCapacity = unit.harvester?.cargoCapacity ?? 0;
       snapshot.targetId = unit.attackTargetId ?? unit.resourceTargetId;
+      if (unit.facing !== undefined) snapshot.facing = unit.facing;
       const actor = this.#resourceActors.get(unit.id);
       if (actor) snapshot.resourceActor = copyResourceActor(actor);
       units.push(Object.freeze(snapshot) as UnitSnapshot);
@@ -1619,6 +1678,8 @@ export class DeterministicSimulation implements Simulation {
       faction: options.faction,
       team: options.team,
       speedSubcellsPerTick,
+      ...(options.turnSpeed !== undefined && options.movementPlane !== "air"
+        ? { turnSpeed: options.turnSpeed, facing: SOURCE_INITIAL_FACING } : {}),
       activity: "idle",
       xSubcells,
       ySubcells,
@@ -1712,7 +1773,7 @@ export class DeterministicSimulation implements Simulation {
     const sourceDefense = copyLegacyDefenseProfile(equipment.sourceDefense);
     const weapon = { ...equipment.weapon, ...(equipment.weapon.sourceDamage
       ? { sourceDamage: copySourceDamageProfile(equipment.weapon.sourceDamage) } : {}) };
-    if (unit.attackCooldown > weapon.cooldownTicks) throw new RangeError("Equipment must preserve the current cooldown");
+    if (unit.attackCooldown > maxCooldown(weapon)) throw new RangeError("Equipment must preserve the current cooldown");
     this.#units.set(id, { ...unit, weapon, sourceDefense });
   }
 
@@ -1723,7 +1784,7 @@ export class DeterministicSimulation implements Simulation {
     const sourceDefense = copyLegacyDefenseProfile(equipment.sourceDefense);
     const weapon = { ...equipment.weapon, ...(equipment.weapon.sourceDamage
       ? { sourceDamage: copySourceDamageProfile(equipment.weapon.sourceDamage) } : {}) };
-    if (target.attackCooldown! > weapon.cooldownTicks) throw new RangeError("Equipment must preserve the current cooldown");
+    if (target.attackCooldown! > maxCooldown(weapon)) throw new RangeError("Equipment must preserve the current cooldown");
     this.#staticTargets.set(id, { ...target, weapon, sourceDefense });
   }
 
@@ -1855,6 +1916,8 @@ export class DeterministicSimulation implements Simulation {
     if (this.#sourceDayNight) this.#sourceDayNight = advanceSourceDayNight(this.#sourceDayNight);
     this.#inspireEvents.length = 0;
     this.#combatEvents.length = 0;
+    this.#launchEvents.length = 0;
+    this.#impactEvents.length = 0;
     this.#sourceDamageDiagnostics.length = 0;
     this.#deathEvents.length = 0;
     this.#reservationEvents.length = 0;
@@ -1916,9 +1979,15 @@ export class DeterministicSimulation implements Simulation {
             (target.xSubcells - actor.xSubcells) ** 2 + (target.ySubcells - actor.ySubcells) ** 2 <= (range * SUBCELLS_PER_CELL) ** 2;
           if (!candidates.some(target => eligible(target) && inRange(target, mine.triggerRange))) continue;
           for (const target of candidates) {
-            if (!eligible(target) || !inRange(target, mine.splashRange)) continue;
-            const damage = target.sourceDefense
+            if (!eligible(target)) continue;
+            // BOOMSTAT record 2: percent of damage by whole-cell offset from the mine (grid step 1 cell, as in the spread grid).
+            const percent = boom2Percent(Math.floor(target.xSubcells / SUBCELLS_PER_CELL) - Math.floor(actor.xSubcells / SUBCELLS_PER_CELL),
+              Math.floor(target.ySubcells / SUBCELLS_PER_CELL) - Math.floor(actor.ySubcells / SUBCELLS_PER_CELL));
+            if (percent === 0) continue;
+            const full = target.sourceDefense
               ? calculateLegacyDamage(mine.weapon.damage, mine.weapon.sourceDamage, target.sourceDefense) : mine.weapon.damage;
+            const damage = Math.floor(full * percent / 100);
+            if (damage <= 0) continue;
             pendingDamage.set(target.id, (pendingDamage.get(target.id) ?? 0) + damage);
             this.#combatEvents.push({ type: "shot", tick: this.#tick, attackerId: actor.id, targetId: target.id, damage });
           }
@@ -1937,6 +2006,7 @@ export class DeterministicSimulation implements Simulation {
         if (target) this.#fireWeapon(actor, target, pendingDamage);
       }
     }
+    this.#advanceProjectiles(pendingDamage);
     for (const [targetId, damage] of [...pendingDamage].sort(([left], [right]) => left - right)) {
       const target = this.#attackTarget(targetId);
       if (!target || target.health <= 0) continue;
@@ -2387,6 +2457,7 @@ export class DeterministicSimulation implements Simulation {
     let movement = unit.speedSubcellsPerTick;
     const blocked = this.#movementBlocked(unit);
     let replannedFrom: number | undefined;
+    let turned = false;
     while (movement > 0 && unit.pathIndex < unit.path.length) {
       const target = unit.path[unit.pathIndex];
       const targetIndex = this.grid.index(target.x, target.y);
@@ -2447,6 +2518,17 @@ export class DeterministicSimulation implements Simulation {
       }
       const targetX = cellCenter(target.x);
       const targetY = cellCenter(target.y);
+      // DC.EXE route legs push turn task 4 above move task 5: the turn runs first, at most turnSpeed per update,
+      // and the leg starts (in the same update) only once facing equals the leg direction (0x4120fc).
+      if (unit.turnSpeed !== undefined && unit.xSubcells === cellCenter(origin.x) && unit.ySubcells === cellCenter(origin.y)) {
+        const wanted = nativeDirection(targetX - unit.xSubcells, targetY - unit.ySubcells);
+        if (unit.facing !== wanted) {
+          if (turned) break;
+          turned = true;
+          unit.facing = legacyHarvesterTurnDirection(unit.facing ?? SOURCE_INITIAL_FACING, wanted, unit.turnSpeed);
+          if (unit.facing !== wanted) break;
+        }
+      }
       const deltaX = targetX - unit.xSubcells;
       const deltaY = targetY - unit.ySubcells;
       const distance = diagonal ? Math.hypot(deltaX, deltaY) : Math.abs(deltaX) + Math.abs(deltaY);
@@ -2545,41 +2627,131 @@ export class DeterministicSimulation implements Simulation {
     return this.#targetCells(target).some(point => withinSourceWeaponRange(cell.x - point.x, cell.y - point.y, range));
   }
 
-  #fireWeapon(unit: UnitState | StaticTargetState, target: UnitState | StaticTargetState, pendingDamage: Map<number, number>): void {
-    if (unit.weapon && unit.attackCooldown === 0) {
-      const profile = unit.weapon.sourceDamage;
-      let damage = unit.weapon.damage;
-      const nativeSlot = this.#inspireUnitSlots.get(unit.id);
-      const native = nativeSlot === undefined ? undefined : this.#inspireSlots.get(nativeSlot);
-      const adapted = native ? undefined : this.#adaptedInspireTargets.get(unit.id);
-      const adaptedQ8 = adapted && adapted.timer > 0 ? adapted.multiplierQ8 : 256;
-      const inspireFactorQ8 = native ? this.#inspireMultiplier(native) : adaptedQ8;
-      if (profile && "mode" in profile) {
-        const result = nativeOrdinaryHitDamage(damage, profile, target.sourceDefense,
-          this.#sourceDayNight?.phase, unit.team, target.team, inspireFactorQ8);
-        if ("diagnostic" in result) {
-          this.#sourceDamageDiagnostics.push({ tick: this.#tick, attackerId: unit.id, targetId: target.id, reason: result.diagnostic });
-          return;
-        }
-        damage = result.damage;
-      } else if (native && native.state.timer !== 0) {
-        this.#sourceDamageDiagnostics.push({ tick: this.#tick, attackerId: unit.id, targetId: target.id,
-          reason: "unsupported-inspired-hit-profile" });
-        return;
-      } else {
-        if (profile && target.sourceDefense) damage = calculateLegacyDamage(damage, profile, target.sourceDefense);
-        if (adaptedQ8 !== 256) damage = Math.floor(damage * adaptedQ8 / 256);
-      }
-      pendingDamage.set(target.id, (pendingDamage.get(target.id) ?? 0) + damage);
-      this.#combatEvents.push({
-        type: "shot",
-        tick: this.#tick,
-        attackerId: unit.id,
-        targetId: target.id,
-        damage,
-      });
-      unit.attackCooldown = unit.weapon.cooldownTicks;
+  #shotDamage(weapon: Pick<WeaponStats, "damage" | "sourceDamage">, attackerTeam: number | undefined,
+    inspireFactorQ8: number, target: UnitState | StaticTargetState): { damage: number } | { diagnostic: string } {
+    const profile = weapon.sourceDamage;
+    let damage = weapon.damage;
+    if (profile && "mode" in profile) {
+      const result = nativeOrdinaryHitDamage(damage, profile, target.sourceDefense,
+        this.#sourceDayNight?.phase, attackerTeam, target.team, inspireFactorQ8);
+      if ("diagnostic" in result) return { diagnostic: result.diagnostic };
+      return { damage: result.damage };
     }
+    if (profile && target.sourceDefense) damage = calculateLegacyDamage(damage, profile, target.sourceDefense);
+    if (inspireFactorQ8 !== 256) damage = Math.floor(damage * inspireFactorQ8 / 256);
+    return { damage };
+  }
+
+  #fireWeapon(unit: UnitState | StaticTargetState, target: UnitState | StaticTargetState, pendingDamage: Map<number, number>): void {
+    if (!unit.weapon || unit.attackCooldown !== 0) return;
+    const nativeSlot = this.#inspireUnitSlots.get(unit.id);
+    const native = nativeSlot === undefined ? undefined : this.#inspireSlots.get(nativeSlot);
+    const adapted = native ? undefined : this.#adaptedInspireTargets.get(unit.id);
+    const adaptedQ8 = adapted && adapted.timer > 0 ? adapted.multiplierQ8 : 256;
+    const inspireFactorQ8 = native ? this.#inspireMultiplier(native) : adaptedQ8;
+    const profile = unit.weapon.sourceDamage;
+    if (!(profile && "mode" in profile) && native && native.state.timer !== 0) {
+      this.#sourceDamageDiagnostics.push({ tick: this.#tick, attackerId: unit.id, targetId: target.id,
+        reason: "unsupported-inspired-hit-profile" });
+      return;
+    }
+    const result = this.#shotDamage(unit.weapon, unit.team, inspireFactorQ8, target);
+    if ("diagnostic" in result) {
+      this.#sourceDamageDiagnostics.push({ tick: this.#tick, attackerId: unit.id, targetId: target.id, reason: result.diagnostic });
+      return;
+    }
+    const speed = unit.weapon.projectileSpeed;
+    if (speed === undefined) {
+      pendingDamage.set(target.id, (pendingDamage.get(target.id) ?? 0) + result.damage);
+      this.#combatEvents.push({ type: "shot", tick: this.#tick, attackerId: unit.id, targetId: target.id, damage: result.damage });
+      unit.attackCooldown = unit.weapon.cooldownTicks;
+      return;
+    }
+    const originX = unit.xSubcells >> 2, originY = unit.ySubcells >> 2;
+    const splash = (unit.weapon.splash ?? 0) > 0;
+    const vector = projectileLaunchVector(originX, originY, target.xSubcells >> 2, target.ySubcells >> 2, speed,
+      unit.weapon.rangeCells, splash);
+    const projectile: ProjectileState = {
+      id: this.#nextProjectileId++, attackerId: unit.id, ...(unit.team === undefined ? {} : { attackerTeam: unit.team }),
+      targetId: target.id, weaponId: unit.weapon.weaponId ?? 0, damage: unit.weapon.damage,
+      ...(unit.weapon.sourceDamage ? { sourceDamage: copySourceDamageProfile(unit.weapon.sourceDamage) } : {}),
+      inspireQ8: inspireFactorQ8, splash, xQ8: originX, yQ8: originY, vxQ8: vector.vxQ8, vyQ8: vector.vyQ8,
+      heading: vector.heading, age: 0, life: vector.life, launchTick: this.#tick,
+    };
+    this.#projectiles.push(projectile);
+    this.#launchEvents.push({ type: "launch", tick: this.#tick, projectileId: projectile.id, attackerId: unit.id, targetId: target.id,
+      weaponId: projectile.weaponId, xQ8: originX, yQ8: originY, vxQ8: vector.vxQ8, vyQ8: vector.vyQ8, heading: vector.heading });
+    unit.attackCooldown = maxCooldown(unit.weapon);
+  }
+
+  /** Collision box (Q8 cells) for a projectile point; the original uses per-sprite rectangles that are not modelled here. */
+  #projectileHits(target: UnitState | StaticTargetState, xQ8: number, yQ8: number, margin: number): boolean {
+    if ("activity" in target) {
+      const dx = xQ8 - (target.xSubcells >> 2), dy = yQ8 - (target.ySubcells >> 2);
+      return Math.abs(dx) < 128 + margin && Math.abs(dy) < 128 + margin;
+    }
+    if (target.footprint.length) {
+      return target.footprint.some(index => {
+        const point = this.grid.point(index);
+        const dx = Math.max(point.x * 256 - xQ8, 0, xQ8 - (point.x * 256 + 255));
+        const dy = Math.max(point.y * 256 - yQ8, 0, yQ8 - (point.y * 256 + 255));
+        return dx <= margin && dy <= margin;
+      });
+    }
+    return Math.abs(xQ8 - (target.xSubcells >> 2)) < 128 + margin && Math.abs(yQ8 - (target.ySubcells >> 2)) < 128 + margin;
+  }
+
+  #projectileVictim(projectile: ProjectileState, margin: number, candidates: readonly (UnitState | StaticTargetState)[]): UnitState | StaticTargetState | undefined {
+    const attacker = { id: projectile.attackerId, team: projectile.attackerTeam,
+      faction: (this.#units.get(projectile.attackerId) ?? this.#staticTargets.get(projectile.attackerId))?.faction };
+    let fallback: UnitState | StaticTargetState | undefined;
+    for (const target of candidates) {
+      if (target.health <= 0 || ("mine" in target && target.mine) || ("activity" in target && target.activity === "die")) continue;
+      if (target.id === projectile.attackerId || this.#resourceOwned(target.id)) continue;
+      const isTarget = target.id === projectile.targetId;
+      // Air units are only struck when they are the aimed target (native air plane is skipped for ground-only classes).
+      if ("movementPlane" in target && target.movementPlane === "air" && !isTarget) continue;
+      if (!isTarget && (target.team === undefined || target.team >= 8 || !attacker.faction
+        || !areHostile(attacker as { id: number; team?: number; faction: Faction }, target, this.#teamAlliances))) continue;
+      if (!this.#projectileHits(target, projectile.xQ8, projectile.yQ8, margin)) continue;
+      if (isTarget) return target;
+      fallback ??= target;
+    }
+    return fallback;
+  }
+
+  #advanceProjectiles(pendingDamage: Map<number, number>): void {
+    if (!this.#projectiles.length) return;
+    const candidates = [...this.#units.values(), ...this.#staticTargets.values()].sort((left, right) => left.id - right.id);
+    const width = this.grid.width * 256, height = this.grid.height * 256;
+    // Native pool iterates newest-first.
+    const order = [...this.#projectiles].reverse();
+    const done = new Set<number>();
+    for (const projectile of order) {
+      for (let substep = 0; substep < PROJECTILE_SUBSTEPS_PER_TICK && !done.has(projectile.id); substep++) {
+        projectile.xQ8 += projectile.vxQ8;
+        projectile.yQ8 += projectile.vyQ8;
+        let victim = this.#projectileVictim(projectile, 0, candidates);
+        projectile.age += 1;
+        const outside = projectile.xQ8 < 0 || projectile.yQ8 < 0 || projectile.xQ8 >= width || projectile.yQ8 >= height;
+        const expired = projectile.age > projectile.life || outside;
+        if (!victim && expired && projectile.splash && !outside) victim = this.#projectileVictim(projectile, 256, candidates);
+        if (!victim && !expired) continue;
+        done.add(projectile.id);
+        if (victim) {
+          const inspire = this.#shotDamage(projectile, projectile.attackerTeam, projectile.inspireQ8, victim);
+          if ("diagnostic" in inspire) {
+            this.#sourceDamageDiagnostics.push({ tick: this.#tick, attackerId: projectile.attackerId, targetId: victim.id, reason: inspire.diagnostic });
+          } else {
+            pendingDamage.set(victim.id, (pendingDamage.get(victim.id) ?? 0) + inspire.damage);
+            this.#combatEvents.push({ type: "shot", tick: this.#tick, attackerId: projectile.attackerId, targetId: victim.id, damage: inspire.damage });
+          }
+        }
+        this.#impactEvents.push({ type: "impact", tick: this.#tick, projectileId: projectile.id, attackerId: projectile.attackerId,
+          targetId: victim?.id ?? null, weaponId: projectile.weaponId, xQ8: projectile.xQ8, yQ8: projectile.yQ8 });
+      }
+    }
+    if (done.size) this.#projectiles.splice(0, this.#projectiles.length, ...this.#projectiles.filter(projectile => !done.has(projectile.id)));
   }
 
   #ensureAttackPath(unit: UnitState, target: UnitState | StaticTargetState, range: number): void {

@@ -115,6 +115,31 @@ for (const faction of ["human", "alien"] as const) {
       const original = collectors()[0];
       const originalId = view.nativeBindings.find(binding => binding.key === original.key)!.simulationId;
       const originalSource = harvest(originalId);
+      // DC.EXE ring-scan acquisition lets the team-3 drop shoot the damaged captured dish from range 4, while undamaged
+      // idle defenders only rescan radius 4; assault the attackers through the public order, as a player must.
+      const types = new Map(view.checkpoint().state.unitStats.map(entry => [entry.id, entry.type]));
+      const dishes = () => view.simulation.snapshot.staticTargets.filter(target => view.isOwnedUnit(target.id) && target.health > 0
+        && types.get(target.id) === 86);
+      const near = (dish: { cellX: number; cellY: number }, unit: { cellX: number; cellY: number }) =>
+        Math.max(Math.abs(unit.cellX - dish.cellX), Math.abs(unit.cellY - dish.cellY)) <= 5;
+      const attackers = (dish: { cellX: number; cellY: number }) => view.simulation.snapshot.units.filter(unit =>
+        !view.isOwnedUnit(unit.id) && unit.health > 0 && unit.team !== 8 && near(dish, unit));
+      const defenders = (dish: { cellX: number; cellY: number }) => view.simulation.snapshot.units.filter(unit =>
+        view.isOwnedUnit(unit.id) && unit.health > 0 && near(dish, unit)
+        && !view.browserEconomyState!.harvesters.some(actor => view.nativeBindings.find(binding => binding.key === actor.key)?.simulationId === unit.id));
+      const threatened = () => dishes().find(dish => attackers(dish).length > 0 && defenders(dish).length > 0);
+      if (faction === "human") {
+        until("captured dish attackers and defenders arrive", () => threatened() !== undefined, 900);
+        const dish = threatened()!, target = attackers(dish)[0], guards = defenders(dish);
+        publicBoth(view => {
+          view.clearSelection();
+          for (const unit of guards) view.selectUnit(unit.id, true);
+          view.setCameraCenter(target.cellX + 0.5, target.cellY + 0.5);
+          view.setOrderMode("assault");
+          const bounds = view.canvas.getBoundingClientRect();
+          view.commandAt(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
+        });
+      }
       until("earn collector price", () => credits() >= 1500, 2500);
       publicBoth(target => { target.replaceSelection([originalId]); target.stopSelected(); });
       step("settle original stop and income");

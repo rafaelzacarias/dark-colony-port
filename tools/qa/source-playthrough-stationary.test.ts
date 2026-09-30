@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
+// alien-win needs ~8800 ticks (was ~5300) with DC.EXE ring-scan acquisition: units only auto-engage within weapon range / the
+// radius-4 idle scan, so the fixture strategy walks longer between enemies; hence the larger alien-win tick limit.
 for (const faction of ["human", "alien"] as const) for (const intent of ["win", "loss"] as const) {
   test(`${faction} ${intent}: fresh original source, every-tick render, stationary shots and exact replay`, context => {
     const run = `${faction}-${intent}`;
@@ -18,7 +20,7 @@ for (const faction of ["human", "alien"] as const) for (const intent of ["win", 
       try {
         execution = spawnSync(process.execPath, ["--import", join(root, "node_modules/tsx/dist/loader.mjs"),
           join(root, "tools/qa/source-playthrough.ts"), `--case=${run}`, "--render", "--render-every=1",
-          "--restore-at=1000", "--limit=8000", "--audit-fire-movement"],
+          "--restore-at=1000", `--limit=${run === "alien-win" ? 12000 : 8000}`, "--audit-fire-movement"],
         { cwd: root, stdio: ["ignore", output, output], timeout: 1800000 });
       } finally { closeSync(output); }
       assert.equal(execution.error, undefined, `${log}: ${execution.error?.message}`);
@@ -39,7 +41,7 @@ for (const faction of ["human", "alien"] as const) for (const intent of ["win", 
       const render = record("render-complete", name);
       assert.equal(result.success, true);
       assert.equal(result.diagnostic, null);
-      assert.ok(result.tick > 1000 && result.tick <= 8000);
+      assert.ok(result.tick > 1000 && result.tick <= (run === "alien-win" ? 12000 : 8000));
       assert.deepEqual(result.outcome, { resultCode: intent === "win" ? 0 : 1,
         reasonCode: intent === "win" ? 1 : faction === "human" ? 3 : 2, ready: true });
       assert.equal(audit.frames, result.tick);

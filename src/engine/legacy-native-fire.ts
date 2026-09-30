@@ -47,7 +47,7 @@ export function validLegacyNativeProjectileState(pool: LegacyNativeProjectileSta
   return visited.size === pool.highWater;
 }
 
-function direction(deltaX: number, deltaY: number): number {
+export function direction(deltaX: number, deltaY: number): number {
   const absoluteX = Math.abs(deltaX), absoluteY = Math.abs(deltaY);
   if (!absoluteX && !absoluteY) return 0;
   if (absoluteX === absoluteY) return deltaX > 0 ? (deltaY > 0 ? 32 : 224) : (deltaY > 0 ? 96 : 160);
@@ -58,7 +58,7 @@ function direction(deltaX: number, deltaY: number): number {
   return Math.trunc(angle / 32) & 255;
 }
 
-function sine(heading: number): number {
+export function sine(heading: number): number {
   const wrapped = heading & 255, quadrant = wrapped >> 6, offset = wrapped & 63;
   return legacyHarvesterMotionTables.sineQuarterQ11[quadrant & 1 ? 64 - offset : offset] * (quadrant >= 2 ? -1 : 1);
 }

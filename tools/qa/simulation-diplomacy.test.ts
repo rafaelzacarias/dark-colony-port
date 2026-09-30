@@ -91,11 +91,17 @@ test("retaliation uses victim allegiance, including directed and stale ally shot
   }
   simulation.advance();
   assert.equal(simulation.combatEvents.length, 2);
-  assert.deepEqual(guardCommands(simulation.snapshot, [observer(guard, 0)], simulation.combatEvents), [
+  // Original 0x414bb7: any HP loss makes the idle rescan radius 9 (hostile candidates only, no per-attacker priority), so an
+  // allied shooter never draws retaliation but the hostile actor in reach is still picked. Fog is modelled as fully visible here.
+  const damaged = { ...observer(guard, 0), isCellVisible: () => true };
+  assert.deepEqual(guardCommands(simulation.snapshot, [damaged], simulation.combatEvents), [
     { type: "attack", unitIds: [guard], targetId: enemy },
   ]);
-  assert.deepEqual(guardCommands(simulation.snapshot, [observer(guard, 0)],
-    simulation.combatEvents.filter(({ attackerId }) => attackerId === ally)), []);
+  assert.deepEqual(guardCommands(simulation.snapshot, [damaged],
+    simulation.combatEvents.filter(({ attackerId }) => attackerId === ally)), [
+    { type: "attack", unitIds: [guard], targetId: enemy },
+  ]);
+  assert.deepEqual(guardCommands(simulation.snapshot, [damaged]), [], "undamaged idle scans only radius 4");
 });
 
 test("guards abandon an assigned target considered allied in the supplied snapshot", () => {

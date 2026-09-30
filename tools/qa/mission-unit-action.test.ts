@@ -93,7 +93,9 @@ test("MissionView generic FIN: motion facing, pending legs and phase resets use 
     const before = view.simulation.snapshot;
     view.update(220 * 50);
     const baseline = view.simulation.snapshot;
-    const owned = baseline.units.find(unit => view!.isOwnedUnit(unit.id))!;
+    // Synthetic snapshots teleport units without steering, so drop the sim's turn-speed `facing` (which the renderer
+    // prefers, matching the original's actor facing byte) and exercise the motion-derived fallback instead.
+    const { facing: _simFacing, ...owned } = baseline.units.find(unit => view!.isOwnedUnit(unit.id))!;
     assert.ok(owned);
     const previous = before.units.find(unit => unit.id === owned.id)!;
     assert.equal(owned.xSubcells, previous.xSubcells);

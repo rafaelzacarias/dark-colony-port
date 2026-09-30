@@ -10,9 +10,9 @@ export interface BrowserMineOptions {
   readonly initiallyArmed: true;
   readonly triggerRange: number;
   readonly splashRange: number;
-  readonly radiusPolicy: "weapon-range-fallback";
+  readonly radiusPolicy: "boom2-7x7-cell-grid";
   readonly relations: "hostile-ground-mobiles-only";
-  readonly falloff: "hard-cutoff";
+  readonly falloff: "boom2-percent-weights";
   readonly weapon: WeaponStats & { readonly sourceDamage: LegacyDamageProfile };
 }
 
@@ -29,8 +29,8 @@ export function browserMineOptions(source: BrowserMineSource, unit: LegacyUnitSt
     || weapon.shots !== 2 || !source.damageMatrix?.[6]) throw new RangeError("Unsupported adapted mine source profile");
   const options: BrowserMineOptions = {
     runtimeProfile: "browser-adapted", sourceTypeIndex: unit.index, weaponId: 38, boomId: 2, initiallyArmed: true,
-    triggerRange: weapon.range, splashRange: weapon.range, radiusPolicy: "weapon-range-fallback",
-    relations: "hostile-ground-mobiles-only", falloff: "hard-cutoff",
+    triggerRange: weapon.range, splashRange: 3, radiusPolicy: "boom2-7x7-cell-grid",
+    relations: "hostile-ground-mobiles-only", falloff: "boom2-percent-weights",
     weapon: { damage: weapon.damage, rangeCells: weapon.range, cooldownTicks: weapon.rateOfFire,
       sourceDamage: copyLegacyDamageProfile({ coefficients: source.damageMatrix[6], callerFactor: 256, specialFlag: false }) },
   };
@@ -52,9 +52,9 @@ export function validateBrowserMineOptions(options: BrowserMineOptions): void {
   keys(options.weapon.sourceDamage, ["coefficients", "callerFactor", "specialFlag"]);
   if (options.runtimeProfile !== "browser-adapted" || ![45, 46].includes(options.sourceTypeIndex)
     || options.weaponId !== 38 || options.boomId !== 2 || options.initiallyArmed !== true
-    || options.radiusPolicy !== "weapon-range-fallback" || options.relations !== "hostile-ground-mobiles-only"
-    || options.falloff !== "hard-cutoff" || options.triggerRange !== options.weapon.rangeCells
-    || options.splashRange !== options.triggerRange || options.weapon.damage !== 1300
+    || options.radiusPolicy !== "boom2-7x7-cell-grid" || options.relations !== "hostile-ground-mobiles-only"
+    || options.falloff !== "boom2-percent-weights" || options.triggerRange !== options.weapon.rangeCells
+    || options.splashRange !== 3 || options.weapon.damage !== 1300
     || options.weapon.rangeCells !== 1 || options.weapon.cooldownTicks !== 150
     || options.weapon.sourceDamage.callerFactor !== 256 || options.weapon.sourceDamage.specialFlag !== false) {
     throw new RangeError("Invalid adapted mine policy");

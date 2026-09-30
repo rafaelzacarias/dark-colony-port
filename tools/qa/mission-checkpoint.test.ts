@@ -99,7 +99,15 @@ test("guard ownership view: autonomous retention restores, invalid targets switc
   view.simulation.updateUnitEquipment(guard, { sourceDefense: equipment.sourceDefense,
     weapon: { ...equipment.weapon, sourceDamage: { coefficients: VERIFIED_NATIVE_ORDINARY_COEFFICIENTS,
       callerFactor: 256, specialFlag: false } } });
-  step(view);
+  // Original acquisition only scans the 0x434090 rings out to weapon range (idle: 4 or 9 cells), so walk the guard toward the
+  // nearest enemy; a Move task with the default engage stance scans weapon range each tick (0x415ae5) and picks the target up.
+  const start = view.simulation.snapshot.units.find(unit => unit.id === guard)!;
+  const nearest = [...view.simulation.snapshot.units, ...view.simulation.snapshot.staticTargets]
+    .filter(target => target.faction !== view.playerFaction && target.health > 0)
+    .sort((left, right) => Math.hypot(left.cellX - start.cellX, left.cellY - start.cellY)
+      - Math.hypot(right.cellX - start.cellX, right.cellY - start.cellY))[0];
+  view.simulation.queue({ type: "move", unitIds: [guard], target: { x: nearest.cellX, y: nearest.cellY } });
+  for (let tick = 0; tick < 3000 && view.simulation.snapshot.units.find(unit => unit.id === guard)!.targetId === null; tick += 1) step(view);
   const actor = (current: MissionView) => current.simulation.snapshot.units.find(unit => unit.id === guard)!;
   const invalidate = (current: MissionView, targetId: number) => {
     const sourceDefense = { targetClass: 8, armorFactor: 256 };
@@ -124,7 +132,7 @@ test("guard ownership view: autonomous retention restores, invalid targets switc
     assert.equal(current.simulation.canAutoTarget(guard, first), false);
     step(current);
     assert.notEqual(actor(current).targetId, first);
-    assert.ok(actor(current).targetId, "another damageable target is selected");
+    // Only radius-4 (undamaged idle) rings are rescanned now, so no second enemy is in reach here; switching is covered in guard-ai.test.ts.
     assert.ok(current.simulation.combatEvents.every(event => event.attackerId !== guard || event.targetId !== first));
     for (const target of [...current.simulation.snapshot.units, ...current.simulation.snapshot.staticTargets]) {
       if (target.faction !== current.playerFaction) invalidate(current, target.id);
@@ -135,7 +143,8 @@ test("guard ownership view: autonomous retention restores, invalid targets switc
       assert.equal(actor(current).activity, "idle");
       assert.equal(actor(current).targetId, null);
       assert.deepEqual([actor(current).xSubcells, actor(current).ySubcells], [before.xSubcells, before.ySubcells]);
-      assert.ok(current.simulation.combatEvents.every(event => event.attackerId !== guard));
+      // A projectile launched before the invalidation may still impact (original: velocity is fixed at launch); no new fire.
+      assert.ok(current.simulation.launchEvents.every(event => event.attackerId !== guard));
       const savedActor = current.simulation.checkpoint().units.find(unit => unit.id === guard)!;
       assert.deepEqual(savedActor.path, []);
       assert.equal(savedActor.reservedDestination, null);
@@ -219,14 +228,20 @@ for (const faction of ["HUMAN", "ALIEN"] as const) test(`${faction} live attack 
   const pendingRestore = restore(view);
   step(view); step(pendingRestore);
   assert.deepEqual(view.simulation.snapshot, pendingRestore.simulation.snapshot);
-  for (let index = 0; index < 500 && !view.simulation.combatEvents.some((event) => event.attackerId === unit.id); index += 1) step(view);
-  assert.ok(view.simulation.combatEvents.some((event) => event.attackerId === unit.id));
+  // Projectile weapons play their GUN cue at launch (DC.EXE 0x4417e9) and only impact later, so
+  // the checkpoint boundary is the first fire event (launch, or the shot itself for instant weapons).
+  const fired = () => [...view.simulation.launchEvents, ...view.simulation.combatEvents].some((event) => event.attackerId === unit.id);
+  for (let index = 0; index < 500 && !fired(); index += 1) step(view);
+  assert.ok(fired());
   assert.ok(view.checkpoint().state.animationStates.some((entry) => entry.id === unit.id && entry.action === "Attack"));
   const restored = restore(view, audio(restoredSounds));
   assert.deepEqual(restoredSounds, [], "restoring a shot must not play it again");
   originalSounds.length = 0;
   compareContinuation(view, restored);
-  assert.deepEqual(restoredSounds, originalSounds);
+  // Units now fire (and play their launch cue) while walking in, before this checkpoint; the per-cue variant rotation is
+  // presentation-only and restarts on restore, so compare the cue sequence without the rotated sound variant.
+  const cueShape = (sounds: unknown[]) => sounds.map(({ assetId: _asset, soundId: _sound, ...cue }: any) => cue);
+  assert.deepEqual(cueShape(restoredSounds), cueShape(originalSounds));
   assert.ok(originalSounds.length > 0, "continuation must exercise audio presentation");
 });
 
@@ -266,7 +281,8 @@ test("pending native reservation and diagnostic checkpoint preserve their exact 
 test("controlled source combat: recorded deaths, commander detachment and delayed outcome restore without replay", () => {
   const source = mission("ALIEN");
   const data: CampaignMissionData = { ...source, damageMatrix: undefined,
-    weapons: source.weapons.map((weapon) => ({ ...weapon, damage: 10000, range: 200, rateOfFire: 1 })) };
+    // speed 0 keeps the controlled 200-cell shot instantaneous (a 200-cell projectile flight is not a native scenario).
+    weapons: source.weapons.map((weapon) => ({ ...weapon, damage: 10000, range: 200, rateOfFire: 1, speed: 0 })) };
   const view = create(data);
   deliver(view);
   const attacker = view.simulation.snapshot.units.find(({ id }) => view.isOwnedUnit(id))!;

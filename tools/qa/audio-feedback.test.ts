@@ -72,6 +72,21 @@ test("audio feedback: one shot and death per committed frame, spatial victim, no
   assert.ok(calls.every(cue => cue.signal!.aborted));
 });
 
+test("audio feedback: EXP impact sound follows DC.EXE 0x441bec (weapon +0x1c profile, at the target, skipped for profile 0)", () => {
+  assert.equal(resolveUnitCue(legacyCueCatalog, { type: "unit-impact", boomProfile: 0 }), undefined);
+  assert.equal(resolveUnitCue(legacyCueCatalog, { type: "unit-impact", boomProfile: 5 }), undefined);
+  const cue = resolveUnitCue(legacyCueCatalog, { type: "unit-impact", boomProfile: 9 })!;
+  assert.deepEqual(cue.evidence, { file: "SOUND/SLIST.DAT", group: "EXP", id: 9 });
+  assert.ok(resolveAudioAsset(media, cue.assetId));
+  const { owner, calls } = feedback();
+  const shot = { type: "shot" as const, tick: 1, attackerId: 1, targetId: 2, damage: 10 };
+  const actors = new Map([[1, { unitType: 0, weaponId: 24, boomProfile: 9, x: 1, y: 1 }], [2, { unitType: 0, weaponId: 1, x: 6, y: 7 }]]);
+  owner.present({ tick: 2, shots: [shot], deaths: [], actors, listener: { x: 0, y: 0, halfWidth: 8, audibleRadius: 24 } });
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].assetId, cue.assetId);
+  assert.deepEqual(calls[1].position, { x: 6, y: 7 });
+});
+
 test("audio feedback: reload cancels old voices, ignores history and admits only new events", () => {
   const { owner, calls } = feedback();
   owner.present(frame);
@@ -226,4 +241,15 @@ test("audio feedback: active responses never overlap effects and disposal stops 
   assert.equal(manager.stats.activeVoices, 1);
   assert.equal(other!.active, true);
   await manager.dispose();
+});
+test("audio feedback: projectile weapons play their GUN cue at launch (DC.EXE 0x4417e9), not again at impact", () => {
+  const { owner, calls } = feedback();
+  const actors = new Map([[1, { unitType: 0, weaponId: 1, projectile: true, x: 1, y: 2 }], [2, { unitType: 0, weaponId: 1, x: -4, y: 3 }]]);
+  const listener = { x: 0, y: 0, halfWidth: 8, audibleRadius: 24 };
+  owner.present({ tick: 1, shots: [], launches: [{ tick: 0, attackerId: 1 }], deaths: [], actors, listener });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].assetId, "SOUND/TRPWEA.WAV");
+  assert.deepEqual(calls[0].position, { x: 1, y: 2 });
+  owner.present({ tick: 2, shots: [{ type: "shot", tick: 1, attackerId: 1, targetId: 2, damage: 1 }], deaths: [], actors, listener });
+  assert.equal(calls.length, 1);
 });

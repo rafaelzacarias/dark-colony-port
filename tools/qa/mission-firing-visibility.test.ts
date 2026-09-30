@@ -50,7 +50,8 @@ for (const sharedVision of [false, true]) test(`Human 2: first-shot team reveal 
     for (let step = 0; step < 220 && !found; step++) {
       const before = view.visibilityForTeam(1);
       run.step();
-      const shot = view.simulation.combatEvents.find(event => dishIds.has(event.targetId));
+      // The original stamps the reveal at fire (0x412d00): the launch for projectile weapons, the shot otherwise.
+      const shot = [...view.simulation.launchEvents, ...view.simulation.combatEvents].find(event => dishIds.has(event.targetId));
       if (!shot) continue;
       const actor = view.simulation.snapshot.units.find(actor => actor.id === shot.attackerId)!;
       const cell = actor.cellY * view.grid.width + actor.cellX;
@@ -154,7 +155,7 @@ test("firing reveal follows a moving attacker, refreshes on fire, expires on sim
     let attackerId: number | undefined, expiry = 0;
     for (let step = 0; step < 500 && attackerId === undefined; step++) {
       run.step();
-      const shot = view.simulation.combatEvents.find(event => view.isOwnedUnit(event.attackerId));
+      const shot = [...view.simulation.launchEvents, ...view.simulation.combatEvents].find(event => view.isOwnedUnit(event.attackerId));
       if (!shot) continue;
       attackerId = shot.attackerId;
       const reveal = view.checkpoint().state.combatReveals!.find(entry => entry.id === attackerId)!;
@@ -169,7 +170,8 @@ test("firing reveal follows a moving attacker, refreshes on fire, expires on sim
     while (view.simulation.snapshot.tick < expiry) {
       run.step();
       restored.update(run.tick * 50);
-      assert.equal(view.simulation.combatEvents.some(shot => shot.attackerId === attackerId), false);
+      // An in-flight projectile may still impact (a shot event) after the move order; only a new launch would refresh.
+      assert.equal(view.simulation.launchEvents.some(launch => launch.attackerId === attackerId), false);
       assert.deepEqual(restored.checkpoint(), view.checkpoint());
       const actor: UnitSnapshot = view.simulation.snapshot.units.find(actor => actor.id === attackerId)!;
       const reveal: { expiresAt: number } | undefined = view.checkpoint().state.combatReveals?.find(entry => entry.id === attackerId);
@@ -180,7 +182,17 @@ test("firing reveal follows a moving attacker, refreshes on fire, expires on sim
     }
     const moved = view.simulation.snapshot.units.find(actor => actor.id === attackerId)!;
     assert.notEqual(moved.xSubcells, initial.xSubcells);
-    const enemyReveals = view.checkpoint().state.combatReveals?.filter(entry => entry.team === 0 || entry.team === 1) ?? [];
-    assert.ok(enemyReveals.some(entry => entry.expiresAt > expiry), "repeated enemy shots refresh their reveal lifetime");
+    // Enemy fire (launch cadence is rate+2 ticks, and the enemy may retarget between volleys) is awaited rather than
+    // assumed inside the first countdown; each fire stamps a fresh reveal.
+    let enemyLaunch: { attackerId: number; tick: number } | undefined;
+    for (let step = 0; step < 200 && !enemyLaunch; step++) {
+      run.step();
+      const launch = view.simulation.launchEvents.find(event => !view.isOwnedUnit(event.attackerId));
+      if (launch) enemyLaunch = { attackerId: launch.attackerId, tick: launch.tick };
+    }
+    assert.ok(enemyLaunch, "an enemy fires again");
+    const enemyReveal = view.checkpoint().state.combatReveals?.find(entry => entry.id === enemyLaunch!.attackerId);
+    assert.ok(enemyReveal && enemyReveal.expiresAt > expiry && enemyReveal.expiresAt === enemyLaunch.tick + 32,
+      "repeated enemy shots refresh their reveal lifetime");
   } finally { restored?.dispose(); run.dispose(); }
 });

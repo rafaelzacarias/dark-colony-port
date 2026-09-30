@@ -4,12 +4,18 @@ import type { SimulationCheckpoint } from "../../../src/engine/simulation";
 export type FireMovementFrame = Pick<SimulationCheckpoint,
   "tick" | "units" | "combatEvents" | "deathEvents" | "reservationEvents"> & Partial<Pick<SimulationCheckpoint, "staticTargets">>;
 
-export function auditFireMovement(before: FireMovementFrame, after: FireMovementFrame) {
+/** Projectile weapons: the shooter must be stationary at launch; the impact "shot" event may occur later, wherever the shooter is. */
+export interface FireMovementPresentation {
+  readonly launchEvents: readonly { readonly tick: number; readonly attackerId: number; readonly targetId: number }[];
+  readonly impactEvents: readonly { readonly attackerId: number }[];
+}
+
+export function auditFireMovement(before: FireMovementFrame, after: FireMovementFrame, presentation?: FireMovementPresentation) {
   assert.equal(after.tick, before.tick + 1, "fire audit requires exactly one simulation tick");
   const previous = new Map(before.units.map(unit => [unit.id, unit]));
   const current = new Map(after.units.map(unit => [unit.id, unit]));
-  const shots = after.combatEvents.map(event => {
-    assert.equal(event.type, "shot");
+  const projectileAttackers = new Set(presentation?.impactEvents.map(event => event.attackerId));
+  const audit = (event: { readonly tick: number; readonly attackerId: number; readonly targetId: number }) => {
     assert.equal(event.tick, before.tick, "stale or skipped shot event");
     if (!previous.has(event.attackerId) && !current.has(event.attackerId)) {
       const start = before.staticTargets?.find(actor => actor.id === event.attackerId);
@@ -43,6 +49,15 @@ export function auditFireMovement(before: FireMovementFrame, after: FireMovement
     assert.equal(end.reservedDestination, null, `shot retains reservation: ${detail}`);
     assert.equal(evidence.reservations.length, 0, `shot reserved movement during update: ${detail}`);
     return evidence;
+  };
+  const launches = (presentation?.launchEvents ?? []).map(audit);
+  const shots = after.combatEvents.map(event => {
+    assert.equal(event.type, "shot");
+    if (projectileAttackers.has(event.attackerId)) {
+      assert.equal(event.tick, before.tick, "stale or skipped shot event");
+      return { tick: event.tick, attackerId: event.attackerId, targetId: event.targetId, projectileImpact: true };
+    }
+    return audit(event);
   });
   let movedUnits = 0, activityTransitions = 0;
   for (const end of after.units) {
@@ -52,5 +67,5 @@ export function auditFireMovement(before: FireMovementFrame, after: FireMovement
     if (start.activity !== end.activity) activityTransitions += 1;
   }
   for (const death of after.deathEvents) assert.equal(death.tick, before.tick, "stale or skipped death event");
-  return { shots, movedUnits, activityTransitions, deaths: after.deathEvents.length };
+  return { shots, launches, movedUnits, activityTransitions, deaths: after.deathEvents.length };
 }

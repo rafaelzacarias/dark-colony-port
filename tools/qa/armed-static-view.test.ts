@@ -57,7 +57,7 @@ test("armed static view: controlled type42 uses source weapon40 while type45/46 
             assert.equal(actor.weapon, undefined);
             assert.equal(actor.mine?.sourceTypeIndex, type);
             assert.equal(actor.mine?.weapon.damage, 1300);
-            assert.equal(actor.mine?.splashRange, 1);
+            assert.equal(actor.mine?.splashRange, 3);
             assert.equal(actor.attackCooldown, undefined);
             assert.equal(actor.footprint.length, 0);
           }
@@ -103,16 +103,19 @@ test("armed static view: original ALIEN02 legal player move, attack presentation
     view.commandAt((cell.x + 0.5 - camera.x) * 32, (camera.y + camera.height - cell.y - 0.5) * 32);
     assert.ok(view.checkpoint().simulation.commands.some(entry => entry.command.type === "move" && entry.command.unitIds.includes(actor.id)));
     view.update(0);
-    let firstHit = -1, death = -1;
+    let firstHit = -1, death = -1, launchTick = -1;
     for (let tick = 1; tick <= 1000 && death < 0; tick++) {
       view.update(tick * 50);
       assert.equal(view.missionDiagnostic, undefined, `tick ${tick}`);
-      const shot = view.simulation.combatEvents.find(event => event.attackerId === target.id && event.targetId === actor.id);
+      const launch = view.simulation.launchEvents.find(event => event.attackerId === target.id);
+      if (launch && launchTick < 0) launchTick = launch.tick;
+      const shot: { readonly tick: number } | undefined = view.simulation.combatEvents.find(event => event.attackerId === target.id && event.targetId === actor.id);
       if (shot && firstHit < 0) {
         firstHit = tick;
         const saved = view.checkpoint();
         assert.equal(saved.state.animationStates.find(state => state.id === target.id)?.action, "Attack");
-        assert.equal(saved.simulation.staticTargets.find(entry => entry.id === target.id)?.attackCooldown, 15);
+        // DC.EXE reload: rate 15 + 2 (pop + launch update), counted from the launch; the shot event fires at impact.
+        assert.equal(saved.simulation.staticTargets.find(entry => entry.id === target.id)?.attackCooldown, 17 - (shot.tick - launchTick));
         restored = MissionView.restore(canvas(), {} as HTMLElement, callbacks, mission, JSON.parse(JSON.stringify(saved)));
         assert.deepEqual(restored.checkpoint(), saved);
         restored.update(tick * 50);

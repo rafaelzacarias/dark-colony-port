@@ -174,7 +174,8 @@ for (const faction of ["human", "alien"] as const) {
     assert.equal(after.units.find(unit => unit.id === victim)!.health, initialHealth);
     const mirror = DeterministicSimulation.restore(json(after));
     let hit = false;
-    for (let tick = 0; tick <= upgraded.weapon.cooldownTicks; tick++) {
+    // Source projectiles hit a few ticks after launch (flight time), and reload is rate + 2.
+    for (let tick = 0; tick <= upgraded.weapon.cooldownTicks + 20; tick++) {
       simulation.advance(); mirror.advance();
       assert.deepEqual(mirror.checkpoint(), simulation.checkpoint());
       const event = simulation.combatEvents.find(event => event.attackerId === attacker && event.targetId === victim);

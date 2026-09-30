@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { boom2Percent } from "../../src/engine/projectiles";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { loadCampaignMission } from "../../src/game-data";
@@ -75,8 +76,11 @@ test("adapted mines ALIEN05: all original identities/owners, source damage, lega
       assert.ok(events.some(event => event.targetId === route.unit.id));
       for (const event of events) {
         const target = before.units.find(unit => unit.id === event.targetId)!;
-        assert.equal(event.damage, calculateLegacyDamage(route.mine.mine!.weapon.damage,
-          route.mine.mine!.weapon.sourceDamage, target.sourceDefense!));
+        // BOOMSTAT record 2: percent of damage by whole-cell offset from the mine.
+        const percent = boom2Percent(Math.floor(target.xSubcells / 1024) - Math.floor(route.mine.xSubcells / 1024),
+          Math.floor(target.ySubcells / 1024) - Math.floor(route.mine.ySubcells / 1024));
+        assert.equal(event.damage, Math.floor(calculateLegacyDamage(route.mine.mine!.weapon.damage,
+          route.mine.mine!.weapon.sourceDamage, target.sourceDefense!) * percent / 100));
       }
       assert.equal(simulation.deathEvents.filter(event => event.targetId === route.mine.id).length, 1);
       const preTrigger = DeterministicSimulation.restore(JSON.parse(JSON.stringify(before)));

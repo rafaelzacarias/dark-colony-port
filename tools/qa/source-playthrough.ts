@@ -117,7 +117,8 @@ async function play(mission: Mission, intent: "win" | "loss", replay?: readonly 
       const before = auditMovement ? view.simulation.checkpoint() : undefined;
       view.update((tick + 1) * 50);
       if (before) {
-        const checked = auditFireMovement(before, view.simulation.checkpoint());
+        const checked = auditFireMovement(before, view.simulation.checkpoint(),
+          { launchEvents: view.simulation.launchEvents, impactEvents: view.simulation.impactEvents });
         audit.frames += 1;
         audit.shots += checked.shots.length;
         audit.deaths += checked.deaths;

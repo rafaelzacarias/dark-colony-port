@@ -157,6 +157,23 @@ pushed. A move whose final cell is held by a unit that will neither step aside
 nor move on ends beside it, instead of queueing forever. Pending step-aside
 requests and waits are saved with the mission.
 
+Weapons with a WEAPSTAT speed fire real projectiles (DC.EXE projectile phase
+`0x44293c`). Each shot keeps the heading it launched with, travels four substeps
+per tick for the original lifetime (`0x43b935`), and deals damage when it hits,
+so moving targets can dodge. After a launch the weapon reloads for its rate of
+fire plus two updates, the original cadence. Mines apply the original BOOMSTAT
+BOOM2 7x7 falloff weights. Projectiles and impacts use the weapon's original FIN
+art and stay hidden in fog, like units.
+
+Units pick targets with the original scan (`0x435c14`/`0x435570`): they search
+the weapon-range rings in source order and score candidates by armament,
+priority type and splash crowding. Idle units that find nothing widen the
+search to radius 4, or 9 after being shot. Moving units do not look for targets.
+Ground units turn toward each route leg at their GAMESTAT turn speed before
+moving (the original route turn task), and sprites face the simulated heading.
+Hit units flash one of their original BLOOD reaction banks. A hit plays the
+weapon's EXP impact sound, and a projectile's gun sound plays when it launches.
+
 Structures show a health bar and the original damage stages (DC.EXE
 `0x414314`): above 11/16 of maximum health they look intact, then they burn,
 and at or below 5/16 they are scorched and burning. Each hit also plays one of

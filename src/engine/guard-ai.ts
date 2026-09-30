@@ -1,5 +1,5 @@
-import { SUBCELLS_PER_CELL } from "./constants";
 import { areHostile } from "./diplomacy";
+import { acquireBrowserTarget, AcquisitionIndex, type AcquisitionTraits } from "./browser-target-acquisition";
 import type { CombatEvent, SimulationCommand, SimulationSnapshot } from "./simulation";
 
 export interface GuardObserver {
@@ -9,7 +9,23 @@ export interface GuardObserver {
   readonly engageWhileMoving?: boolean;
   readonly targetCanDamage?: (targetId: number) => boolean;
   readonly autonomousAttack?: boolean;
+  /** Weapon range in cells (0x435c14 scan radius); defaults to the current sight radius. */
+  readonly weaponRangeCells?: number;
+  readonly splash?: boolean;
+  /** Mobile actors only: the idle scan beyond weapon range (0x414a87) is skipped for immobile ones. */
+  readonly mobile?: boolean;
+  /** Original team flag selecting the radius-16 idle scan instead of 9 (damaged) / 4. */
+  readonly wideScan?: boolean;
+  readonly targetTraits?: (targetId: number) => AcquisitionTraits;
+  readonly isCellVisible?: (x: number, y: number) => boolean;
+  readonly grid?: { readonly width: number; readonly height: number };
+  readonly cellsOf?: (targetId: number) => readonly { readonly x: number; readonly y: number }[] | undefined;
 }
+
+// 0x414bb7/0x414bc7: idle scan radius after a weapon-range miss, for a team without the wide flag.
+const DAMAGED_IDLE_SCAN_CELLS = 9;
+const UNDAMAGED_IDLE_SCAN_CELLS = 4;
+const WIDE_IDLE_SCAN_CELLS = 16;
 
 export class GuardAttackOrders {
   readonly #targets = new Map<number, number>();
@@ -59,6 +75,7 @@ export function guardCommands(
   shots: readonly CombatEvent[] = [],
 ): readonly SimulationCommand[] {
   const commands: SimulationCommand[] = [];
+  let index: AcquisitionIndex | undefined;
   const units = new Map(snapshot.units.map((unit) => [unit.id, unit]));
   for (const observer of [...observers].sort((left, right) => left.id - right.id)) {
     const guard = units.get(observer.id);
@@ -73,21 +90,21 @@ export function guardCommands(
     if (guard.activity === "attack" && assigned && assigned.health > 0 && areHostile(guard, assigned, snapshot.teamAlliances)
       && (!observer.autonomousAttack || canDamage(assigned.id))) continue;
     if (guard.activity === "move" && observer.engageWhileMoving === false) continue;
-    const radius = Math.floor((observer.dayRangeCells * snapshot.daylightPermille +
-      observer.nightRangeCells * (1000 - snapshot.daylightPermille)) / 1000) * SUBCELLS_PER_CELL;
-    const visible = [...snapshot.units, ...snapshot.staticTargets].filter((target) => areHostile(guard, target, snapshot.teamAlliances) &&
-      target.health > 0 && (!("activity" in target) || target.activity !== "die") &&
-      Math.abs(target.xSubcells - guard.xSubcells) + Math.abs(target.ySubcells - guard.ySubcells) <= radius && canDamage(target.id));
-    const attacker = shots.filter((shot) => shot.targetId === guard.id)
-      .map((shot) => units.get(shot.attackerId))
-      .filter((unit) => unit && unit.health > 0 && unit.activity !== "die" && areHostile(guard, unit, snapshot.teamAlliances)
-        && canDamage(unit.id))
-      .sort((left, right) => left!.id - right!.id)[0];
-    const target = attacker ?? visible.sort((left, right) => {
-      const leftDistance = Math.abs(left.xSubcells - guard.xSubcells) + Math.abs(left.ySubcells - guard.ySubcells);
-      const rightDistance = Math.abs(right.xSubcells - guard.xSubcells) + Math.abs(right.ySubcells - guard.ySubcells);
-      return leftDistance - rightDistance || left.id - right.id;
-    })[0];
+    const sight = Math.floor((observer.dayRangeCells * snapshot.daylightPermille +
+      observer.nightRangeCells * (1000 - snapshot.daylightPermille)) / 1000);
+    const width = observer.grid?.width, height = observer.grid?.height;
+    index ??= new AcquisitionIndex(snapshot, width, height, observer.cellsOf);
+    const scan = (radiusCells: number): number | null => acquireBrowserTarget({ snapshot, guardId: guard.id, radiusCells,
+      splash: observer.splash, width, height, canDamage, traits: observer.targetTraits, cellsOf: observer.cellsOf,
+      isCellVisible: observer.isCellVisible ?? ((x, y) => Math.abs(x - guard.cellX) + Math.abs(y - guard.cellY) <= sight) },
+    index);
+    // Move tasks skip acquisition, attack-move (0x415ae5) only scans weapon range and idle (0x414a87) also scans wider.
+    let found = scan(observer.weaponRangeCells ?? sight);
+    if (found === null && guard.activity !== "move" && observer.mobile !== false) {
+      const damaged = shots.some(shot => shot.targetId === guard.id);
+      found = scan(observer.wideScan ? WIDE_IDLE_SCAN_CELLS : damaged ? DAMAGED_IDLE_SCAN_CELLS : UNDAMAGED_IDLE_SCAN_CELLS);
+    }
+    const target = found === null ? undefined : { id: found };
     if (target) commands.push({ type: "attack", unitIds: [guard.id], targetId: target.id });
     else if (guard.activity === "attack") commands.push({ type: "stop", unitIds: [guard.id] });
   }

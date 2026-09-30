@@ -13,12 +13,14 @@ import type { PlaythroughCommand } from "./fixtures/source-playthrough-strategy"
 const root = new URL("../../", import.meta.url);
 const digest = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 const baselines = {
-  win: { tick: 6945, count: 88, shots: 785, deaths: 45,
-    commandHash: "4ff62ac924b2625a656b6b2000e69626b697b87e1eaa7e2e0408e5894ca1609f",
-    finalHash: "2bdf8c2d9a79296397dd9afc45a70d8287299bcf54f69bc378101e4cca6b4198" },
-  loss: { tick: 5097, count: 52, shots: 484, deaths: 23,
-    commandHash: "910d902af46978efb6427f269d59e89af7da322222bb7707bceac501f13774f1",
-    finalHash: "916cf7d6352e33fe762c936603348b501e6ec075587929b6fe4e5efdd0df2356" },
+  // Re-captured for projectile flight, the rate+2 fire cadence, turn-before-move and ring-scan acquisition (slower, original pace).
+  win: { tick: 9721, count: 149, shots: 779, deaths: 45,
+    commandHash: "ae66fa03519c3f3b6b5a8417a574ead0b64391ff32f77fb234ec035ac487a038",
+    finalHash: "31cb4b647c59925aa5d6e4a064fb6400236f3ea46061f54e6abe3f76f93facc5" },
+  // Re-captured for original projectile flight and fire cadence plus DC.EXE 0x435570 ring-scan target acquisition.
+  loss: { tick: 5817, count: 56, shots: 476, deaths: 23,
+    commandHash: "16c07f2ebb105118b87f25211e25845c47957491590325d2bb0f031e7d20e775",
+    finalHash: "11cd9f7d8813123eea6837a22bb30db7276121f3ae1157aff9ec052c8c040b08" },
 };
 
 async function withOriginalMission(run: (mission: Awaited<ReturnType<typeof loadCampaignMission>>,
@@ -61,7 +63,8 @@ test("browser runner: bounded clock, CSS center, callbacks, and no global/save m
       assert.equal(first.commandCount, 2);
       assert.deepEqual(first.actions.map(({ tick, point, client, clickedCell }) => ({ tick, point, client, clickedCell })), [
         { tick: 100, point: { x: 21, y: 34 }, client: [199, 142], clickedCell: { x: 21, y: 34 } },
-        { tick: 150, point: { x: 19, y: 37 }, client: [199, 142], clickedCell: { x: 19, y: 37 } },
+        // The scripted click targets the live enemy position; turn-before-move (DC.EXE 0x4120fc) delays enemy legs, shifting it a cell.
+        { tick: 150, point: { x: 20, y: 37 }, client: [199, 142], clickedCell: { x: 20, y: 37 } },
       ]);
       assert.ok(stats - statsBefore >= 200, "each update renders and reaches original HUD callback");
       assert.ok(units > 0);
@@ -129,7 +132,7 @@ for (const outcome of ["win", "loss"] as const) test(`browser runner original ${
     };
     try {
       await view.initialize();
-      let runner = createAlienPlaythroughRunner(view, { outcome, maxTicks: 8000, onProgress,
+      let runner = createAlienPlaythroughRunner(view, { outcome, maxTicks: 16000, onProgress,
         onCheckpoint: checkpoint => { checkpointCalls += 1; saved = checkpoint; } });
       for (let batch = 0; batch < 5; batch += 1) {
         const progress = await runner.step(200);
@@ -144,7 +147,7 @@ for (const outcome of ["win", "loss"] as const) test(`browser runner original ${
       view.dispose();
       view = restored;
       await view.initialize();
-      runner = createAlienPlaythroughRunner(view, { outcome, maxTicks: 8000, continuation: saved.continuation, onProgress });
+      runner = createAlienPlaythroughRunner(view, { outcome, maxTicks: 16000, continuation: saved.continuation, onProgress });
       let progress = runner.progress;
       while (progress.status === "running") progress = await runner.step(200);
       assert.equal(progress.tick, expected.tick);

@@ -28,7 +28,9 @@ export interface CueCatalog {
 
 export type UnitAudioEvent =
   | { readonly type: "unit-selected" | "unit-move" | "unit-death"; readonly unitType: number }
-  | { readonly type: "unit-attack"; readonly weaponId: number };
+  | { readonly type: "unit-attack"; readonly weaponId: number }
+  // DC.EXE 0x441bec -> 0x431da8 with event 6 (EXP), category = weapon record +0x1c (BOOMSTAT profile).
+  | { readonly type: "unit-impact"; readonly boomProfile: number };
 
 export interface ResolvedUnitCue {
   readonly assetId: string;
@@ -64,15 +66,16 @@ export function createCueCatalog(soundText: string, bindingText: string): CueCat
 
 export function resolveUnitCue(catalog: CueCatalog, event: UnitAudioEvent, variant = 0): ResolvedUnitCue | undefined {
   if (!Number.isSafeInteger(variant) || variant < 0) return undefined;
-  const group = event.type === "unit-selected" ? "SEL" : event.type === "unit-move" ? "ACK" : event.type === "unit-attack" ? "GUN" : event.type === "unit-death" ? "DEA" : undefined;
+  const group = event.type === "unit-selected" ? "SEL" : event.type === "unit-move" ? "ACK" : event.type === "unit-attack" ? "GUN" : event.type === "unit-death" ? "DEA" : event.type === "unit-impact" ? "EXP" : undefined;
   if (!group) return undefined;
-  const id = event.type === "unit-attack" ? event.weaponId : event.unitType;
+  const id = event.type === "unit-attack" ? event.weaponId : event.type === "unit-impact" ? event.boomProfile : event.unitType;
+  if (event.type === "unit-impact" && id === 0) return undefined;
   const binding = catalog.bindings.find((candidate) => candidate.id === id && candidate.group === group);
   if (!binding?.soundIds.length) return undefined;
   const soundId = binding.soundIds[variant % binding.soundIds.length];
   const sound = catalog.sounds.find((candidate) => candidate.id === soundId);
   if (!sound) return undefined;
-  return { assetId: sound.source, soundId, priority: group === "GUN" ? 40 : 70, evidence: { file: "SOUND/SLIST.DAT", group, id } };
+  return { assetId: sound.source, soundId, priority: group === "GUN" ? 40 : group === "EXP" ? 50 : 70, evidence: { file: "SOUND/SLIST.DAT", group, id } };
 }
 
 export interface AudioPosition {

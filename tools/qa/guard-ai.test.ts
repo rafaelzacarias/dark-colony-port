@@ -112,8 +112,12 @@ test("guard damage eligibility: retaliation uses the same cached predicate and k
   assert.deepEqual(calls, [immune], "hidden enemies are not queried for acquisition");
   calls.length = 0;
   const shots = [immune, eligible].map(attackerId => ({ type: "shot" as const, tick: 0, attackerId, targetId: guard, damage: 1 }));
-  assert.deepEqual(guardCommands(simulation.snapshot, [observer], shots), [{ type: "attack", unitIds: [guard], targetId: eligible }]);
-  assert.deepEqual(calls, [immune, eligible], "visible retaliation candidate is evaluated only once");
+  // Original 0x414bb7: a damaged idle actor rescans out to radius 9 (needs the target visible); no separate attacker priority.
+  assert.deepEqual(guardCommands(simulation.snapshot, [observer], shots), []);
+  calls.length = 0;
+  assert.deepEqual(guardCommands(simulation.snapshot, [{ ...observer, isCellVisible: () => true }], shots),
+    [{ type: "attack", unitIds: [guard], targetId: eligible }]);
+  assert.deepEqual(calls, [immune, eligible], "each candidate predicate is evaluated once");
   simulation.queue({ type: "move", unitIds: [guard], target: { x: 0, y: 1 } });
   simulation.advance();
   calls.length = 0;
@@ -129,7 +133,8 @@ test("guards acquire nearest visible opponents with stable ID tie breaking", () 
   simulation.addUnit({ faction: "alien", cell: { x: 5, y: 5 } });
   const snapshot = simulation.snapshot;
   const observers = [{ id: guard, dayRangeCells: 2, nightRangeCells: 4 }];
-  const expected = [{ type: "attack", unitIds: [guard], targetId: first }];
+  // 0x434090 ring order visits (1,0) before (-1,0) and only a strictly greater score replaces, so the +x enemy wins the tie.
+  const expected = [{ type: "attack", unitIds: [guard], targetId: first + 1 }];
   assert.deepEqual(guardCommands(snapshot, observers), expected);
   assert.deepEqual(guardCommands({ ...snapshot, units: [...snapshot.units].reverse() }, observers), expected);
 });
@@ -155,7 +160,8 @@ test("a victim pursues a ranged attacker outside sight; direct Move remains obed
     weapon: { damage: 25, rangeCells: 10, cooldownTicks: 5 } });
   simulation.queue({ type: "attack", unitIds: [attacker], targetId: victim });
   simulation.advance();
-  const observer = { id: victim, dayRangeCells: 4, nightRangeCells: 4 };
+  // Being hit makes the idle rescan radius 9 (0x414bb7); the shooter is revealed by its shot.
+  const observer = { id: victim, dayRangeCells: 4, nightRangeCells: 4, isCellVisible: () => true };
   const commands = guardCommands(simulation.snapshot, [observer], simulation.combatEvents);
   assert.deepEqual(commands, [{ type: "attack", unitIds: [victim], targetId: attacker }]);
   commands.forEach((command) => simulation.queue(command));

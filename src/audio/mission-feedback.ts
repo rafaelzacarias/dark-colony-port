@@ -6,6 +6,9 @@ import type { CombatEvent, DeathEvent } from "../engine/simulation";
 export interface FeedbackActor extends AudioPosition {
   readonly unitType: number;
   readonly weaponId: number;
+  readonly boomProfile?: number;
+  /** The weapon fires a projectile, so its GUN cue plays at launch (DC.EXE 0x4417e9) rather than at impact. */
+  readonly projectile?: boolean;
 }
 
 export function createMissionAudioFeedback(audio: Pick<AudioEngine, "play"> | undefined, nativeCombat: boolean): MissionAudioFeedback | undefined {
@@ -54,18 +57,30 @@ export class MissionAudioFeedback {
   present(frame: {
     readonly tick: number;
     readonly shots: readonly CombatEvent[];
+    readonly launches?: readonly { readonly tick: number; readonly attackerId: number }[];
     readonly deaths: readonly DeathEvent[];
     readonly actors: ReadonlyMap<number, FeedbackActor>;
     readonly listener: AudioListener;
   }): void {
     if (this.#disposed || frame.tick <= this.#nextEventTick) return;
     const eligible = (tick: number) => tick >= this.#nextEventTick && tick < frame.tick;
+    for (const event of frame.launches ?? []) {
+      if (!eligible(event.tick)) continue;
+      const actor = frame.actors.get(event.attackerId);
+      const cue = actor && this.#cue({ type: "unit-attack", weaponId: actor.weaponId });
+      if (actor && cue) this.#play({ ...cue, position: { x: actor.x, y: actor.y }, listener: frame.listener, signal: this.#lifetime.signal });
+    }
     for (const event of frame.shots) {
       if (!eligible(event.tick)) continue;
       const actor = frame.actors.get(event.attackerId);
       if (!actor) continue;
-      const cue = this.#cue({ type: "unit-attack", weaponId: actor.weaponId });
+      const cue = actor.projectile ? undefined : this.#cue({ type: "unit-attack", weaponId: actor.weaponId });
       if (cue) this.#play({ ...cue, position: { x: actor.x, y: actor.y }, listener: frame.listener, signal: this.#lifetime.signal });
+      const target = frame.actors.get(event.targetId);
+      if (event.damage > 0 && target && actor.boomProfile) {
+        const impact = this.#cue({ type: "unit-impact", boomProfile: actor.boomProfile });
+        if (impact) this.#play({ ...impact, position: { x: target.x, y: target.y }, listener: frame.listener, signal: this.#lifetime.signal });
+      }
     }
     for (const event of frame.deaths) {
       if (!eligible(event.tick)) continue;

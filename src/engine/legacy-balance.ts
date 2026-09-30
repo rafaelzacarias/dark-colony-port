@@ -212,6 +212,8 @@ export interface LegacyUnitStat {
   readonly sprite: string;
   readonly faction: number;
   readonly movementSpeed: number;
+  /** GAMESTAT turn speed (type +8): facing steps per update. */
+  readonly turnSpeed?: number;
   readonly observationDay: number;
   readonly observationNight: number;
   readonly weapons: readonly [number, number, number];
@@ -224,6 +226,8 @@ export interface LegacyWeaponStat {
   readonly id: number;
   readonly rateOfFire: number;
   readonly damage: number;
+  readonly speed?: number;
+  readonly visualClass?: string;
   readonly range: number;
   readonly rawPrefix?: number;
   readonly shots?: number;
@@ -368,6 +372,8 @@ export function unitOptionsFromLegacy(
       1,
       Math.round((unit.movementSpeed * SUBCELLS_PER_CELL) / LEGACY_MOVEMENT_UNITS_PER_CELL),
     ),
+    ...(unit.turnSpeed !== undefined && Number.isInteger(unit.turnSpeed) && unit.turnSpeed > 0 && unit.turnSpeed < 256
+      ? { turnSpeed: unit.turnSpeed } : {}),
     maxHealth: unit.health,
     ...(sourceDefense ? { sourceDefense } : {}),
     vision: {
@@ -380,6 +386,8 @@ export function unitOptionsFromLegacy(
             damage: weapon.damage,
             rangeCells: weapon.range,
             cooldownTicks: weapon.rateOfFire,
+            ...(weapon.speed !== undefined && weapon.speed > 0 && weapon.speed <= 1024
+              ? { projectileSpeed: weapon.speed, weaponId: weapon.id, splash: weapon.shots } : {}),
             ...(sourceDamage ? { sourceDamage } : {}),
           },
         }

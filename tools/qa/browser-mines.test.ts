@@ -18,11 +18,13 @@ test("adapted mines: explicit source contract excludes strict, other types and i
     const mine = browserMineOptions(source, { ...stat, index })!;
     assert.equal(mine.sourceTypeIndex, index);
     assert.equal(mine.boomId, 2);
-    assert.equal(mine.splashRange, 1);
-    assert.equal(mine.radiusPolicy, "weapon-range-fallback");
+    // BOOMSTAT record 2 is a 7x7 grid of cell offsets, so the blast reaches 3 cells.
+    assert.equal(mine.splashRange, 3);
+    assert.equal(mine.radiusPolicy, "boom2-7x7-cell-grid");
     assert.notEqual(mine.weapon.sourceDamage.coefficients, source.damageMatrix[6]);
     validateBrowserMineOptions(JSON.parse(JSON.stringify(mine)));
     assert.throws(() => validateBrowserMineOptions({ ...mine, splashRange: 2 }));
+    assert.throws(() => validateBrowserMineOptions({ ...mine, falloff: "hard-cutoff" } as unknown as typeof mine));
     assert.throws(() => validateBrowserMineOptions({ ...mine, sourceTypeIndex: 41 } as unknown as typeof mine));
     assert.throws(() => validateBrowserMineOptions({ ...mine, cooldown: 0 } as typeof mine));
   }
@@ -48,7 +50,8 @@ test("adapted mines: legal approach, simultaneous splash/self death, one shot pe
   assert.throws(() => auditFireMovement(before, displaced), /shot X displacement/);
   assert.deepEqual(restored.checkpoint(), simulation.checkpoint());
   assert.deepEqual(simulation.combatEvents.map(event => [event.attackerId, event.targetId, event.damage]),
-    [[mine, enemy, 650], [mine, second, 1300]]);
+    // BOOM2 weights: cardinal neighbour 90% (1300/2 * 0.9 = 585 after armor), centre-adjacent second victim 90% of 1300.
+    [[mine, enemy, 585], [mine, second, 1170]]);
   assert.deepEqual(simulation.deathEvents.map(event => event.targetId), [mine, second]);
   assert.equal(simulation.snapshot.staticTargets[0].health, 0);
   assert.equal(simulation.snapshot.staticTargets[1].id, neighbor);
@@ -97,7 +100,7 @@ test("adapted mines: observer alliances update live; blast excludes allies/air/n
   assert.equal(simulation.combatEvents.length, 0);
   simulation.setTeamAlliances([[1, 0], [1, 1]]);
   simulation.advance();
-  assert.deepEqual(simulation.combatEvents.map(event => [event.targetId, event.damage]), [[ground, 650]]);
+  assert.deepEqual(simulation.combatEvents.map(event => [event.targetId, event.damage]), [[ground, 585]]);
   assert.ok(simulation.snapshot.units.filter(unit => [air, neutral, friend].includes(unit.id)).every(unit => unit.health === 2000));
   assert.equal(simulation.snapshot.staticTargets[1].health, 2000);
 });
@@ -125,5 +128,5 @@ test("adapted mines: simultaneous lethal fire does not cancel detonation; strict
   simulation.advance();
   assert.deepEqual(simulation.combatEvents.map(event => event.attackerId), [enemy, mine]);
   assert.deepEqual(simulation.deathEvents.map(event => event.targetId), [mine]);
-  assert.equal(simulation.snapshot.units[0].health, 700);
+  assert.equal(simulation.snapshot.units[0].health, 830); // 2000 - 1300 * 90% (BOOM2 cardinal neighbour)
 });
