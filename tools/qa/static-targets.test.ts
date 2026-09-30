@@ -227,7 +227,8 @@ for (const health of [25, 125]) {
       if (simulation.combatEvents.length) {
         shots += simulation.combatEvents.length;
         const attacker = simulation.snapshot.units[0];
-        assert.equal(attacker.cellX, 3);
+        // DC.EXE range ring 1 covers every neighbor of the footprint cell (2,1), so the nearest side is legal.
+        assert.equal(attacker.cellX, 1);
         assert.equal(attacker.cellY, 1);
       }
       deaths += simulation.deathEvents.length;

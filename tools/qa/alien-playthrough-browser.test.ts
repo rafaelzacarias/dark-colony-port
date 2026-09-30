@@ -16,9 +16,9 @@ const baselines = {
   win: { tick: 6945, count: 88, shots: 785, deaths: 45,
     commandHash: "4ff62ac924b2625a656b6b2000e69626b697b87e1eaa7e2e0408e5894ca1609f",
     finalHash: "2bdf8c2d9a79296397dd9afc45a70d8287299bcf54f69bc378101e4cca6b4198" },
-  loss: { tick: 2465, count: 10, shots: 267, deaths: 1,
-    commandHash: "e33df04b91c85c61a799fb14779a321b3dff3ed9ce17e862edbb0ac6dd6cb618",
-    finalHash: "e19d3efefdd5c03767671bd7ed6fca3c4d2d0ae988ab255951eca4be77768e47" },
+  loss: { tick: 5097, count: 52, shots: 484, deaths: 23,
+    commandHash: "910d902af46978efb6427f269d59e89af7da322222bb7707bceac501f13774f1",
+    finalHash: "916cf7d6352e33fe762c936603348b501e6ec075587929b6fe4e5efdd0df2356" },
 };
 
 async function withOriginalMission(run: (mission: Awaited<ReturnType<typeof loadCampaignMission>>,

@@ -13,7 +13,7 @@ import {
   type SimulationSnapshot,
   type UnitSnapshot,
 } from "./engine";
-import type { MovementPlane, ResourceActorStateProfile, WeaponStats } from "./engine/simulation";
+import type { MovementPlane, ResourceActorStateProfile, StaticTargetSnapshot, WeaponStats } from "./engine/simulation";
 import { campaignPreflight } from "./game-data";
 import type { SkirmishCallbacks } from "./simulation-view";
 import type { MissionCursor } from "./ui/mission-cursor";
@@ -67,7 +67,7 @@ import { legacyCueCatalog, type WebAudioManager } from "./audio";
 import { createMissionAudioFeedback, type MissionAudioFeedback } from "./audio/mission-feedback";
 import { composeFinSample, createAtlasCache, createFinFrameLookup, createFinSelector, createFinSourceSampler,
   directionFromMotion, drawFinComposition, TRSC_GRAY_VISUAL_DIRECTIONS,
-  type FinAction, type CompassDirection, type FinAnimationData, type FinAtlasFrame } from "./render";
+  type FinAction, type CompassDirection, type FinAnimationData, type FinAtlasFrame, type FinStateData } from "./render";
 import { finBodyBounds, type FinBodyBounds } from "./render/fin-composition";
 import { drawBrowserMode5Canvas } from "./render/mode5-canvas";
 
@@ -191,6 +191,12 @@ export function missionAnimationArchives(sprite: string): readonly string[] {
   return additionalMissionAnimationArchives(sprite) ?? [SPRITE_ALIASES[sprite] ?? sprite];
 }
 export const MISSION_BROWSER_POLICY = Object.freeze({ fixedStepMilliseconds: 50, orientationSteps: 1, seed: 0xdc1997 });
+
+/** DC.EXE 0x414314: a city structure shows STAND above 11/16 of its HP, BURN above 5/16 and SCRCH at or below. */
+export function buildingDamageStage(health: number, maxHealth: number): "stand" | "burn" | "scorch" {
+  if (health > (maxHealth * 11) >> 4) return "stand";
+  return health > (maxHealth * 5) >> 4 ? "burn" : "scorch";
+}
 
 function firingRevealTicks(stat: LegacyUnitStat & { readonly rawTail?: readonly number[] }): number {
   // GAMESTAT column 14 becomes type+0x64, then the low five bits of actor+0x10 when firing.
@@ -456,8 +462,15 @@ const missionAtlasCache = createAtlasCache(async (name: string) => {
   return { metadata, image };
 }, { retained: 128, concurrent: 4, pending: 1024 });
 
+// DC.EXE binds a structure's BURN/SCRCH banks by name from any loaded FIN (0x43c217); these live in shared archives.
+const BUILDING_DAMAGE_ARCHIVES: Readonly<Record<string, readonly string[]>> = Object.fromEntries([
+  ...["EXCOPOD", "BRRKPOD", "ROBOPOD", "ROBOPOD2", "SCNCPOD", "SCNCPOD2", "RSCHPOD"].map(sprite => [sprite, ["BURN", "BURN2", "HUBU"]]),
+  ...["BIOHIV", "WARHIVE", "BRDRHIV", "BRDRHIV2", "MINDHIV", "MNDHIV2", "RSCHIV"].map(sprite => [sprite, ["BLEED"]]),
+]);
+
 async function loadMissionVisual(sprite: string): Promise<MissionVisual> {
-  const archives = await Promise.all(missionAnimationArchives(sprite).map((name) =>
+  const primary = missionAnimationArchives(sprite);
+  const archives = await Promise.all(primary.map((name) =>
     loadJson<AnimationMetadata>(`${ASSET_ROOT}/animations/${name}.json`)));
   const states: AnimationMetadata["states"][number][] = [];
   const timeline: AnimationMetadata["timeline"][number][] = [];
@@ -466,6 +479,18 @@ async function loadMissionVisual(sprite: string): Promise<MissionVisual> {
     states.push(...archive.states.map((state) => ({ ...state,
       firstTimelineIndex: state.firstTimelineIndex + offset, lastTimelineIndex: state.lastTimelineIndex + offset })));
     timeline.push(...archive.timeline);
+  }
+  const known = new Set(states.map(state => state.name.toUpperCase()));
+  const damageName = new RegExp(`^${sprite}(BURN|SCRCH)\\d*$`, "i");
+  for (const name of (BUILDING_DAMAGE_ARCHIVES[sprite] ?? []).filter(name => !primary.includes(name))) {
+    const archive = await loadJson<AnimationMetadata>(`${ASSET_ROOT}/animations/${name}.json`);
+    for (const state of archive.states) {
+      if (!damageName.test(state.name) || known.has(state.name.toUpperCase()) || state.validRange === false) continue;
+      const offset = timeline.length;
+      timeline.push(...archive.timeline.slice(state.firstTimelineIndex, state.lastTimelineIndex + 1));
+      states.push({ ...state, firstTimelineIndex: offset, lastTimelineIndex: timeline.length - 1 });
+      known.add(state.name.toUpperCase());
+    }
   }
   const animation: AnimationMetadata = { states, timeline };
   const names = new Set(animation.timeline.flatMap(({ children }) => children.map(({ sprite }) => sprite.toUpperCase())));
@@ -574,6 +599,9 @@ export class MissionView {
   readonly #audio?: WebAudioManager;
   readonly #audioFeedback?: MissionAudioFeedback;
   readonly #animationStates = new Map<number, { action: FinAction; facing: CompassDirection; since: number }>();
+  // Presentation only: DC.EXE 0x4193cc plays a random BLOOD bank on the free overlay channel after a hit.
+  readonly #buildingReactions = new Map<number, { pending: boolean; state?: FinStateData; since: number }>();
+  readonly #namedFinStates = new Map<string, FinStateData | null>();
   readonly #visualBounds = new Map<number, FinBodyBounds>();
   #genericPendingPaths?: { simulation: DeterministicSimulation; tick: number; ids: ReadonlySet<number> };
   #terrainImage: HTMLImageElement | null = null;
@@ -3058,8 +3086,14 @@ export class MissionView {
         draw: () => {
           const target = staticStates.get(object.id);
           if (!target) return;
-          this.#drawVisual(context, object.stat.sprite, "idle", this.#screenX(x + 0.5, width), this.#screenY(y + 0.5, height), snapshot.tick, object.id,
-            this.#sceneCapture(object.id, target.xSubcells, target.ySubcells));
+          const screenX = this.#screenX(x + 0.5, width), screenY = this.#screenY(y + 0.5, height);
+          const scene = this.#sceneCapture(object.id, target.xSubcells, target.ySubcells);
+          this.#drawVisual(context, object.stat.sprite, "idle", screenX, screenY, snapshot.tick, object.id, scene,
+            this.#buildingStateOverride(object.stat.sprite, target));
+          this.#drawBuildingReaction(context, object, target, screenX, screenY, snapshot.tick, scene);
+          if (target.health > 0 && target.maxHealth > 1) {
+            overlays.push(() => this.#drawBuildingHealth(context, object.id, target, screenX, screenY));
+          }
         },
       });
     }
@@ -3230,6 +3264,14 @@ export class MissionView {
     for (const event of this.simulation.deathEvents) {
       const previous = this.#animationStates.get(event.targetId);
       this.#animationStates.set(event.targetId, { action: "Die", facing: previous?.facing ?? "S", since: event.tick });
+      this.#buildingReactions.delete(event.targetId);
+    }
+    for (const event of this.simulation.combatEvents) {
+      if (event.damage <= 0 || !((units.get(event.targetId)?.health ?? 0) > 0)
+        || !this.#staticObjects.some(({ id }) => id === event.targetId)) continue;
+      const reaction = this.#buildingReactions.get(event.targetId);
+      if (reaction) reaction.pending = true;
+      else this.#buildingReactions.set(event.targetId, { pending: true, since: event.tick });
     }
     for (const event of this.simulation.combatEvents) {
       const attacker = units.get(event.attackerId);
@@ -3324,6 +3366,69 @@ export class MissionView {
     }
   }
 
+  #finState(sprite: string, name: string): FinStateData | undefined {
+    const key = `${sprite}:${name}`;
+    let state = this.#namedFinStates.get(key);
+    if (state === undefined) {
+      const states = this.#visuals.get(sprite)?.animation.states ?? [];
+      const find = (wanted: string) => states.find(entry => entry.name.toUpperCase() === wanted && entry.validRange !== false);
+      state = find(name) ?? find(`${name}0`) ?? null;
+      this.#namedFinStates.set(key, state);
+    }
+    return state ?? undefined;
+  }
+
+  /** DC.EXE binds SCRCH/BURN per type (0x43c217): BURN falls back to SCRCH, SCRCH falls back to STAND. */
+  #buildingStateOverride(sprite: string, target: StaticTargetSnapshot): { state: FinStateData; action: FinAction; since: number } | undefined {
+    if (target.health <= 0) {
+      if (this.#visuals.get(sprite)?.selector.select("Die", "S")) return undefined;
+      const ruin = this.#finState(sprite, `${sprite}SCRCH`);
+      return ruin && { state: ruin, action: "Stand", since: 0 };
+    }
+    const stage = buildingDamageStage(target.health, target.maxHealth);
+    if (stage === "stand") return undefined;
+    const state = (stage === "burn" ? this.#finState(sprite, `${sprite}BURN`) : undefined) ?? this.#finState(sprite, `${sprite}SCRCH`);
+    return state && { state, action: "Stand", since: 0 };
+  }
+
+  #drawBuildingReaction(context: CanvasRenderingContext2D, object: StaticMissionObject, target: StaticTargetSnapshot,
+    screenX: number, screenY: number, tick: number,
+    scene: Pick<MissionSceneEntity, "rawSlot" | "xSubcells" | "ySubcells" | "heightSubcells"> | undefined): void {
+    const reaction = this.#buildingReactions.get(object.id);
+    if (!reaction) return;
+    if (target.health <= 0) { this.#buildingReactions.delete(object.id); return; }
+    const sprite = object.stat.sprite;
+    if (!reaction.state && reaction.pending) {
+      const banks: FinStateData[] = [];
+      for (let index = 0; index < 7; index++) {
+        const bank = this.#finState(sprite, `${sprite}BLOOD${String.fromCharCode(65 + index)}`);
+        if (bank) banks.push(bank);
+      }
+      if (!banks.length) { this.#buildingReactions.delete(object.id); return; }
+      // Presentation-only stand-in for the shared RNG draw, so rendering never advances simulation state.
+      reaction.state = banks[((Math.imul(object.id, 2654435761) ^ Math.imul(tick + 1, 40503)) >>> 0) % banks.length];
+      reaction.since = tick;
+      reaction.pending = false;
+    }
+    if (!reaction.state) return;
+    const finished = this.#drawVisual(context, sprite, "idle", screenX, screenY, tick, object.id, scene,
+      { state: reaction.state, action: "Die", since: reaction.since, overlay: true });
+    if (finished) {
+      reaction.state = undefined;
+      if (!reaction.pending) this.#buildingReactions.delete(object.id);
+    }
+  }
+
+  #drawBuildingHealth(context: CanvasRenderingContext2D, id: number, target: StaticTargetSnapshot, screenX: number, screenY: number): void {
+    const body = this.#visualBounds.get(id);
+    const barWidth = Math.round(Math.max(24, Math.min(64, body ? (body.right - body.left) * 0.6 : this.#tileSize * 1.5)));
+    const barY = body ? Math.max(2, Math.round(body.top) - 5) : screenY - this.#tileSize * 1.5;
+    context.fillStyle = "rgba(0,0,0,.72)";
+    context.fillRect(screenX - barWidth / 2, barY, barWidth, 3);
+    context.fillStyle = target.faction === "human" ? "#70c7e9" : "#d45a4d";
+    context.fillRect(screenX - barWidth / 2, barY, barWidth * Math.min(1, target.health / target.maxHealth), 2);
+  }
+
   #drawCommanderMarker(context: CanvasRenderingContext2D, unit: UnitSnapshot, screenX: number, screenY: number): void {
     if (unit.health <= 0 || unit.activity === "die") return;
     const body = this.#entityScreenBounds(unit);
@@ -3357,9 +3462,10 @@ export class MissionView {
     tick: number,
     unitId?: number,
     scene?: Pick<MissionSceneEntity, "rawSlot" | "xSubcells" | "ySubcells" | "heightSubcells">,
-  ): void {
+    override?: { readonly state: FinStateData; readonly action: FinAction; readonly since: number; readonly overlay?: boolean },
+  ): boolean {
     const visual = this.#visuals.get(sprite);
-    if (!visual) return;
+    if (!visual) return false;
     const state = unitId === undefined ? undefined : this.#animationStates.get(unitId);
     const stat = unitId === undefined ? undefined : this.#unitStats.get(unitId);
     const artifact = this.mission.runtimeProfile === "browser-adapted" && stat && browserVisionArtifact(stat);
@@ -3371,12 +3477,16 @@ export class MissionView {
     const combatBinding = unitId === undefined ? undefined : this.#simulationBindings.get(unitId);
     const combatActor = combatBinding && combatHost?.slots[combatBinding.slot];
     const nativeCombat = combatActor?.nativeAiTask && combatActor.generation === combatBinding?.generation ? combatActor : undefined;
-    const selection = visual.selector.select(action, state?.facing ?? "S");
-    if (!selection && !nativeTask && !construction && !nativeCombat) {
+    if (override?.overlay && (nativeTask || construction || nativeCombat)) return true;
+    const owned = !nativeTask && !construction && !nativeCombat;
+    const selection = override && owned ? { state: override.state, action: override.action, direction: null, fallback: false }
+      : visual.selector.select(action, state?.facing ?? "S");
+    if (!selection && owned) {
       reportRenderDiagnostic(`missing-state:${sprite}:${action}`);
-      return;
+      return false;
     }
     if (!nativeTask && !construction && !nativeCombat && selection?.fallback) reportRenderDiagnostic(`state-fallback:${sprite}:${action}:${state?.facing ?? "S"}`, selection.state.name);
+    let finished = false;
     try {
       if (nativeCombat && !this.#nativeViewSamples.has(nativeCombat.slot)) {
         this.#nativeViewSamples.set(nativeCombat.slot, this.#session!.nativeViewActorSample(visual.animation,
@@ -3385,9 +3495,10 @@ export class MissionView {
       const sample = nativeCombat ? this.#nativeViewSamples.get(nativeCombat.slot)!.sample
         : construction ? sourceConstructionSample(visual.animation, construction)
         : nativeTask ? missionResourceSample(visual.animation, nativeTask) : visual.sample(selection!,
-        tick - (state?.since ?? 0) + this.#interpolation);
+        tick - (override && owned ? override.since : state?.since ?? 0) + this.#interpolation);
+      finished = sample.finished;
       const parts = composeFinSample(sample, visual.lookup);
-      if (unitId !== undefined) {
+      if (unitId !== undefined && !override?.overlay) {
         const body = finBodyBounds(parts, { x: screenX, y: screenY }, this.#tileSize / 32);
         if (body) this.#visualBounds.set(unitId, body);
       }
@@ -3424,6 +3535,7 @@ export class MissionView {
     } catch (error) {
       reportRenderDiagnostic(`unsupported-timeline:${sprite}:${selection?.state.name ?? nativeTask?.animation.profile}`, error);
     }
+    return finished;
   }
 
   #drawBrowserEffect(context: CanvasRenderingContext2D, part: Parameters<typeof drawBrowserMode5Canvas>[0]["part"],

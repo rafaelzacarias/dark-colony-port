@@ -103,7 +103,8 @@ loads, and expires on simulation ticks rather than wall-clock time.
 
 Click and drag selection use the current unit sprite's body bounds, rather
 than only its ground position, including when the viewport is scaled on a
-phone. Living player commanders always have a gold star above their heads,
+phone. A quick flick counts as a drag from its press and release points, even
+if the browser delivered no pointer movement in between. Living player commanders always have a gold star above their heads,
 independent of selection or Inspire recharge.
 
 The bottom mission strip displays **FPS** (last second), **AVG** and **LOW**
@@ -129,6 +130,28 @@ movement policy is stored in new saves; native-owned research fixtures retain
 their original movement semantics.
 Reinforcements may leave an already shared spawn tile; blocked routes cannot
 enter an unbounded same-frame replanning loop.
+
+Weapon range uses the original DC.EXE ring table (`0x434090`): a cell offset is
+in range R when `floor(sqrt(dx² + dy²)) <= R`. A range-1 melee unit can
+therefore strike from any of the eight neighboring cells, and pursuit picks the
+nearest reachable cell that is in range. When a ground route runs into another
+unit, the mover first tries the original bounded local reroute (256 search
+steps to the next free route cell). If that fails, the allied occupant is
+asked to step aside, and the mover waits the original five updates. As in
+DC.EXE, the request is also recorded on allies that are moving or fighting, and
+they act on it the next time they are idle, so an arriving unit may shift one
+cell. The pushed unit tries sideways, then forward diagonals, then back
+diagonals, then straight ahead (DC.EXE `0x412bc8`/`0x4126a8`), falling back to
+the original shuffled order. Hostile, resource-owned and air units are never
+pushed. A move whose final cell is held by a unit that will neither step aside
+nor move on ends beside it, instead of queueing forever. Pending step-aside
+requests and waits are saved with the mission.
+
+Structures show a health bar and the original damage stages (DC.EXE
+`0x414314`): above 11/16 of maximum health they look intact, then they burn,
+and at or below 5/16 they are scorched and burning. Each hit also plays one of
+the structure's original fire and smoke overlays. A destroyed structure keeps
+its death frame, or its scorched ruin when it has no death animation.
 
 Camera panning is continuous: hold the arrow keys or rest the mouse at a
 battlefield edge. The phone direction pad uses the same frame-timed speed;

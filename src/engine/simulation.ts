@@ -12,7 +12,7 @@ import {
   type SourceDamageProfile,
   type LegacyDefenseProfile,
 } from "./legacy-balance";
-import { findPath } from "./pathfinding";
+import { findPath, findPathToAny } from "./pathfinding";
 import { DeterministicRandom } from "./random";
 import { validateNativeMovement, type ResourceHostEntityState } from "./transport-host";
 import { advanceSourceDayNight, sourceDayNightFromHeader, type SourceDayNight } from "./source-day-night";
@@ -355,6 +355,10 @@ interface UnitState {
   resourceTargetId: number | null;
   dropoff: GridPoint | null;
   harvestPhase: "collecting" | "to-dropoff" | "to-resource" | null;
+  /** DC.EXE actor +0x35: direction code of an allied mover that asked this unit to step aside; consumed when idle. */
+  displacement?: number;
+  /** Ticks left in the blocked-mover wait (DC.EXE pushes wait task 3 with count 4). */
+  moveWait?: number;
 }
 
 interface ResourceNodeState {
@@ -600,7 +604,8 @@ function validateSimulationCheckpoint(input: unknown): asserts input is Simulati
       attackCooldown: integer, attackTargetId: nullableId,
       harvester: checkpointNullable(checkpointObject({ cargoCapacity: positive, harvestPerTick: positive })), cargo: integer,
       resourceTargetId: nullableId, dropoff: checkpointNullable(point), harvestPhase: checkpointChoice(null, "collecting", "to-dropoff", "to-resource"),
-    }, { team: integer, movementPlane: checkpointChoice("ground", "air") })),
+    }, { team: integer, movementPlane: checkpointChoice("ground", "air"),
+      displacement: checkpointInteger(0, 7), moveWait: checkpointInteger(1, SOURCE_BLOCKED_WAIT_TICKS) })),
     resourceNodes: checkpointArray(checkpointObject({ id: positive, cell: point, remaining: integer })),
     buildings: checkpointArray(checkpointObject({ id: positive, faction, kind, cell: point, health: integer, maxHealth: positive, constructionQueue: checkpointArray(construction) })),
     staticTargets: checkpointArray(checkpointObject({ id: positive, faction, xSubcells: position, ySubcells: position,
@@ -917,6 +922,22 @@ export function baseNodeCells(core: GridPoint, radius = 2): readonly GridPoint[]
     { x: core.x - radius, y: core.y - radius },
   ];
 }
+
+/** DC.EXE 0x434090 acquisition rings: offset (dx, dy) is within weapon range R exactly when floor(hypot(dx, dy)) <= R. */
+export function withinSourceWeaponRange(dx: number, dy: number, range: number): boolean {
+  return dx * dx + dy * dy < (range + 1) * (range + 1);
+}
+
+// DC.EXE displacement tables: 0x479208 step vectors by route direction code, 0x479248/0x479268 clockwise ring
+// order and its inverse, 0x479288 tries relative to the push direction (sides, forward diagonals, back diagonals, ahead).
+const SOURCE_STEP_VECTORS: readonly (readonly [number, number])[] = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
+const SOURCE_RING_TO_DIRECTION = [0, 1, 2, 4, 7, 6, 5, 3] as const;
+const SOURCE_DIRECTION_TO_RING = [0, 1, 2, 7, 3, 6, 5, 4] as const;
+const SOURCE_DISPLACEMENT_TRIES = [2, -2, 1, -1, 3, -3, 0] as const;
+// A blocked mover pushes wait task 3 with count 4: four decrements, one pop update, then the route resumes.
+const SOURCE_BLOCKED_WAIT_TICKS = 5;
+// DC.EXE 0x444540 local reroute executes at most 256 queue pops.
+const SOURCE_LOCAL_REROUTE_VISITS = 256;
 
 // Lazy equivalent of the per-unit blocked-cell snapshot: a cell blocks unless this unit is its only owner.
 class ReservationBlockedView {
@@ -1874,6 +1895,8 @@ export class DeterministicSimulation implements Simulation {
           }
         } else if (unit.activity === "harvest") {
           this.#advanceHarvest(unit);
+        } else if (unit.activity === "idle" && unit.displacement !== undefined) {
+          this.#stepAside(unit);
         }
       }
       if (native) this.#nativeInspire!.afterEntityUpdate(native.registration);
@@ -1922,6 +1945,7 @@ export class DeterministicSimulation implements Simulation {
         if ("activity" in target) {
           target.activity = "die";
           this.#clearOrders(target);
+          delete target.displacement;
           const slot = this.#inspireUnitSlots.get(target.id);
           const native = slot === undefined ? undefined : this.#inspireSlots.get(slot);
           if (native) { native.animationMode = 0; native.pendingOrder = 0; }
@@ -2244,6 +2268,108 @@ export class DeterministicSimulation implements Simulation {
     return new ReservationBlockedView(unit.movementPlane === "air" ? this.#airMovementReservations : this.#movementReservations, unit.id);
   }
 
+  #localReroute(unit: UnitState, grid: NavigationGrid, start: GridPoint,
+    blocked: { has(index: number): boolean }): readonly GridPoint[] | null {
+    let resume = -1;
+    for (let index = unit.pathIndex; index < unit.path.length; index++) {
+      const cell = this.grid.index(unit.path[index].x, unit.path[index].y);
+      if (grid.costs[cell] !== 0 && !blocked.has(cell)) { resume = index; break; }
+    }
+    if (resume < 0) return null;
+    const local = findPath(grid, start, unit.path[resume],
+      { blocked, diagonal: this.#diagonalGround, maximumVisited: SOURCE_LOCAL_REROUTE_VISITS });
+    return local && [...local, ...unit.path.slice(resume + 1)];
+  }
+
+  #yields(mover: UnitState, blocker: UnitState): boolean {
+    return blocker.activity === "idle" && blocker.health > 0 && blocker.movementPlane !== "air"
+      && !this.#resourceOwned(blocker.id) && !this.#dormantUnits.has(blocker.id) && !areHostile(mover, blocker, this.#teamAlliances);
+  }
+
+  // DC.EXE marks any allied, not-yet-displaced occupant; the request is only consumed by its idle handler.
+  #canYield(mover: UnitState, blocker: UnitState): boolean {
+    return blocker.displacement === undefined && blocker.health > 0 && blocker.activity !== "die"
+      && blocker.movementPlane !== "air" && !this.#resourceOwned(blocker.id) && !this.#dormantUnits.has(blocker.id)
+      && !areHostile(mover, blocker, this.#teamAlliances);
+  }
+
+  /** DC.EXE's ground word holds an actor on its current cell, or on its next cell once a leg starts. */
+  #groundWordCell(unit: UnitState): number {
+    if (unit.reservedDestination !== null) return unit.reservedDestination;
+    const cell = this.#unitCell(unit);
+    return this.grid.index(cell.x, cell.y);
+  }
+
+  /** An endpoint is held when its occupant will neither step aside nor move on: parked, busy, or itself blocked. */
+  #endpointHeld(mover: UnitState, cell: number): boolean {
+    for (const id of this.#movementReservations.get(cell) ?? []) {
+      const occupant = this.#units.get(id);
+      if (id === mover.id || !occupant || this.#groundWordCell(occupant) !== cell) continue;
+      if (occupant.activity === "idle" && occupant.displacement !== undefined) continue;
+      if (occupant.activity !== "move" || occupant.moveWait !== undefined) return true;
+    }
+    return false;
+  }
+
+  #requestDisplacement(unit: UnitState, origin: GridPoint, target: GridPoint, swept: readonly number[],
+    blocked: { has(index: number): boolean }): void {
+    const direction = SOURCE_STEP_VECTORS.findIndex(([dx, dy]) =>
+      dx === Math.sign(target.x - origin.x) && dy === Math.sign(target.y - origin.y));
+    if (direction < 0) return;
+    const originIndex = this.grid.index(origin.x, origin.y), targetIndex = this.grid.index(target.x, target.y);
+    for (const cell of [targetIndex, ...swept.filter(index => index !== targetIndex && index !== originIndex)]) {
+      const owners = this.#movementReservations.get(cell);
+      if (!blocked.has(cell) || !owners) continue;
+      // DC.EXE writes the push direction into the blocking occupant's +0x35 only when it is allied and not already displaced.
+      for (const id of [...owners].sort((left, right) => left - right)) {
+        const blocker = this.#units.get(id);
+        if (id !== unit.id && blocker && this.#groundWordCell(blocker) === cell && this.#canYield(unit, blocker)) {
+          blocker.displacement = direction;
+        }
+      }
+      return;
+    }
+  }
+
+  /** DC.EXE 0x412bc8 (no target): 0x4126a8 picks a free neighbor, 0x412820 falls back to a shuffled order. */
+  #stepAside(unit: UnitState): void {
+    const direction = unit.displacement!;
+    delete unit.displacement;
+    if (unit.movementPlane === "air" || this.#resourceOwned(unit.id)) return;
+    const origin = this.#unitCell(unit);
+    if (unit.xSubcells !== cellCenter(origin.x) || unit.ySubcells !== cellCenter(origin.y)) return;
+    const terrain = (x: number, y: number) => this.grid.isPassable(x, y);
+    const occupants = (x: number, y: number) => [...this.#movementReservations.get(this.grid.index(x, y)) ?? []]
+      .filter(id => id !== unit.id);
+    const candidate = (tryIndex: number, allowOccupied: boolean): GridPoint | null => {
+      const code = SOURCE_RING_TO_DIRECTION[(SOURCE_DIRECTION_TO_RING[direction] + SOURCE_DISPLACEMENT_TRIES[tryIndex]) & 7];
+      const [dx, dy] = SOURCE_STEP_VECTORS[code];
+      if (dx !== 0 && dy !== 0 && !this.#diagonalGround) return null;
+      const x = origin.x + dx, y = origin.y + dy;
+      if (!terrain(x, y)) return null;
+      const others = occupants(x, y);
+      if (others.length && !(allowOccupied && others.every(id => this.#units.get(id)?.activity !== "die"))) return null;
+      // A diagonal step needs at least one passable corner cell.
+      if (dx !== 0 && dy !== 0 && !terrain(origin.x + dx, origin.y) && !terrain(origin.x, origin.y + dy)) return null;
+      return { x, y };
+    };
+    let destination: GridPoint | null = null;
+    for (let tryIndex = 0; tryIndex < SOURCE_DISPLACEMENT_TRIES.length && !destination; tryIndex++) {
+      destination = candidate(tryIndex, false);
+    }
+    if (!destination) {
+      const order = SOURCE_DISPLACEMENT_TRIES.map((_, index) => index);
+      for (let index = 0; index < order.length && !destination; index++) {
+        const swap = index + this.random.nextInt(order.length - index);
+        [order[index], order[swap]] = [order[swap], order[index]];
+        destination = candidate(order[index], true);
+      }
+    }
+    if (!destination) return;
+    this.#setPath(unit, [origin, destination]);
+    unit.activity = "move";
+  }
+
   #setPath(unit: UnitState, path: readonly GridPoint[]): void {
     unit.path = path;
     unit.reservedDestination = null;
@@ -2252,6 +2378,10 @@ export class DeterministicSimulation implements Simulation {
   }
 
   #advancePath(unit: UnitState): boolean {
+    if (unit.moveWait !== undefined) {
+      if (--unit.moveWait === 0) delete unit.moveWait;
+      return false;
+    }
     const grid = this.#navigationGrid(unit);
     const hadPath = unit.pathIndex < unit.path.length;
     let movement = unit.speedSubcellsPerTick;
@@ -2270,7 +2400,11 @@ export class DeterministicSimulation implements Simulation {
         if (replannedFrom === originIndex) return false;
         replannedFrom = originIndex;
         const goal = unit.path[unit.path.length - 1];
-        let path = this.#findMovementPath(grid, start, goal, blocked);
+        // DC.EXE (0x415458): a ground route stepping into an occupied cell first tries a bounded local reroute,
+        // and only then asks an allied occupant to step aside and waits. Terrain changes still replan the route.
+        const occupied = unit.movementPlane !== "air"
+          && swept.some(index => index !== originIndex && grid.costs[index] !== 0 && blocked.has(index));
+        let path = occupied ? this.#localReroute(unit, grid, start, blocked) : this.#findMovementPath(grid, start, goal, blocked);
         if (!path) {
           const oncoming = [...this.#units.values()].some((other) => {
             const next = other.path[other.pathIndex];
@@ -2290,6 +2424,17 @@ export class DeterministicSimulation implements Simulation {
               break;
             }
           }
+        }
+        if (!path && occupied) {
+          this.#requestDisplacement(unit, origin, target, swept, blocked);
+          // DC.EXE corrects an occupied endpoint instead of queueing on it forever: when the final cell is held by a
+          // unit that will not step aside or move on, the move ends here, which also lets this unit be displaced.
+          if (unit.pathIndex === unit.path.length - 1 && this.#endpointHeld(unit, targetIndex)) {
+            unit.path = unit.path.slice(0, unit.pathIndex);
+            break;
+          }
+          unit.moveWait = SOURCE_BLOCKED_WAIT_TICKS;
+          return false;
         }
         if (!path) return false;
         this.#setPath(unit, path);
@@ -2370,14 +2515,34 @@ export class DeterministicSimulation implements Simulation {
       unit.activity = "idle";
       return null;
     }
-    const distance = Math.abs(target.xSubcells - unit.xSubcells) + Math.abs(target.ySubcells - unit.ySubcells);
-    if (distance > unit.weapon.rangeCells * SUBCELLS_PER_CELL) {
-      this.#ensureAttackPath(unit, target, unit.weapon.rangeCells);
+    // A pursuing unit finishes its current leg before firing: DC.EXE moves centre to centre and re-evaluates range between legs.
+    const cell = this.#unitCell(unit), range = unit.weapon.rangeCells;
+    const midLeg = unit.pathIndex < unit.path.length && (unit.xSubcells !== cellCenter(cell.x) || unit.ySubcells !== cellCenter(cell.y));
+    if (midLeg) {
+      const legEnd = unit.path[unit.pathIndex];
+      if (this.#targetInWeaponRange(legEnd, target, range)) {
+        unit.path = [legEnd];
+        unit.pathIndex = 0;
+      } else this.#ensureAttackPath(unit, target, range);
+      this.#advancePath(unit);
+      return null;
+    }
+    if (!this.#targetInWeaponRange(cell, target, range)) {
+      this.#ensureAttackPath(unit, target, range);
       this.#advancePath(unit);
       return null;
     }
     this.#setPath(unit, []);
     return target;
+  }
+
+  #targetCells(target: UnitState | StaticTargetState): readonly GridPoint[] {
+    if (!("activity" in target) && target.footprint.length) return target.footprint.map(index => this.grid.point(index));
+    return [this.#unitCell(target)];
+  }
+
+  #targetInWeaponRange(cell: GridPoint, target: UnitState | StaticTargetState, range: number): boolean {
+    return this.#targetCells(target).some(point => withinSourceWeaponRange(cell.x - point.x, cell.y - point.y, range));
   }
 
   #fireWeapon(unit: UnitState | StaticTargetState, target: UnitState | StaticTargetState, pendingDamage: Map<number, number>): void {
@@ -2419,37 +2584,36 @@ export class DeterministicSimulation implements Simulation {
 
   #ensureAttackPath(unit: UnitState, target: UnitState | StaticTargetState, range: number): void {
     const grid = this.#navigationGrid(unit);
-    const targetX = Math.floor(target.xSubcells / SUBCELLS_PER_CELL);
-    const targetY = Math.floor(target.ySubcells / SUBCELLS_PER_CELL);
-    const inRange = (cell: GridPoint) =>
-      Math.abs(cellCenter(cell.x) - target.xSubcells) + Math.abs(cellCenter(cell.y) - target.ySubcells)
-      <= range * SUBCELLS_PER_CELL;
+    const targetCells = this.#targetCells(target);
+    const inRange = (cell: GridPoint) => targetCells.some(point => withinSourceWeaponRange(cell.x - point.x, cell.y - point.y, range));
+    // Idle allies step aside when a route reaches them, so only occupants that will not yield constrain the plan.
+    const blocked = this.#attackPlanBlocked(unit);
     const currentGoal = unit.path.at(-1);
-    const blocked = this.#movementBlocked(unit);
     const next = unit.path[unit.pathIndex];
     if (currentGoal && inRange(currentGoal) && unit.pathIndex < unit.path.length
       && grid.isPassable(currentGoal.x, currentGoal.y) && !blocked.has(grid.index(currentGoal.x, currentGoal.y))
       && next && grid.isPassable(next.x, next.y) && !blocked.has(grid.index(next.x, next.y))) return;
     const start = this.#unitCell(unit);
-    const candidates: GridPoint[] = [];
-    for (let cellY = Math.max(0, targetY - range); cellY <= Math.min(this.grid.height - 1, targetY + range); cellY += 1) {
-      for (let cellX = Math.max(0, targetX - range); cellX <= Math.min(this.grid.width - 1, targetX + range); cellX += 1) {
-        const cell = { x: cellX, y: cellY };
-        if (inRange(cell) && grid.isPassable(cellX, cellY)) candidates.push(cell);
+    const center = targetCells[0];
+    const path = findPathToAny(grid, start, index => {
+      const cell = this.grid.point(index);
+      return inRange(cell) && !blocked.has(index);
+    }, { blocked, diagonal: grid === this.#airGrid || this.#diagonalGround, hint: center, slack: 2 * (range + 1) });
+    this.#setPath(unit, path ?? []);
+  }
+
+  #attackPlanBlocked(unit: UnitState): { has(index: number): boolean } {
+    const reservations = unit.movementPlane === "air" ? this.#airMovementReservations : this.#movementReservations;
+    return { has: (index: number) => {
+      const owners = reservations.get(index);
+      if (!owners) return false;
+      for (const id of owners) {
+        if (id === unit.id) continue;
+        const other = this.#units.get(id);
+        if (!other || unit.movementPlane === "air" || !this.#yields(unit, other)) return true;
       }
-    }
-    candidates.sort((left, right) =>
-      Math.abs(left.x - start.x) + Math.abs(left.y - start.y)
-      - Math.abs(right.x - start.x) - Math.abs(right.y - start.y)
-      || this.grid.index(left.x, left.y) - this.grid.index(right.x, right.y),
-    );
-    for (const goal of candidates) {
-      const path = this.#findMovementPath(grid, start, goal, blocked);
-      if (!path) continue;
-      this.#setPath(unit, path);
-      return;
-    }
-    this.#setPath(unit, []);
+      return false;
+    } };
   }
 
   #advanceHarvest(unit: UnitState): void {
@@ -2513,6 +2677,7 @@ export class DeterministicSimulation implements Simulation {
     unit.path = [];
     unit.pathIndex = 0;
     unit.reservedDestination = null;
+    delete unit.moveWait;
     unit.attackTargetId = null;
     unit.resourceTargetId = null;
     unit.dropoff = null;

@@ -135,6 +135,75 @@ export function findPath(
   return null;
 }
 
+export interface AnyGoalOptions extends PathfindingOptions {
+  /** Guides the search toward the goal region; `slack` keeps the estimate below the true remaining cost. */
+  readonly hint?: GridPoint;
+  readonly slack?: number;
+}
+
+/** Cheapest path from start to the first cell accepted by `isGoal`, with the same move rules and tie-breaking as findPath. */
+export function findPathToAny(
+  grid: NavigationGrid,
+  start: GridPoint,
+  isGoal: (index: number) => boolean,
+  options: AnyGoalOptions = {},
+): readonly GridPoint[] | null {
+  if (!grid.isPassable(start.x, start.y)) return null;
+  const startIndex = grid.index(start.x, start.y);
+  const maximumVisited = options.maximumVisited ?? grid.costs.length;
+  const area = grid.costs.length, width = grid.width, height = grid.height, gridCosts = grid.costs;
+  const scratch = acquireScratch(area);
+  const generation = scratch.generation, costs = scratch.costs, stamp = scratch.stamp, previous = scratch.previous;
+  const closedStamp = scratch.closed;
+  const blocked = options.blocked, diagonalMoves = options.diagonal === true;
+  const hint = options.hint, slack = options.slack ?? 0;
+  const heuristic = (index: number) => {
+    if (!hint) return 0;
+    const dx = Math.abs(index % width - hint.x), dy = Math.abs(Math.floor(index / width) - hint.y);
+    return Math.max(0, dx + dy + (diagonalMoves ? (Math.SQRT2 - 2) * Math.min(dx, dy) : 0) - slack);
+  };
+  const open = new MinHeap();
+  stamp[startIndex] = generation;
+  costs[startIndex] = 0;
+  previous[startIndex] = -1;
+  open.push({ index: startIndex, cost: 0, heuristic: heuristic(startIndex) });
+  let visited = 0;
+  const offsets = diagonalMoves ? NEIGHBOR_OFFSETS : NEIGHBOR_OFFSETS.slice(0, 4);
+  while (open.size > 0 && visited < maximumVisited) {
+    const current = open.pop()!;
+    const currentIndex = current.index;
+    if (closedStamp[currentIndex] === generation || current.cost !== costs[currentIndex]) continue;
+    closedStamp[currentIndex] = generation;
+    visited += 1;
+    if (isGoal(currentIndex)) {
+      const indices: number[] = [];
+      for (let index = currentIndex; index >= 0; index = previous[index]) indices.push(index);
+      indices.reverse();
+      return indices.map((index) => grid.point(index));
+    }
+    const fromX = currentIndex % width, fromY = (currentIndex - fromX) / width;
+    for (let step = 0; step < offsets.length; step++) {
+      const dx = offsets[step][0], dy = offsets[step][1];
+      const toX = fromX + dx, toY = fromY + dy;
+      if (toX < 0 || toY < 0 || toX >= width || toY >= height) continue;
+      const neighbor = toY * width + toX;
+      const neighborCost = gridCosts[neighbor];
+      if (neighborCost === 0) continue;
+      const diagonal = dx !== 0 && dy !== 0;
+      if (diagonal && (gridCosts[fromY * width + toX] === 0 || gridCosts[toY * width + fromX] === 0)) continue;
+      if (closedStamp[neighbor] === generation || blocked?.has(neighbor)) continue;
+      if (diagonal && (blocked?.has(fromY * width + toX) || blocked?.has(toY * width + fromX))) continue;
+      const nextCost = current.cost + neighborCost * (diagonal ? Math.SQRT2 : 1);
+      if (stamp[neighbor] === generation && nextCost >= costs[neighbor]) continue;
+      stamp[neighbor] = generation;
+      costs[neighbor] = nextCost;
+      previous[neighbor] = currentIndex;
+      open.push({ index: neighbor, cost: nextCost, heuristic: heuristic(neighbor) });
+    }
+  }
+  return null;
+}
+
 const NEIGHBOR_OFFSETS: readonly (readonly [number, number])[] = [[0, -1], [1, 0], [0, 1], [-1, 0], [1, -1], [1, 1], [-1, 1], [-1, -1]];
 
 // Generation-stamped scratch buffers avoid reallocating and refilling map-sized arrays per search.

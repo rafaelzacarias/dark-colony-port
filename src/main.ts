@@ -472,6 +472,7 @@ let gameSessionMode: GameSessionMode | null = null;
 let campaignFaction: Faction | null = null;
 let campaignMissionNumber = 1;
 let campaignRuntimeProfile: "browser-adapted" | undefined;
+const MISSION_DRAG_THRESHOLD = 6;
 let missionDragStart: { readonly x: number; readonly y: number; readonly pointerId: number } | null = null;
 let missionDragMoved = false;
 let missionPointer: { x: number; y: number } | null = null;
@@ -1659,7 +1660,7 @@ missionCanvas.addEventListener("pointermove", (event) => {
   if (!missionDragStart || event.pointerId !== missionDragStart.pointerId) return;
   const deltaX = event.clientX - missionDragStart.x;
   const deltaY = event.clientY - missionDragStart.y;
-  if (!missionDragMoved && Math.hypot(deltaX, deltaY) < 6) return;
+  if (!missionDragMoved && Math.hypot(deltaX, deltaY) < MISSION_DRAG_THRESHOLD) return;
   missionDragMoved = true;
   updateMissionCursor();
   const stageBounds = previewStage.getBoundingClientRect();
@@ -1678,7 +1679,10 @@ missionCanvas.addEventListener("pointerup", (event) => {
   }
   if (skirmish instanceof MissionView) {
     requestUnitMenu();
-    if (missionDragMoved) {
+    // A fast flick can reach pointerup without a dispatched pointermove, so judge the gesture by its endpoints too.
+    const dragged = missionDragMoved
+      || Math.hypot(event.clientX - missionDragStart.x, event.clientY - missionDragStart.y) >= MISSION_DRAG_THRESHOLD;
+    if (dragged) {
       skirmish.selectUnitsInClientRect(
         missionDragStart.x,
         missionDragStart.y,

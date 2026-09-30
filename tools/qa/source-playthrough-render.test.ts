@@ -16,7 +16,7 @@ for (const intent of ["win", "loss"] as const) test(`AL01 public ${intent}: full
     try {
       execution = spawnSync(process.execPath, ["--import", join(root, "node_modules/tsx/dist/loader.mjs"),
         join(root, "tools/qa/source-playthrough.ts"), `--case=alien-${intent}`, "--render", "--render-every=25",
-        "--restore-at=1000", `--limit=${intent === "win" ? 7500 : 2700}`, "--no-repeat"],
+        "--restore-at=1000", `--limit=${intent === "win" ? 7500 : 6000}`, "--no-repeat"],
       { cwd: root, stdio: ["ignore", output, output], timeout: 300000 });
     } finally { closeSync(output); }
     assert.equal(execution.error, undefined, `${log}: ${execution.error?.message}`);
@@ -35,7 +35,7 @@ for (const intent of ["win", "loss"] as const) test(`AL01 public ${intent}: full
   const result = record("result");
   assert.equal(result.success, true);
   assert.equal(result.diagnostic, null);
-  assert.ok(result.tick > 1000 && result.tick <= (intent === "win" ? 7500 : 2700));
+  assert.ok(result.tick > 1000 && result.tick <= (intent === "win" ? 7500 : 6000));
   assert.ok(result.shots > 0 && result.deaths > 0);
   assert.deepEqual(result.outcome, { resultCode: intent === "win" ? 0 : 1,
     reasonCode: intent === "win" ? 1 : 2, ready: true });

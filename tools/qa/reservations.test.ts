@@ -33,11 +33,14 @@ test("destination reservation fires once per claimed path segment, not every par
 test("blocked and stopped units do not emit successful reservations", () => {
   const simulation = new DeterministicSimulation(new NavigationGrid(3, 1));
   const unitId = simulation.addUnit({ faction: "human", cell: { x: 0, y: 0 } });
-  simulation.addUnit({ faction: "human", cell: { x: 1, y: 0 } });
+  const blocker = simulation.addUnit({ faction: "human", cell: { x: 1, y: 0 } });
   simulation.queue({ type: "move", unitIds: [unitId], target: { x: 2, y: 0 } });
   simulation.advance();
+  const own = () => simulation.reservationEvents.filter(event => event.unitId === unitId);
   assert.deepEqual(simulation.reservationEvents, []);
   simulation.queue({ type: "stop", unitIds: [unitId] });
   simulation.advance();
-  assert.deepEqual(simulation.reservationEvents, []);
+  assert.deepEqual(own(), []);
+  // The idle ally has no side cells in this corridor, so DC.EXE's last displacement try steps it straight ahead.
+  assert.deepEqual(simulation.reservationEvents, [{ unitId: blocker, tileX: 2, tileY: 0 }]);
 });

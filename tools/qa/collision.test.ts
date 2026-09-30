@@ -140,9 +140,10 @@ test("group moves assign distinct stable destinations regardless of selection or
   const trace = run(false);
   assert.deepEqual(run(true), trace);
   const snapshot = trace[trace.length - 1];
+  // A member marked by an allied mover en route (DC.EXE +0x35) steps aside once after reaching its slot.
   assert.deepEqual(snapshot.units.map(({ cellX, cellY }) => [cellX, cellY]), [
-    [6, 2],
     [6, 1],
+    [7, 2],
     [5, 2],
   ]);
   assert.ok(snapshot.units.every((unit) => unit.activity === "idle"));
@@ -185,16 +186,18 @@ test("units detour around occupied cells and blocked terrain at fractional speed
   assert.deepEqual([unit.cellX, unit.cellY, unit.activity], [6, 2, "idle"]);
 });
 
-test("an occupied destination waits until its live occupant leaves", () => {
+test("an endpoint held by a parked unit ends the move beside it instead of queueing", () => {
   const simulation = new DeterministicSimulation(new NavigationGrid(5, 1));
   const mover = simulation.addUnit({ faction: "human", cell: { x: 0, y: 0 }, speedSubcellsPerTick: 1024 });
   const occupant = simulation.addUnit({ faction: "alien", cell: { x: 2, y: 0 }, speedSubcellsPerTick: 1024 });
   simulation.queue({ type: "move", unitIds: [mover], target: { x: 2, y: 0 } });
   advanceSeparated(simulation, 8);
   assert.deepEqual(simulation.snapshot.units.map(({ cellX }) => cellX), [1, 2]);
+  // DC.EXE corrects an endpoint held by a parked unit instead of queueing on it, so the mover has already stopped.
+  assert.equal(simulation.snapshot.units[0].activity, "idle");
   simulation.queue({ type: "move", unitIds: [occupant], target: { x: 4, y: 0 } });
   advanceSeparated(simulation, 8);
-  assert.deepEqual(simulation.snapshot.units.map(({ cellX, activity }) => [cellX, activity]), [[2, "idle"], [4, "idle"]]);
+  assert.deepEqual(simulation.snapshot.units.map(({ cellX, activity }) => [cellX, activity]), [[1, "idle"], [4, "idle"]]);
 });
 
 test("fast crossing paths reserve swept cells for the entire tick", () => {
@@ -204,6 +207,9 @@ test("fast crossing paths reserve swept cells for the entire tick", () => {
   simulation.queue({ type: "move", unitIds: [horizontal], target: { x: 4, y: 2 } });
   simulation.queue({ type: "move", unitIds: [vertical], target: { x: 2, y: 4 } });
   advanceSeparated(simulation, 1);
+  assert.deepEqual(simulation.snapshot.units.map(({ cellX, cellY }) => [cellX, cellY]), [[4, 2], [2, 1]]);
+  // The blocked mover sits out DC.EXE's wait task (count 4, then a pop update) before resuming its route.
+  advanceSeparated(simulation, 5);
   assert.deepEqual(simulation.snapshot.units.map(({ cellX, cellY }) => [cellX, cellY]), [[4, 2], [2, 1]]);
   advanceSeparated(simulation, 1);
   assert.deepEqual(simulation.snapshot.units.map(({ cellX, cellY }) => [cellX, cellY]), [[4, 2], [2, 4]]);
@@ -298,9 +304,12 @@ test("death releases occupancy on the following tick and clears movement orders"
   assert.equal(dead.targetId, null);
   simulation.queue({ type: "move", unitIds: [victim], target: { x: 3, y: 0 } });
   simulation.queue({ type: "stop", unitIds: [victim] });
+  // The mover was blocked by the oncoming victim, so it finishes DC.EXE's wait task before using the released cell.
   advanceSeparated(simulation, 1);
-  assert.equal(simulation.snapshot.units[0].cellX, 2);
+  assert.equal(simulation.snapshot.units[0].cellX, 1);
   advanceSeparated(simulation, 5);
+  assert.equal(simulation.snapshot.units[0].cellX, 2);
+  advanceSeparated(simulation, 2);
   assert.equal(simulation.snapshot.units[0].cellX, 4);
   assert.deepEqual(simulation.snapshot.units[1], dead);
 });
