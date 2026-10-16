@@ -278,12 +278,14 @@ export function computeBrowserCampaignAi(configuration: BrowserCampaignAiConfigu
     const strategyWeights = selector === 3 ? observation.adaptedTroProjection?.state.aiGroupWeights[team.team] : undefined;
     const maximumWeight = Math.max(1, ...Object.values(strategyWeights ?? {}));
     const enemies = actors.filter(actor => actor.team >= 0 && actor.team < 8 && actor.team !== team.team
+      && actor.unitType !== 45 && actor.unitType !== 46 && !("mine" in actor.current && actor.current.mine !== undefined)
       && alliances[actor.team] === 0 && (visible ? visible.has(actor.id) : observers.some(observer => {
       const range = observation.snapshot.timeOfDay === "day" ? observer.profile?.observationDay : observer.profile?.observationNight;
       return range !== undefined && distance(observer.position, actor.position) <= range * range
         && clearSight(source.grid, observer.position, actor.position);
     })));
-      const occupied = new Set([...owned, ...enemies].filter(actor => mobileById.get(actor.id)?.movementPlane !== "air")
+      const occupied = new Set([...owned, ...enemies].filter(actor => mobileById.get(actor.id)?.movementPlane !== "air"
+        && actor.unitType !== 45 && actor.unitType !== 46 && !("mine" in actor.current && actor.current.mine !== undefined))
         .map(actor => source.grid.index(actor.position.x, actor.position.y)));
       const airOccupied = new Set([...owned, ...enemies].filter(actor => mobileById.get(actor.id)?.movementPlane === "air")
         .map(actor => source.grid.index(actor.position.x, actor.position.y)));

@@ -206,3 +206,76 @@ test("explicit static-target pursuit survives acquisition updates outside vision
   }
   assert.equal(simulation.snapshot.staticTargets[0].health, 0);
 });
+
+test("guards ignore burrowed mines and drop target lock when a mobile mine burrows, allowing trigger detonation", () => {
+  const mineSource = { runtimeProfile: "browser-adapted", weapons: [
+    { id: 38, rawPrefix: 6, damage: 1300, range: 1, shots: 2, rateOfFire: 150 },
+  ], damageMatrix: Array.from({ length: 9 }, () => Array(10).fill(256)) };
+  const mineStat = { index: 45, sprite: "HMINE", faction: 0, movementSpeed: 0, observationDay: 1, observationNight: 1,
+    weapons: [38, 38, 38] as const, health: 100 };
+  const simulation = new DeterministicSimulation(new NavigationGrid(12, 5));
+  const orders = new GuardAttackOrders();
+  const guard = simulation.addUnit({ faction: "alien", team: 1, cell: { x: 1, y: 2 }, maxHealth: 2000,
+    speedSubcellsPerTick: 1024, weapon: { damage: 50, rangeCells: 4, cooldownTicks: 2,
+      sourceDamage: { coefficients: VERIFIED_NATIVE_ORDINARY_COEFFICIENTS, callerFactor: 256, specialFlag: false } } });
+  const mobileMine = simulation.addUnit({ faction: "human", team: 0, cell: { x: 4, y: 2 }, maxHealth: 100,
+    sourceDefense: { targetClass: 0, armorFactor: 256, sourceTypeIndex: 45 } });
+
+  const stepGuards = () => {
+    const observers = orders.observers(simulation.snapshot, [{ id: guard, dayRangeCells: 8, nightRangeCells: 8,
+      weaponRangeCells: 4, targetCanDamage: targetId => simulation.canAutoTarget(guard, targetId) }]);
+    const commands = guardCommands(simulation.snapshot, observers);
+    orders.record(commands);
+    commands.forEach(command => simulation.queue(command));
+    return commands;
+  };
+
+  // While mobile, the guard acquires and attacks the mine unit within weapon range.
+  assert.deepEqual(stepGuards(), [{ type: "attack", unitIds: [guard], targetId: mobileMine }]);
+  simulation.advance();
+  assert.equal(simulation.snapshot.units.find(u => u.id === guard)!.targetId, mobileMine);
+  assert.equal(simulation.snapshot.units.find(u => u.id === guard)!.activity, "attack");
+
+  // Burrowing into a static mine immediately clears the guard's lock and prevents re-acquisition.
+  const mine = {
+    runtimeProfile: "browser-adapted" as const, sourceTypeIndex: 45 as const, weaponId: 38 as const, boomId: 2 as const,
+    initiallyArmed: true as const, triggerRange: 1, splashRange: 3, radiusPolicy: "boom2-7x7-cell-grid" as const,
+    relations: "hostile-ground-mobiles-only" as const, falloff: "boom2-percent-weights" as const,
+    weapon: { damage: 1300, rangeCells: 1, cooldownTicks: 150,
+      sourceDamage: { coefficients: mineSource.damageMatrix[6], callerFactor: 256, specialFlag: false } },
+  };
+  assert.equal(mineStat.index, mine.sourceTypeIndex);
+  assert.equal(simulation.deployUnitToStaticTarget(mobileMine, { maxHealth: 100,
+    sourceDefense: { targetClass: 0, armorFactor: 256, sourceTypeIndex: 45 }, mine }), true);
+  assert.equal(simulation.snapshot.units.find(u => u.id === guard)!.targetId, null);
+  assert.equal(simulation.snapshot.units.find(u => u.id === guard)!.activity, "idle");
+  assert.deepEqual(stepGuards(), []);
+  simulation.advance();
+  assert.equal(simulation.combatEvents.length, 0);
+
+  // Even if a snapshot has a guard in "attack" mode targeting a burrowed mine, guardCommands issues "stop".
+  const staleAttackSnapshot = {
+    ...simulation.snapshot,
+    units: simulation.snapshot.units.map(u => u.id === guard ? { ...u, activity: "attack" as const, targetId: mobileMine } : u),
+  };
+  assert.deepEqual(guardCommands(staleAttackSnapshot, [{ id: guard, dayRangeCells: 8, nightRangeCells: 8 }]),
+    [{ type: "stop", unitIds: [guard] }]);
+
+  // When the guard moves toward the burrowed mine, guard AI does not stop it at weapon range; it walks into trigger range and detonates the mine.
+  simulation.queue({ type: "move", unitIds: [guard], target: { x: 4, y: 2 } });
+  let detonated = false;
+  for (let tick = 0; tick < 5; tick++) {
+    assert.deepEqual(stepGuards(), []);
+    simulation.advance();
+    if (simulation.combatEvents.some(event => event.attackerId === mobileMine)) {
+      detonated = true;
+      assert.deepEqual(simulation.combatEvents.map(event => [event.attackerId, event.targetId, event.damage]),
+        [[mobileMine, guard, 1170]]);
+      assert.equal(simulation.impactEvents.length, 1);
+      assert.equal(simulation.impactEvents[0].attackerId, mobileMine);
+      assert.equal(simulation.impactEvents[0].weaponId, 38);
+      break;
+    }
+  }
+  assert.equal(detonated, true);
+});

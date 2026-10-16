@@ -88,7 +88,12 @@ import {
   type LegacyWeaponStat,
 } from "../../src/engine/legacy-balance";
 import { DeterministicSimulation } from "../../src/engine/simulation";
-import { createBrowserCampaignAiConfiguration } from "../../src/engine/browser-campaign-ai";
+import {
+  computeBrowserCampaignAi,
+  createBrowserCampaignAiConfiguration,
+  initializeBrowserCampaignAi,
+} from "../../src/engine/browser-campaign-ai";
+import { guardCommands } from "../../src/engine/guard-ai";
 import { createBrowserCampaignEconomyProfile } from "../../src/engine/browser-campaign-economy-source";
 import { initializeCampaignSession } from "../../src/engine/campaign-session";
 import { createLegacyInfantryFamilyMask } from "../../src/engine/legacy-navigation";
@@ -888,6 +893,7 @@ test("MissionView integration: deploySelected() converts 1->41 (T), 9->42 (XDEPL
         assert.ok(staticMine);
         assert.equal(staticMine.mine?.sourceTypeIndex, deployedMine);
         assert.equal(staticMine.mine?.weaponId, 38);
+        assert.equal(staticMine.mine?.chargesRemaining, 3);
         assert.equal(staticMine.mine?.weapon.damage, 1300);
         assert.equal(staticMine.footprint.length, 0);
 
@@ -929,3 +935,327 @@ test("MissionView integration: deploySelected() converts 1->41 (T), 9->42 (XDEPL
     globalThis.fetch = previousFetch;
   }
 });
+
+test("Burrowed mines (45/46) are ignored by guardCommands and browser-campaign-ai, allow enemies to walk onto their cell, and detonate on proximity", async () => {
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => new Response(readFileSync(new URL(String(input).slice(1), publicRoot)));
+  try {
+    const original = await loadCampaignMission("human", 3, "browser-adapted");
+    const parsed = parseScenario(atob(original.scenario.rawScenario!));
+    const maskGrid = new NavigationGrid(
+      original.map.width,
+      original.map.height,
+      Uint16Array.from(createLegacyInfantryFamilyMask({ ...original.map, pathGrid: original.pathGrid })),
+    );
+    const hostileTeam = parsed.teams[0].allies.findIndex((ally, idx) => idx > 0 && ally === 0);
+    assert.ok(hostileTeam > 0);
+
+    // Find a player unit placement row that has a clear passable corridor of 2 cells for an enemy ground unit
+    const candidateDirs = [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const;
+    let mineRowIndex = -1;
+    let enemySpawnCell = { x: 0, y: 0 };
+    let triggerCell = { x: 0, y: 0 };
+    for (let i = 0; i < original.scenario.placementRows.length; i += 1) {
+      const row = original.scenario.placementRows[i];
+      if (row[3] !== 0 || ![0, 2].includes(row[2])) continue;
+      const mx = row[0];
+      const my = row[1];
+      const occupiedCells = new Set(original.scenario.placementRows.map((r) => `${r[0]},${r[1]}`));
+      const dir = candidateDirs.find(
+        ([dx, dy]) =>
+          maskGrid.isPassable(mx + dx, my + dy) &&
+          maskGrid.isPassable(mx + dx * 2, my + dy * 2) &&
+          !occupiedCells.has(`${mx + dx},${my + dy}`) &&
+          !occupiedCells.has(`${mx + dx * 2},${my + dy * 2}`),
+      );
+      if (dir) {
+        mineRowIndex = i;
+        triggerCell = { x: mx + dir[0], y: my + dir[1] };
+        enemySpawnCell = { x: mx + dir[0] * 2, y: my + dir[1] * 2 };
+        break;
+      }
+    }
+    assert.ok(mineRowIndex >= 0, "Expected player placement row with a 2-cell passable corridor");
+    const mineCell = {
+      x: original.scenario.placementRows[mineRowIndex][0],
+      y: original.scenario.placementRows[mineRowIndex][1],
+    };
+
+    // Reposition one hostile ground unit 2 cells away from the mine (within its weapon/sight range, outside 1-cell mine trigger range)
+    // and two reserve hostile ground units >= 4 cells away (outside the 3-cell BOOM2 blast radius) to test all 3 charges (3 -> 2 -> 1 -> 0).
+    const reserveSpawns: { spawn: { x: number; y: number }; trigger: { x: number; y: number } }[] = [];
+    const occupiedSet = new Set(original.scenario.placementRows.map((r) => `${r[0]},${r[1]}`));
+    occupiedSet.add(`${enemySpawnCell.x},${enemySpawnCell.y}`);
+    for (const [dx, dy] of candidateDirs) {
+      for (const dist of [4, 5]) {
+        if (reserveSpawns.length >= 2) break;
+        const cx = mineCell.x + dx * dist;
+        const cy = mineCell.y + dy * dist;
+        const tx = mineCell.x + dx;
+        const ty = mineCell.y + dy;
+        if (!maskGrid.contains(cx, cy) || !maskGrid.isPassable(cx, cy) || occupiedSet.has(`${cx},${cy}`)) continue;
+        if (!maskGrid.isPassable(tx, ty) || occupiedSet.has(`${tx},${ty}`)) continue;
+        let clearCorridor = true;
+        for (let step = 1; step <= dist; step += 1) {
+          if (!maskGrid.isPassable(mineCell.x + dx * step, mineCell.y + dy * step)) {
+            clearCorridor = false;
+            break;
+          }
+        }
+        if (clearCorridor) {
+          reserveSpawns.push({ spawn: { x: cx, y: cy }, trigger: { x: tx, y: ty } });
+          occupiedSet.add(`${cx},${cy}`);
+        }
+      }
+    }
+    assert.equal(reserveSpawns.length, 2, "Expected 2 passable reserve cells outside 3-cell BOOM2 splash range");
+
+    const enemyRowIndices: number[] = [];
+    const spawnTargets = [enemySpawnCell, reserveSpawns[0].spawn, reserveSpawns[1].spawn];
+    const triggerTargets = [triggerCell, reserveSpawns[0].trigger, reserveSpawns[1].trigger];
+    const placementRows = original.scenario.placementRows.map((row, idx) => {
+      if (idx === mineRowIndex) {
+        return row.map((value, col) => (col === 2 ? 43 : value));
+      }
+      // Move other player combat units away from the mine/enemy test area so they don't shoot the enemy unit first
+      if (row[3] === 0 && idx !== mineRowIndex && Math.abs(row[0] - mineCell.x) + Math.abs(row[1] - mineCell.y) <= 12) {
+        return [row[0], row[1], 43, row[3], ...row.slice(4)];
+      }
+      if (enemyRowIndices.length < 3 && row[3] === hostileTeam && [0, 8].includes(row[2])) {
+        const spawn = spawnTargets[enemyRowIndices.length];
+        enemyRowIndices.push(idx);
+        return [spawn.x, spawn.y, 8, hostileTeam, ...row.slice(4)];
+      }
+      return row;
+    });
+    assert.equal(enemyRowIndices.length, 3, "Expected 3 hostile ground combat units in scenario");
+
+    const scenario = { ...original.scenario, ...parsed, placementRows };
+    const fixture = { ...original, scenario, browserEconomy: undefined, browserResearch: undefined };
+    const initial = initializeCampaignSession(sourceBrowserCampaignSessionOptions(fixture));
+    assert.ok(initial.ok, JSON.stringify(initial));
+    const browserEconomy = await createBrowserCampaignEconomyProfile({
+      scope: "browser-adapted-economy-v1",
+      world: initial.value.world,
+      teams: scenario.teams,
+      units: original.units,
+    });
+    const browserAi = await createBrowserCampaignAiConfiguration({
+      scenario,
+      units: original.units,
+      weapons: original.weapons,
+      dependencies: [],
+      pathGrid: maskGrid,
+    });
+
+    const mission = { ...fixture, browserAi, browserEconomy };
+    const view = new MissionView(testCanvas(), {} as HTMLElement, testCallbacks, mission);
+    try {
+      const mineBinding = view.nativeBindings.find((b) => b.sourceRow === mineRowIndex)!;
+      const enemyBindings = enemyRowIndices.map((rowIdx) => view.nativeBindings.find((b) => b.sourceRow === rowIdx)!);
+      const enemyBinding = enemyBindings[0];
+      assert.ok(mineBinding && enemyBindings.every(Boolean));
+      const mineUnitId = mineBinding.simulationId;
+      const enemyIds = enemyBindings.map((b) => b.simulationId);
+      const enemyId = enemyIds[0];
+
+      view.replaceSelection([mineUnitId]);
+      assert.deepEqual(view.deploymentSelection, { canDeploy: true, canUndeploy: false });
+      assert.equal(view.deploymentSelection.label, "Deploy Sentinel");
+      assert.deepEqual(view.deploySelected(), [mineUnitId]);
+
+      const staticMine = view.simulation.snapshot.staticTargets.find((t) => t.id === mineUnitId)!;
+      assert.ok(staticMine?.mine);
+      assert.equal(staticMine.mine.chargesRemaining, 3);
+      assert.equal(staticMine.health, 800);
+      assert.equal(view.simulation.grid.isPassable(staticMine.cellX, staticMine.cellY), true);
+      assert.equal(
+        view.checkpoint().state.staticObjects.some((obj) => obj.id === mineUnitId && obj.type === 45),
+        true,
+        "Burrowed mine must be registered in #staticObjects before detonation",
+      );
+
+      // 1. Advance several full MissionView ticks via view.advance(50) while enemy is 2 cells away (within weapon range 4, outside trigger range 1).
+      // Verify neither guardCommands nor browser-campaign-ai orders the enemy to target or shoot the burrowed mine.
+      for (let tick = 0; tick < 5; tick += 1) {
+        view.advance(50);
+        view.render();
+        assert.equal(view.missionDiagnostic, undefined);
+        const enemyUnit = view.simulation.snapshot.units.find((u) => u.id === enemyId)!;
+        assert.notEqual(enemyUnit.targetId, mineUnitId, "Enemy must never target the burrowed mine during view.advance(50)");
+        assert.equal(
+          view.simulation.combatEvents.some((ev) => ev.targetId === mineUnitId),
+          false,
+          "Enemy must never shoot at the burrowed mine during view.advance(50)",
+        );
+      }
+
+      // Also verify guardCommands and computeBrowserCampaignAi directly
+      const enemyStat = original.units.find((u) => u.index === 8)!;
+      const filteredSnapshot = {
+        ...view.simulation.snapshot,
+        staticTargets: view.simulation.snapshot.staticTargets.filter((t) => t.mine === undefined),
+      };
+      const gCommands = guardCommands(filteredSnapshot, [
+        {
+          id: enemyId,
+          dayRangeCells: enemyStat.observationDay,
+          nightRangeCells: enemyStat.observationNight,
+          weaponRangeCells: 4,
+          mobile: true,
+          grid: { width: view.grid.width, height: view.grid.height },
+          targetCanDamage: (targetId) => view.simulation.canAutoTarget(enemyId, targetId),
+        },
+      ]);
+      assert.equal(
+        gCommands.some((cmd) => cmd.type === "attack" && cmd.targetId === mineUnitId),
+        false,
+        "guardCommands must never auto-target a burrowed mine",
+      );
+
+      const aiState = initializeBrowserCampaignAi(browserAi);
+      const selectors = [0, 0, 0, 0, 0, 0, 0, 0];
+      selectors[hostileTeam] = 3;
+      const aiPlan = computeBrowserCampaignAi(browserAi, aiState, {
+        snapshot: view.simulation.snapshot,
+        selectors,
+        actors: [
+          {
+            key: mineBinding.key,
+            rawSlot: mineBinding.slot,
+            generation: mineBinding.generation,
+            team: 0,
+            unitType: 45,
+            health: staticMine.health,
+            simulationId: mineUnitId,
+          },
+          {
+            key: enemyBinding.key,
+            rawSlot: enemyBinding.slot,
+            generation: enemyBinding.generation,
+            team: hostileTeam,
+            unitType: 8,
+            health: enemyStat.health,
+            simulationId: enemyId,
+          },
+        ],
+        visibleIdsByTeam: { [hostileTeam]: [mineUnitId, enemyId] },
+      });
+      assert.equal(
+        aiPlan.commands.some((order) => order.command.type === "attack" && order.command.targetId === mineUnitId),
+        false,
+        "browser-campaign-ai must never target burrowed mine (45/46)",
+      );
+
+      // 2. Walk the 3 enemy ground units in sequence into the burrowed mine's trigger range across its 3 charges (3 -> 2 -> 1 -> 0).
+      const expectedAfterCharge = [
+        { chargesRemaining: 2, health: 500, destroyed: false },
+        { chargesRemaining: 1, health: 200, destroyed: false },
+        { chargesRemaining: 0, health: 0, destroyed: true },
+      ] as const;
+
+      for (let chargeIdx = 0; chargeIdx < 3; chargeIdx += 1) {
+        const runnerId = enemyIds[chargeIdx];
+        const target = triggerTargets[chargeIdx];
+        const expected = expectedAfterCharge[chargeIdx];
+        const runnerBeforeWalk = view.simulation.snapshot.units.find((u) => u.id === runnerId)!;
+        assert.ok(runnerBeforeWalk && runnerBeforeWalk.health > 0, `Expected runner for charge ${chargeIdx + 1} to be alive`);
+        view.simulation.queue({
+          type: "move",
+          unitIds: [runnerId],
+          target,
+        });
+        let detonated = false;
+        for (let step = 0; step < 220; step += 1) {
+          const currentRunner = view.simulation.snapshot.units.find((u) => u.id === runnerId);
+          if (currentRunner && currentRunner.activity !== "move") {
+            view.simulation.queue({
+              type: "move",
+              unitIds: [runnerId],
+              target,
+            });
+          }
+          view.advance(50);
+          view.render();
+          assert.equal(view.missionDiagnostic, undefined);
+          const mineShots = view.simulation.combatEvents.filter((ev) => ev.attackerId === mineUnitId);
+          if (mineShots.length > 0) {
+            detonated = true;
+            assert.equal(
+              mineShots.some((ev) => ev.targetId === runnerId && ev.damage > 0),
+              true,
+              `Charge ${chargeIdx + 1} detonation must deal BOOM2 splash damage to triggering enemy`,
+            );
+            const currentRunnerAfter = view.simulation.snapshot.units.find((u) => u.id === runnerId);
+            assert.equal(
+              !currentRunnerAfter || currentRunnerAfter.health < runnerBeforeWalk.health,
+              true,
+              `Enemy health must be reduced by mine charge ${chargeIdx + 1}`,
+            );
+            const mineNow = view.simulation.snapshot.staticTargets.find((t) => t.id === mineUnitId)!;
+            assert.equal(mineNow.mine?.chargesRemaining, expected.chargesRemaining);
+            assert.equal(mineNow.health, expected.health);
+            if (!expected.destroyed) {
+              assert.equal(mineNow.mine?.cooldownRemaining, 150);
+              assert.equal(
+                view.simulation.deathEvents.some((ev) => ev.targetId === mineUnitId),
+                false,
+                `Mine must survive charge ${chargeIdx + 1}`,
+              );
+              assert.equal(
+                view.checkpoint().state.staticObjects.some((obj) => obj.id === mineUnitId),
+                true,
+                `Surviving mine must remain in #staticObjects after charge ${chargeIdx + 1}`,
+              );
+            } else {
+              assert.equal(
+                view.simulation.deathEvents.some((ev) => ev.targetId === mineUnitId),
+                true,
+                "Mine must record a deathEvent on the 3rd charge detonation",
+              );
+              assert.equal(
+                view.checkpoint().state.staticObjects.some((obj) => obj.id === mineUnitId),
+                false,
+                "Detonated mine must be removed from #staticObjects after 3rd charge",
+              );
+              // Advance one more tick via view.advance(50) to verify session combat-death commit and checkpoint restore
+              view.advance(50);
+              view.render();
+              assert.equal(view.missionDiagnostic, undefined);
+              const postDetonationCheckpoint = view.checkpoint();
+              assert.equal(
+                postDetonationCheckpoint.state.staticObjects.some((obj) => obj.id === mineUnitId),
+                false,
+                "Detonated mine must remain absent from #staticObjects on subsequent ticks",
+              );
+              const restoredAfterDetonation = MissionView.restore(
+                testCanvas(),
+                {} as HTMLElement,
+                testCallbacks,
+                mission,
+                JSON.parse(JSON.stringify(postDetonationCheckpoint)),
+              );
+              try {
+                assert.deepEqual(restoredAfterDetonation.checkpoint(), postDetonationCheckpoint);
+              } finally {
+                restoredAfterDetonation.dispose();
+              }
+            }
+            break;
+          }
+        }
+        assert.equal(detonated, true, `Expected mine charge ${chargeIdx + 1} to detonate`);
+      }
+    } finally {
+      view.dispose();
+    }
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+

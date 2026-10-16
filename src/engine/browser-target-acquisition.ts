@@ -43,7 +43,7 @@ export class AcquisitionIndex {
       add(unit, unit.movementPlane === "air" ? "air" : "ground", unit.cellX, unit.cellY);
     }
     for (const target of snapshot.staticTargets) {
-      if (target.health <= 0 || target.activity === "die") continue;
+      if (target.health <= 0 || target.activity === "die" || target.mine !== undefined) continue;
       const cells = cellsOf?.(target.id);
       if (cells?.length) for (const cell of cells) add(target, "ground", cell.x, cell.y);
       else add(target, "ground", target.cellX, target.cellY);

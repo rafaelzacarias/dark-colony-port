@@ -81,7 +81,7 @@ export function guardCommands(
     const guard = units.get(observer.id);
     if (!guard || guard.activity === "die" || guard.health <= 0 || guard.activity === "harvest" || guard.activity === "build") continue;
     const assigned = guard.targetId === null ? undefined : units.get(guard.targetId) ??
-      snapshot.staticTargets.find(({ id }) => id === guard.targetId);
+      snapshot.staticTargets.find(({ id, mine }) => id === guard.targetId && mine === undefined);
     const eligibility = new Map<number, boolean>();
     const canDamage = (targetId: number): boolean => {
       if (!eligibility.has(targetId)) eligibility.set(targetId, observer.targetCanDamage?.(targetId) ?? true);

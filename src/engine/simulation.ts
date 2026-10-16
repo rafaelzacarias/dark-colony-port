@@ -269,8 +269,25 @@ export interface MovementFinishedEvent {
   readonly nativeIdentity?: ResourceActorToken;
 }
 
+export type BrowserMinePolicy = BrowserMineOptions & {
+  chargesRemaining?: number;
+  cooldownRemaining?: number;
+};
+
+function validateSimulationMine(mine: BrowserMinePolicy): void {
+  if (!mine || Object.getPrototypeOf(mine) !== Object.prototype) throw new RangeError("Invalid adapted mine shape");
+  const { chargesRemaining, cooldownRemaining, ...base } = mine;
+  validateBrowserMineOptions(base);
+  if ("chargesRemaining" in mine && (!Number.isInteger(chargesRemaining) || chargesRemaining! < 0 || chargesRemaining! > 3)) {
+    throw new RangeError("Invalid adapted mine chargesRemaining");
+  }
+  if ("cooldownRemaining" in mine && (!Number.isInteger(cooldownRemaining) || cooldownRemaining! < 0 || cooldownRemaining! > base.weapon.cooldownTicks)) {
+    throw new RangeError("Invalid adapted mine cooldownRemaining");
+  }
+}
+
 export interface StaticTargetSnapshot {
-  readonly mine?: BrowserMineOptions;
+  readonly mine?: Readonly<BrowserMinePolicy>;
   readonly weapon?: WeaponStats;
   readonly targetId?: number | null;
   readonly attackCooldown?: number;
@@ -287,7 +304,7 @@ export interface StaticTargetSnapshot {
 }
 
 interface StaticTargetState {
-  readonly mine?: BrowserMineOptions;
+  readonly mine?: BrowserMinePolicy;
   readonly weapon?: WeaponStats;
   readonly vision?: UnitVisionStats;
   attackCooldown?: number;
@@ -304,7 +321,7 @@ interface StaticTargetState {
 }
 
 export interface AddStaticTargetOptions {
-  readonly mine?: BrowserMineOptions;
+  readonly mine?: Readonly<BrowserMinePolicy>;
   readonly weapon?: WeaponStats;
   readonly vision?: UnitVisionStats;
   readonly faction: Faction;
@@ -668,8 +685,8 @@ function validateSimulationCheckpoint(input: unknown): asserts input is Simulati
     staticTargets: checkpointArray(checkpointObject({ id: positive, faction, xSubcells: position, ySubcells: position,
       footprint: checkpointArray(integer), health: integer, maxHealth: positive, sourceDefense: checkpointNullable(defense) },
     { team: integer, weapon, mine: (value) => {
-      validateBrowserMineOptions(value as BrowserMineOptions);
-      weapon((value as BrowserMineOptions).weapon);
+      validateSimulationMine(value as BrowserMinePolicy);
+      weapon((value as BrowserMinePolicy).weapon);
     }, vision: checkpointObject({ dayRangeCells: integer, nightRangeCells: integer }),
       attackCooldown: integer, attackTargetId: nullableId })),
     staticBlockers: checkpointArray(checkpointObject({ index: integer, count: positive, priorCost: checkpointInteger(0, 65535) })),
@@ -894,6 +911,7 @@ function validateSimulationCheckpoint(input: unknown): asserts input is Simulati
   for (const target of saved.staticTargets) {
     if (target.mine) checkpointRequire(!target.weapon && target.footprint.length === 0
       && target.team !== undefined && target.team <= 8
+      && (target.health === 0 || (target.mine.chargesRemaining ?? 1) >= 1)
       && (target.sourceDefense?.sourceTypeIndex === undefined || target.sourceDefense.sourceTypeIndex === target.mine.sourceTypeIndex));
     if (target.weapon) {
       checkpointRequire(target.attackCooldown !== undefined && target.attackCooldown <= maxCooldown(target.weapon)
@@ -2112,6 +2130,8 @@ export class DeterministicSimulation implements Simulation {
         },
       );
     }
+    if ("mine" in targetIdOrTarget && targetIdOrTarget.mine !== undefined) return false;
+    if ("id" in targetIdOrTarget && typeof targetIdOrTarget.id === "number" && this.#staticTargets.get(targetIdOrTarget.id)?.mine !== undefined) return false;
     return effective.canArtilleryAcquireTarget(targetIdOrTarget, options);
   }
 
@@ -2154,8 +2174,8 @@ export class DeterministicSimulation implements Simulation {
     const footprint = [...new Set((options.footprint ?? []).map((point) => this.grid.index(point.x, point.y)))];
     const sourceDefense = options.sourceDefense ? copyLegacyDefenseProfile(options.sourceDefense) : null;
     if (options.mine) {
-      validateBrowserMineOptions(options.mine);
-      if (options.weapon || options.vision || footprint.length || team === undefined || team > 8
+      validateSimulationMine(options.mine);
+      if ((options.mine.chargesRemaining ?? 1) < 1 || options.weapon || options.vision || footprint.length || team === undefined || team > 8
         || (sourceDefense?.sourceTypeIndex !== undefined && sourceDefense.sourceTypeIndex !== options.mine.sourceTypeIndex)) {
         throw new RangeError("Adapted mines require a source team, matching type, no turret weapon/vision and no footprint");
       }
@@ -2179,6 +2199,10 @@ export class DeterministicSimulation implements Simulation {
     }
     for (let i = this.#commands.length - 1; i >= 0; i -= 1) {
       const entry = this.#commands[i];
+      if (options.mine && entry.command.type === "attack" && entry.command.targetId === unitId) {
+        this.#commands.splice(i, 1);
+        continue;
+      }
       if ("unitIds" in entry.command && entry.command.unitIds.includes(unitId)) {
         const remaining = entry.command.unitIds.filter((id) => id !== unitId);
         if (remaining.length === 0) this.#commands.splice(i, 1);
@@ -2192,7 +2216,20 @@ export class DeterministicSimulation implements Simulation {
       if (this.#movementFinishedEvents[i].unitId === unitId) this.#movementFinishedEvents.splice(i, 1);
     }
     if (options.mine) {
-      for (const other of this.#units.values()) if (other.attackTargetId === unitId) other.attackTargetId = null;
+      for (const other of this.#units.values()) {
+        if (other.attackTargetId === unitId) {
+          other.attackTargetId = null;
+          this.#autoSpottedArtilleryTargets.delete(other.id);
+          if (other.activity === "attack") {
+            if (other.pathIndex < other.path.length) {
+              other.activity = "move";
+            } else {
+              this.#clearOrders(other);
+              other.activity = "idle";
+            }
+          }
+        }
+      }
       for (const other of this.#staticTargets.values()) if (other.attackTargetId === unitId) other.attackTargetId = null;
     }
 
@@ -2329,8 +2366,8 @@ export class DeterministicSimulation implements Simulation {
     const footprint = [...new Set((options.footprint ?? []).map((cell) => this.grid.index(cell.x, cell.y)))];
     const sourceDefense = options.sourceDefense ? copyLegacyDefenseProfile(options.sourceDefense) : null;
     if (options.mine) {
-      validateBrowserMineOptions(options.mine);
-      if (options.weapon || options.vision || footprint.length || options.team === undefined || options.team > 8
+      validateSimulationMine(options.mine);
+      if ((options.mine.chargesRemaining ?? 1) < 1 || options.weapon || options.vision || footprint.length || options.team === undefined || options.team > 8
         || (sourceDefense?.sourceTypeIndex !== undefined && sourceDefense.sourceTypeIndex !== options.mine.sourceTypeIndex)) {
         throw new RangeError("Adapted mines require a source team, matching type, no turret weapon/vision and no footprint");
       }
@@ -2465,7 +2502,8 @@ export class DeterministicSimulation implements Simulation {
           }
           if (unit.activity === "idle" && unit.displacement === undefined) {
             const candidates = [...this.#units.values(), ...this.#staticTargets.values()].sort((left, right) => left.id - right.id);
-            const acquired = candidates.find((candidate) => this.canArtilleryAcquireTarget(unit.id, candidate.id));
+            const acquired = candidates.find((candidate) => !("mine" in candidate && candidate.mine !== undefined)
+              && this.canArtilleryAcquireTarget(unit.id, candidate.id));
             if (acquired) {
               unit.attackTargetId = acquired.id;
               unit.activity = "attack";
@@ -2499,13 +2537,18 @@ export class DeterministicSimulation implements Simulation {
       for (const actor of armedStatics) {
         if (actor.mine) {
           const mine = actor.mine;
+          if ((mine.cooldownRemaining ?? 0) > 0) {
+            mine.cooldownRemaining! -= 1;
+            continue;
+          }
           const eligible = (target: UnitState | StaticTargetState): target is UnitState => "activity" in target
             && target.movementPlane !== "air"
             && target.health > 0 && !this.#resourceOwned(target.id) && actor.team! < 8
             && target.team !== undefined && target.team < 8 && areHostile(actor, target, this.#teamAlliances);
           const inRange = (target: UnitState, range: number) =>
-            (target.xSubcells - actor.xSubcells) ** 2 + (target.ySubcells - actor.ySubcells) ** 2 <= (range * SUBCELLS_PER_CELL) ** 2;
+            Math.max(Math.abs(target.xSubcells - actor.xSubcells), Math.abs(target.ySubcells - actor.ySubcells)) <= range * SUBCELLS_PER_CELL;
           if (!candidates.some(target => eligible(target) && inRange(target, mine.triggerRange))) continue;
+          let firstTargetId: number | null = null;
           for (const target of candidates) {
             if (!eligible(target)) continue;
             // BOOMSTAT record 2: percent of damage by whole-cell offset from the mine (grid step 1 cell, as in the spread grid).
@@ -2516,16 +2559,36 @@ export class DeterministicSimulation implements Simulation {
               ? calculateLegacyDamage(mine.weapon.damage, mine.weapon.sourceDamage, target.sourceDefense) : mine.weapon.damage;
             const damage = Math.floor(full * percent / 100);
             if (damage <= 0) continue;
+            firstTargetId ??= target.id;
             pendingDamage.set(target.id, (pendingDamage.get(target.id) ?? 0) + damage);
             this.#combatEvents.push({ type: "shot", tick: this.#tick, attackerId: actor.id, targetId: target.id, damage });
           }
-          pendingDamage.set(actor.id, (pendingDamage.get(actor.id) ?? 0) + actor.health);
+          this.#impactEvents.push({
+            type: "impact",
+            tick: this.#tick,
+            projectileId: 0,
+            attackerId: actor.id,
+            targetId: firstTargetId,
+            weaponId: mine.weaponId,
+            xQ8: actor.xSubcells >> 2,
+            yQ8: actor.ySubcells >> 2,
+          });
+          if ((mine.chargesRemaining ?? 1) > 1) {
+            mine.chargesRemaining! -= 1;
+            mine.cooldownRemaining = mine.weapon.cooldownTicks;
+            const chargeDamage = Math.min(300, Math.max(0, actor.health - 1));
+            if (chargeDamage > 0) pendingDamage.set(actor.id, (pendingDamage.get(actor.id) ?? 0) + chargeDamage);
+          } else {
+            if (mine.chargesRemaining !== undefined) mine.chargesRemaining = 0;
+            pendingDamage.set(actor.id, (pendingDamage.get(actor.id) ?? 0) + actor.health);
+          }
           continue;
         }
         if (actor.attackCooldown! > 0) actor.attackCooldown! -= 1;
         const sight = actor.vision ? Math.floor((actor.vision.nightRangeCells * (1000 - this.daylightPermille)
           + actor.vision.dayRangeCells * this.daylightPermille) / 1000) : actor.weapon!.rangeCells;
-        const eligible = (target: UnitState | StaticTargetState) => this.canAutoTarget(actor.id, target.id)
+        const eligible = (target: UnitState | StaticTargetState) => !("mine" in target && target.mine !== undefined)
+          && this.canAutoTarget(actor.id, target.id)
           && Math.abs(target.xSubcells - actor.xSubcells) + Math.abs(target.ySubcells - actor.ySubcells)
             <= Math.min(sight, actor.weapon!.rangeCells) * SUBCELLS_PER_CELL;
         const previous = actor.attackTargetId == null ? undefined : this.#attackTarget(actor.attackTargetId);
@@ -2627,7 +2690,8 @@ export class DeterministicSimulation implements Simulation {
       }
       if (command.type === "attack") {
         const target = this.#attackTarget(command.targetId);
-        if (!unit.weapon || !target || target.health <= 0 || !areHostile(unit, target, this.#teamAlliances)) continue;
+        if (!unit.weapon || !target || target.health <= 0 || ("mine" in target && target.mine !== undefined)
+          || !areHostile(unit, target, this.#teamAlliances)) continue;
         this.#clearOrders(unit);
         unit.attackTargetId = target.id;
         unit.activity = "attack";
@@ -3107,6 +3171,7 @@ export class DeterministicSimulation implements Simulation {
     const attacker = this.#attackTarget(attackerId);
     const target = this.#attackTarget(targetId);
     if (!attacker?.weapon || attacker.health <= 0 || !target || target.health <= 0
+      || ("mine" in target && target.mine !== undefined)
       || this.#resourceOwned(attackerId) || this.#resourceOwned(targetId)
       || (target.team !== undefined && target.team >= 8)
       || !areHostile(attacker, target, this.#teamAlliances)) return false;
@@ -3125,7 +3190,8 @@ export class DeterministicSimulation implements Simulation {
   #advanceAttack(unit: UnitState): UnitState | StaticTargetState | null {
     const target = unit.attackTargetId === null ? null : this.#attackTarget(unit.attackTargetId);
     if (target && this.#resourceOwned(target.id)) throw new RangeError("Resource-owned target requires host combat ownership");
-    if (!target || target.health <= 0 || !unit.weapon || !areHostile(unit, target, this.#teamAlliances)) {
+    if (!target || target.health <= 0 || ("mine" in target && target.mine !== undefined)
+      || !unit.weapon || !areHostile(unit, target, this.#teamAlliances)) {
       this.#clearOrders(unit);
       unit.activity = "idle";
       return null;

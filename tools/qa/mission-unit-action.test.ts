@@ -107,7 +107,7 @@ test("MissionView generic FIN: motion facing, pending legs and phase resets use 
     view.setCameraCenter(owned.xSubcells / 1024, owned.ySubcells / 1024);
     const saved = view.simulation.checkpoint();
     const target = { ...owned, id: 9000, xSubcells: owned.xSubcells, ySubcells: owned.ySubcells + 1024 };
-    let current = { ...baseline, tick: 221, units: [
+    let current: typeof baseline = { ...baseline, tick: 221, units: [
       { ...owned, activity: "attack" as const, targetId: target.id, xSubcells: owned.xSubcells + 64 }, target,
     ] };
     let pendingPath = false, checkpointReads = 0;
@@ -141,6 +141,42 @@ test("MissionView generic FIN: motion facing, pending legs and phase resets use 
     current = { ...current, tick: 226, units: [{ ...current.units[0], xSubcells: owned.xSubcells - 64 }, target] };
     assert.deepEqual(present(), { id: owned.id, action: "Move", facing: "W", since: 226 });
     assert.ok(rendering.evidence().spriteDraws > 0, "exercise real FIN composition through the Canvas stub");
+
+    // Verify all 8 movement directions (N, NE, E, SE, S, SW, W, NW) for both steered unit.facing and motion-derived fallback
+    pendingPath = false;
+    const octantCases = [
+      { compass: "N", facingByte: 64, dx: 0, dy: 64, moveState: "GRAYMOVE8" },
+      { compass: "NE", facingByte: 32, dx: 64, dy: 64, moveState: "GRAYMOVE10" },
+      { compass: "E", facingByte: 0, dx: 64, dy: 0, moveState: "GRAYMOVE12" },
+      { compass: "SE", facingByte: 224, dx: 64, dy: -64, moveState: "GRAYMOVE14" },
+      { compass: "S", facingByte: 192, dx: 0, dy: -64, moveState: "GRAYMOVE0" },
+      { compass: "SW", facingByte: 160, dx: -64, dy: -64, moveState: "GRAYMOVE2" },
+      { compass: "W", facingByte: 128, dx: -64, dy: 0, moveState: "GRAYMOVE4" },
+      { compass: "NW", facingByte: 96, dx: -64, dy: 64, moveState: "GRAYMOVE6" },
+    ] as const;
+    const moveSelector = createFinSelector(
+      JSON.parse(readFileSync(new URL("assets/generated/animations/GRAY.json", publicRoot), "utf8")),
+      { prefix: "GRAY", directions: TRSC_GRAY_VISUAL_DIRECTIONS, layerOrder: "source" },
+    );
+    for (const { compass, facingByte, dx, dy, moveState } of octantCases) {
+      // 1. Steered unit.facing byte mapping
+      current = {
+        ...current,
+        tick: 226,
+        units: [{ ...owned, activity: "move" as const, targetId: null, facing: facingByte, xSubcells: owned.xSubcells + dx, ySubcells: owned.ySubcells + dy }],
+      };
+      assert.equal(present().facing, compass, `unit.facing=${facingByte} must map to ${compass}`);
+      // 2. Motion-derived fallback (without unit.facing)
+      current = {
+        ...current,
+        tick: 226,
+        units: [{ ...owned, activity: "move" as const, targetId: null, xSubcells: owned.xSubcells + dx, ySubcells: owned.ySubcells + dy }],
+      };
+      assert.equal(present().facing, compass, `motion (dx=${dx}, dy=${dy}) must map to ${compass}`);
+      assert.equal(moveSelector.select("Move", compass)?.state.name, moveState);
+    }
+    current = { ...current, tick: 226, units: [{ ...owned, activity: "attack" as const, targetId: target.id, xSubcells: owned.xSubcells - 64 }, target] };
+    assert.deepEqual(present(), { id: owned.id, action: "Move", facing: "W", since: 226 });
 
     const animation: FinAnimationData = JSON.parse(readFileSync(new URL("assets/generated/animations/GRAY.json", publicRoot), "utf8"));
     const atlas: { frames: FinAtlasFrame[] } = JSON.parse(readFileSync(new URL("assets/generated/sprites/SPRITES/GRAY.json", publicRoot), "utf8"));

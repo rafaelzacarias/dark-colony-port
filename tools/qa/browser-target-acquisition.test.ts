@@ -134,3 +134,29 @@ test("guardCommands: weapon range first, then radius 4 idle / 9 damaged; moving 
   assert.deepEqual(guardCommands(idle, [{ ...observer, mobile: false }], hit), []);
   assert.deepEqual(guardCommands(idle, [{ ...observer, weaponRangeCells: 6 }]), [{ type: "attack", unitIds: [1], targetId: 2 }]);
 });
+
+test("AcquisitionIndex and acquireBrowserTarget never index or acquire burrowed mines", () => {
+  const base = snapshot([{ slot: 0, type: 0, team: 0, cell: [10, 10], air: false, health: 400 }]);
+  const mineTarget = {
+    id: 2, faction: "alien" as const, team: 1, activity: "idle" as const,
+    xSubcells: 11 * 1024 + 512, ySubcells: 10 * 1024 + 512, cellX: 11, cellY: 10,
+    health: 100, maxHealth: 100,
+    mine: { runtimeProfile: "browser-adapted" as const, sourceTypeIndex: 45 as const, weaponId: 38 as const, boomId: 2 as const,
+      initiallyArmed: true as const, triggerRange: 1, splashRange: 3, radiusPolicy: "boom2-7x7-cell-grid" as const,
+      relations: "hostile-ground-mobiles-only" as const, falloff: "boom2-percent-weights" as const,
+      weapon: { damage: 1300, rangeCells: 1, cooldownTicks: 150,
+        sourceDamage: { coefficients: Array(10).fill(256), callerFactor: 256, specialFlag: false } } },
+  };
+  const turretTarget = {
+    id: 3, faction: "alien" as const, team: 1, activity: "idle" as const,
+    xSubcells: 13 * 1024 + 512, ySubcells: 10 * 1024 + 512, cellX: 13, cellY: 10,
+    health: 400, maxHealth: 400,
+  };
+  const withMineOnly: SimulationSnapshot = { ...base, staticTargets: [mineTarget] };
+  assert.equal(new AcquisitionIndex(withMineOnly).at(11, 10).length, 0);
+  assert.equal(acquireBrowserTarget({ snapshot: withMineOnly, guardId: 1, radiusCells: 6, canDamage: () => true }), null);
+
+  const withMineAndTurret: SimulationSnapshot = { ...base, staticTargets: [mineTarget, turretTarget] };
+  assert.equal(acquireBrowserTarget({ snapshot: withMineAndTurret, guardId: 1, radiusCells: 6, canDamage: () => true }), 3);
+});
+

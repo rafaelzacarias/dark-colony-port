@@ -1130,7 +1130,8 @@ export class MissionView {
       requireCheckpoint(simulated || detached.has(id) || deaths.has(id), "missing simulated entity");
       if (simulated) requireCheckpoint(simulated.team === entity.team &&
         simulated.faction === (entity.team === 8 ? mission.faction : mission.scenario.teams[entity.team].race === 1 ? "alien" : "human"), "simulation team");
-      requireCheckpoint(statics.has(id) === (stat.movementSpeed === 0 && !resourceActor && !(detached.has(id)
+      const deadMine = (stat.index === 45 || stat.index === 46) && (deaths.has(id) || (simulated !== undefined && simulated.health <= 0));
+      requireCheckpoint(statics.has(id) === (stat.movementSpeed === 0 && !resourceActor && !deadMine && !(detached.has(id)
         && mission.runtimeProfile === "browser-adapted" && !simulated)), "static binding");
       if (resourceActor) {
         const record = world && transportHostState(world).slots[binding.slot];
@@ -1164,7 +1165,10 @@ export class MissionView {
           requireCheckpoint(canonicalSource(target.sourceDefense) === canonicalSource(defenseOptionsFromLegacy(stat, levels.armorLevel)),
             "current static upgrade defense");
         }
-        requireCheckpoint(canonicalSource(target?.mine) === canonicalSource(mine), "static mine source policy");
+        const targetMine = target?.mine
+          ? (({ chargesRemaining: _charges, cooldownRemaining: _cooldown, ...base }) => base)(target.mine)
+          : undefined;
+        requireCheckpoint(canonicalSource(targetMine) === canonicalSource(mine), "static mine source policy");
         requireCheckpoint(weapon ? weapons.get(id)?.weapon === stat.weapons[levels.weaponLevel]
           && canonicalSource(target?.weapon) === canonicalSource(weapon)
           && canonicalSource(target?.vision) === canonicalSource({ dayRangeCells: stat.observationDay, nightRangeCells: stat.observationNight })
@@ -1542,7 +1546,7 @@ export class MissionView {
 
   get deploymentSelection(): { readonly canDeploy: boolean; readonly canUndeploy: boolean; readonly label: string } {
     const deployed = this.#browserEconomy?.deployedInterceptors ?? [];
-    const eligible = this.mission.runtimeProfile === "browser-adapted" && this.#browserEconomy
+    const eligible = this.mission.runtimeProfile === "browser-adapted"
       && !this.#disposed && !this.#missionDiagnostic && !this.#outcome?.ready;
     const mobile = this.#interceptorTypes.mobile;
     const units = this.simulation.snapshot.units.filter(unit => this.#selectedIds.has(unit.id)
@@ -1550,10 +1554,10 @@ export class MissionView {
     const deployableUnit = eligible ? units.find(unit => {
       if (unit.activity !== "idle") return false;
       const type = this.#unitStats.get(unit.id)?.index ?? -1;
-      if (type === mobile) return !deployed.includes(unit.id);
+      if (type === mobile) return Boolean(this.#browserEconomy) && !deployed.includes(unit.id);
       return isMobileTurretUnitType(type) || isMobileMineUnitType(type);
     }) : undefined;
-    const undeployableUnit = eligible ? units.find(unit => {
+    const undeployableUnit = eligible && this.#browserEconomy ? units.find(unit => {
       const type = this.#unitStats.get(unit.id)?.index ?? -1;
       return (type === mobile || type === this.#interceptorTypes.deployed) && deployed.includes(unit.id);
     }) : undefined;
@@ -1583,7 +1587,7 @@ export class MissionView {
   deploySelected(): readonly number[] {
     if (!this.deploymentSelection.canDeploy) return [];
     const types = this.#interceptorTypes;
-    const hasSelectedInterceptor = this.simulation.snapshot.units.some(unit =>
+    const hasSelectedInterceptor = Boolean(this.#browserEconomy) && this.simulation.snapshot.units.some(unit =>
       this.#selectedIds.has(unit.id) && unit.team === 0 && unit.health > 0 && unit.activity === "idle"
       && this.#unitStats.get(unit.id)?.index === types.mobile
       && !this.#browserEconomy!.deployedInterceptors.includes(unit.id));
@@ -1605,9 +1609,9 @@ export class MissionView {
       const sourceStat = this.#unitStats.get(unit.id);
       if (!sourceStat) continue;
       if (sourceStat.index === types.mobile) {
-        if (this.#browserEconomy!.deployedInterceptors.includes(unit.id)) continue;
+        if (!this.#browserEconomy || this.#browserEconomy.deployedInterceptors.includes(unit.id)) continue;
         const binding = this.#simulationBindings.get(unit.id)!;
-        this.#browserEconomy!.activateIncomeInterception(this.simulation, { type: "deploy",
+        this.#browserEconomy.activateIncomeInterception(this.simulation, { type: "deploy",
           actor: { ...binding, team: 0, typeId: types.mobile } });
         this.#combatMovement.cancel([unit.id]); this.#guardAttacks.cancel([unit.id]);
         this.#waypointRoutes.delete(unit.id);
@@ -1641,7 +1645,7 @@ export class MissionView {
           health,
           footprint: [],
           sourceDefense,
-          mine,
+          mine: { ...mine, chargesRemaining: 3 },
         })) {
           continue;
         }
@@ -2834,6 +2838,7 @@ export class MissionView {
     const visibility = this.visibility;
     const entities = [...snapshot.units, ...snapshot.staticTargets].filter((entity) => entity.health > 0 &&
       !(this.#browserEconomy && this.#unitStats.get(entity.id)?.index === 40) &&
+      !((this.#unitStats.get(entity.id)?.index === 45 || this.#unitStats.get(entity.id)?.index === 46 || ("mine" in entity && entity.mine !== undefined)) && !this.isOwnedUnit(entity.id)) &&
       (this.isOwnedUnit(entity.id) || visibility[entity.cellY * this.grid.width + entity.cellX]));
     const bodyHit = (entity: typeof entities[number]) => {
       const body = this.#entityScreenBounds(entity);
@@ -3002,9 +3007,14 @@ export class MissionView {
         } } : {}),
         targetCanDamage: (targetId: number) => this.simulation.canAutoTarget(unit.id, targetId) };
     });
-    const guardSnapshot = this.#browserEconomy ? { ...this.simulation.snapshot,
-      staticTargets: this.simulation.snapshot.staticTargets.filter(target => this.#unitStats.get(target.id)?.index !== 40) }
-      : this.simulation.snapshot;
+    const guardSnapshot = {
+      ...this.simulation.snapshot,
+      staticTargets: this.simulation.snapshot.staticTargets.filter(target => {
+        const type = this.#unitStats.get(target.id)?.index;
+        if (target.mine !== undefined || type === 45 || type === 46) return false;
+        return !(this.#browserEconomy && type === 40);
+      }),
+    };
     const guardCommands = this.#combatMovement.update(guardSnapshot,
       this.#guardAttacks.observers(guardSnapshot, guards), this.simulation.combatEvents);
     this.#guardAttacks.record(guardCommands);
@@ -3017,6 +3027,14 @@ export class MissionView {
       this.#registerInspireCasters();
     }
     this.simulation.advance();
+    for (const event of this.simulation.deathEvents) {
+      const stat = this.#unitStats.get(event.targetId);
+      if (stat?.index === 45 || stat?.index === 46) {
+        const index = this.#staticObjects.findIndex(({ id }) => id === event.targetId);
+        if (index >= 0) this.#staticObjects.splice(index, 1);
+        this.#visualBounds.delete(event.targetId);
+      }
+    }
     this.#browserEconomy?.observe(this.simulation,
       this.#browserEconomy.deployedInterceptors.length ? this.#incomeInterceptionFrame() : undefined);
     this.#assertConstructionProjection(true);
@@ -3094,6 +3112,11 @@ export class MissionView {
     this.#orderMode = candidate.#orderMode; this.#movementStance = candidate.#movementStance;
     this.#waypointDraft = candidate.#waypointDraft && structuredClone(candidate.#waypointDraft);
     this.#resourceDiagnostic = candidate.#resourceDiagnostic;
+  }
+
+  advance(milliseconds = MISSION_BROWSER_POLICY.fixedStepMilliseconds): void {
+    if (this.#lastTime === null) this.update(0);
+    this.update((this.#lastTime ?? 0) + milliseconds);
   }
 
   update(time: number): void {
@@ -3388,12 +3411,19 @@ export class MissionView {
       const { x, y } = object.entity;
       if (x < firstX || x > lastX || y < firstY || y > lastY) continue;
       if (this.#detachedIds.has(object.id)) continue;
+      const isMine = object.stat.index === 45 || object.stat.index === 46;
+      if (isMine && (object.entity.team !== 0 || !this.isOwnedUnit(object.id))) continue;
       if (!this.isOwnedUnit(object.id) && !visibility[Math.floor(y + 0.5) * this.grid.width + Math.floor(x + 0.5)]) continue;
+      const staticTarget = staticStates.get(object.id);
+      if (!staticTarget || (isMine && staticTarget.health <= 0)) {
+        if (isMine) this.#visualBounds.delete(object.id);
+        continue;
+      }
       drawables.push({
         y: (y + 0.5) * SUBCELLS_PER_CELL,
         draw: () => {
           const target = staticStates.get(object.id);
-          if (!target) return;
+          if (!target || (isMine && target.health <= 0)) return;
           const worldX = x + 0.5, worldY = y + 0.5;
           const screenX = this.#screenX(worldX, width), screenY = this.#screenY(worldY, height);
           const colonyOffset = legacyColonySlotOffsetForUnitType(object.stat.index);
@@ -3436,7 +3466,7 @@ export class MissionView {
       // Steered units carry the simulation's 256-step facing (0 = +x, 64 = +y); attackers still face their target.
       const facing = dying && oldAnimation ? oldAnimation.facing
         : !target && unit.facing !== undefined
-          ? COMPASS_BY_OCTANT[(((unit.facing + 80) & 255) >> 5) & 7]
+          ? COMPASS_BY_OCTANT[(((80 - unit.facing) & 255) >> 5) & 7]
           : directionFromMotion(
             target ? target.xSubcells - unit.xSubcells : unit.xSubcells - previous.xSubcells,
             target ? unit.ySubcells - target.ySubcells : previous.ySubcells - unit.ySubcells,
