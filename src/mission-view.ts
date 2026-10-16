@@ -34,6 +34,13 @@ import { sourceBrowserCampaignSessionOptions, type SourceBrowserCampaignMission 
 import { initializeBrowserCampaignView, planBrowserCampaignViewFrame, restoreBrowserCampaignView,
   type BrowserCampaignViewState } from "./engine/browser-campaign-runtime";
 import { BrowserCampaignEconomy, type BrowserEconomyCheckpoint } from "./engine/browser-campaign-economy";
+import {
+  canDeployMineAtCell,
+  getTask13DeploymentProfile,
+  isMobileMineUnitType,
+  isMobileTurretUnitType,
+  resolveTask13TargetUnitType,
+} from "./engine/browser-deployment";
 import { browserMineOptions } from "./engine/browser-mines";
 import { browserVisionArtifact, browserExcavationArtifact } from "./engine/browser-artifacts";
 import { sourceBrowserEconomyHarvesters } from "./engine/browser-campaign-economy-source";
@@ -1042,8 +1049,11 @@ export class MissionView {
       const identity = `${binding.slot}:${binding.generation}`;
       const entity = identities.get(identity);
       const resourceActor = simulation.resourceActors.find(actor => actor.simulationId === id);
+      const deployedFromSource = Boolean(entity && mission.runtimeProfile === "browser-adapted"
+        && (isMobileTurretUnitType(entity.unitType) || isMobileMineUnitType(entity.unitType))
+        && resolveTask13TargetUnitType(entity.unitType) === stat?.index);
       requireCheckpoint(entity && entity.key === binding.key && entity.sourceRow === binding.sourceRow &&
-        (entity.unitType === stat.index || (resourceActor?.owner === "removed" && resourceActor.profile.sourceTypeIndex === stat.index
+        (entity.unitType === stat.index || deployedFromSource || (resourceActor?.owner === "removed" && resourceActor.profile.sourceTypeIndex === stat.index
           && [6, 47].includes(entity.unitType) === [6, 47].includes(stat.index))) && entity.team === teams.get(id)!.team, "source binding identity");
       if (state.diagnostic === null) {
         requireCheckpoint(deaths.has(id) === sourceDeaths.has(identity), "recorded death boundary");
@@ -1273,6 +1283,11 @@ export class MissionView {
             if (stat?.sprite !== expected) throw new TypeError(`Missing source mining visual ${typeId}:${expected}`);
             if (!sprites.includes(stat.sprite)) sprites.push(stat.sprite);
           }
+          for (const [mobileSprite, deployedType] of [["TURR", 41], ["XENO", 42], ["ENGI", 45], ["SLOM", 46]] as const) {
+            if (!sprites.includes(mobileSprite)) continue;
+            const stat = this.mission.units.find(entry => entry.index === deployedType);
+            if (stat && !sprites.includes(stat.sprite)) sprites.push(stat.sprite);
+          }
         }
         await Promise.all(sprites.map(async (sprite) => {
           this.#visuals.set(sprite, await loadMissionVisual(sprite));
@@ -1458,35 +1473,136 @@ export class MissionView {
       && !this.#disposed && !this.#missionDiagnostic && !this.#outcome?.ready;
     const mobile = this.#interceptorTypes.mobile;
     const units = this.simulation.snapshot.units.filter(unit => this.#selectedIds.has(unit.id)
-      && unit.team === 0 && unit.health > 0 && this.#unitStats.get(unit.id)?.index === mobile);
-    return { canDeploy: Boolean(eligible && units.some(unit => unit.activity === "idle" && !deployed.includes(unit.id))),
-      canUndeploy: Boolean(eligible && units.some(unit => deployed.includes(unit.id))) };
+      && unit.team === 0 && unit.health > 0);
+    return {
+      canDeploy: Boolean(eligible && units.some(unit => {
+        if (unit.activity !== "idle") return false;
+        const type = this.#unitStats.get(unit.id)?.index ?? -1;
+        if (type === mobile) return !deployed.includes(unit.id);
+        return isMobileTurretUnitType(type) || isMobileMineUnitType(type);
+      })),
+      canUndeploy: Boolean(eligible && units.some(unit =>
+        this.#unitStats.get(unit.id)?.index === mobile && deployed.includes(unit.id))),
+    };
   }
 
   deploySelected(): readonly number[] {
     if (!this.deploymentSelection.canDeploy) return [];
     const types = this.#interceptorTypes;
-    const source = this.mission.units.find(stat => stat.index === types.mobile);
-    const deployed = this.mission.units.find(stat => stat.index === types.deployed);
-    if (source?.sprite !== types.mobileSprite || deployed?.sprite !== types.deployedSprite || deployed.movementSpeed !== 0
-      || deployed.weapons.some(weapon => weapon !== -1) || source.targetClass !== deployed.targetClass
-      || source.health !== deployed.health
-      || JSON.stringify(source.armorUpgradePercentages) !== JSON.stringify(deployed.armorUpgradePercentages)) {
-      throw new TypeError(`Unverified ${types.mobileSprite} source deployment types`);
+    const hasSelectedInterceptor = this.simulation.snapshot.units.some(unit =>
+      this.#selectedIds.has(unit.id) && unit.team === 0 && unit.health > 0 && unit.activity === "idle"
+      && this.#unitStats.get(unit.id)?.index === types.mobile
+      && !this.#browserEconomy!.deployedInterceptors.includes(unit.id));
+    if (hasSelectedInterceptor) {
+      const source = this.mission.units.find(stat => stat.index === types.mobile);
+      const deployed = this.mission.units.find(stat => stat.index === types.deployed);
+      if (source?.sprite !== types.mobileSprite || deployed?.sprite !== types.deployedSprite || deployed.movementSpeed !== 0
+        || deployed.weapons.some(weapon => weapon !== -1) || source.targetClass !== deployed.targetClass
+        || source.health !== deployed.health
+        || JSON.stringify(source.armorUpgradePercentages) !== JSON.stringify(deployed.armorUpgradePercentages)) {
+        throw new TypeError(`Unverified ${types.mobileSprite} source deployment types`);
+      }
     }
     const accepted: number[] = [];
+    let deployedInterceptor = false;
+    let convertedStatic = false;
     for (const unit of this.simulation.snapshot.units) {
-      if (!this.#selectedIds.has(unit.id) || unit.team !== 0 || unit.health <= 0 || unit.activity !== "idle"
-        || this.#unitStats.get(unit.id)?.index !== types.mobile || this.#browserEconomy!.deployedInterceptors.includes(unit.id)) continue;
-      const binding = this.#simulationBindings.get(unit.id)!;
-      this.#browserEconomy!.activateIncomeInterception(this.simulation, { type: "deploy",
-        actor: { ...binding, team: 0, typeId: types.mobile } });
-      this.#combatMovement.cancel([unit.id]); this.#guardAttacks.cancel([unit.id]);
+      if (!this.#selectedIds.has(unit.id) || unit.team !== 0 || unit.health <= 0 || unit.activity !== "idle") continue;
+      const sourceStat = this.#unitStats.get(unit.id);
+      if (!sourceStat) continue;
+      if (sourceStat.index === types.mobile) {
+        if (this.#browserEconomy!.deployedInterceptors.includes(unit.id)) continue;
+        const binding = this.#simulationBindings.get(unit.id)!;
+        this.#browserEconomy!.activateIncomeInterception(this.simulation, { type: "deploy",
+          actor: { ...binding, team: 0, typeId: types.mobile } });
+        this.#combatMovement.cancel([unit.id]); this.#guardAttacks.cancel([unit.id]);
+        this.#waypointRoutes.delete(unit.id);
+        accepted.push(unit.id);
+        deployedInterceptor = true;
+        continue;
+      }
+      if (!isMobileTurretUnitType(sourceStat.index) && !isMobileMineUnitType(sourceStat.index)) continue;
+      const profile = getTask13DeploymentProfile(sourceStat.index);
+      const targetStat = profile ? this.mission.units.find(stat => stat.index === profile.targetType) : undefined;
+      if (!profile || !targetStat || sourceStat.sprite !== profile.sourceSprite || targetStat.sprite !== profile.targetSprite
+        || targetStat.movementSpeed !== 0 || targetStat.faction !== profile.faction) {
+        throw new TypeError(`Unverified ${sourceStat.sprite} source deployment types`);
+      }
+      if (isMobileMineUnitType(sourceStat.index)) {
+        if (!canDeployMineAtCell({
+          cellX: unit.cellX,
+          cellY: unit.cellY,
+          staticTargets: this.simulation.snapshot.staticTargets,
+        })) {
+          continue;
+        }
+        const mine = browserMineOptions(this.mission, targetStat);
+        if (!mine) throw new TypeError(`Unsupported browser mine deployment: ${targetStat.index}`);
+        const levels = currentUpgradeLevels(this.mission, this.#sessionViewSnapshot?.production, unit.team, targetStat.index);
+        const sourceDefense = defenseOptionsFromLegacy(targetStat, levels.armorLevel);
+        const health = Math.min(targetStat.health, Math.max(1, Math.round(unit.health * targetStat.health / unit.maxHealth)));
+        if (!this.simulation.deployUnitToStaticTarget(unit.id, {
+          cell: { x: unit.cellX, y: unit.cellY },
+          maxHealth: targetStat.health,
+          health,
+          footprint: [],
+          sourceDefense,
+          mine,
+        })) {
+          continue;
+        }
+        this.#unitStats.set(unit.id, targetStat);
+        this.#unitWeaponIds.set(unit.id, mine.weaponId);
+      } else {
+        const levels = currentUpgradeLevels(this.mission, this.#sessionViewSnapshot?.production, unit.team, targetStat.index);
+        const weapon = browserStaticWeapon(this.mission, targetStat, levels.weaponLevel);
+        if (!weapon) throw new TypeError(`Unsupported browser turret deployment: ${targetStat.index}`);
+        const sourceDefense = defenseOptionsFromLegacy(targetStat, levels.armorLevel);
+        const vision = { dayRangeCells: targetStat.observationDay, nightRangeCells: targetStat.observationNight };
+        const health = Math.min(targetStat.health, Math.max(1, Math.round(unit.health * targetStat.health / unit.maxHealth)));
+        if (!this.simulation.deployUnitToStaticTarget(unit.id, {
+          cell: { x: unit.cellX, y: unit.cellY },
+          maxHealth: targetStat.health,
+          health,
+          footprint: [{ x: unit.cellX, y: unit.cellY }],
+          sourceDefense,
+          weapon,
+          vision,
+        })) {
+          continue;
+        }
+        this.#unitStats.set(unit.id, targetStat);
+        this.#unitWeaponIds.set(unit.id, targetStat.weapons[levels.weaponLevel]);
+      }
+      const rawTail = (targetStat as LegacyUnitStat & { readonly rawTail?: readonly number[] }).rawTail ?? [];
+      this.#staticObjects.push({
+        id: unit.id,
+        stat: targetStat,
+        entity: {
+          source: "placement",
+          unitType: targetStat.index,
+          team: unit.team,
+          rawTail: [...rawTail],
+          x: unit.cellX,
+          y: unit.cellY,
+        },
+      });
+      this.#selectedIds.delete(unit.id);
+      this.#combatMovement.cancel([unit.id]);
+      this.#guardAttacks.cancel([unit.id]);
       this.#waypointRoutes.delete(unit.id);
+      this.#animationStates.delete(unit.id);
       accepted.push(unit.id);
+      convertedStatic = true;
     }
-    this.#browserEconomy!.haltDeployed(this.simulation);
-    this.#browserEconomy!.observeInterception(this.simulation, this.#incomeInterceptionFrame());
+    if (convertedStatic) {
+      this.#sessionEpoch += 1;
+      this.callbacks.onUnitsChanged(this.simulation.snapshot.units, this.selectedIds);
+    }
+    if (deployedInterceptor) {
+      this.#browserEconomy!.haltDeployed(this.simulation);
+      this.#browserEconomy!.observeInterception(this.simulation, this.#incomeInterceptionFrame());
+    }
     this.render();
     return accepted;
   }
@@ -2296,7 +2412,13 @@ export class MissionView {
       }
       const stat = this.mission.units.find(({ index }) => index === entity.unitType);
       if (!stat) throw new Error(`Missing render type: ${entity.unitType}`);
-      if (this.mission.damageMatrix && this.#unitStats.get(binding.simulationId)?.index !== stat.index) {
+      const currentStat = this.#unitStats.get(binding.simulationId);
+      if (this.mission.runtimeProfile === "browser-adapted" && currentStat
+        && (isMobileTurretUnitType(entity.unitType) || isMobileMineUnitType(entity.unitType))
+        && resolveTask13TargetUnitType(entity.unitType) === currentStat.index) {
+        continue;
+      }
+      if (this.mission.damageMatrix && currentStat?.index !== stat.index) {
         if (this.simulation.resourceActors.some(actor => actor.simulationId === binding.simulationId)) {
           this.#unitStats.set(binding.simulationId, stat);
           continue;
@@ -2734,7 +2856,8 @@ export class MissionView {
       const observations = new Map([...snapshot.units, ...snapshot.staticTargets].map(actor => [actor.id, actor]));
       const actors = frame.world.entities.map(actor => {
         const binding = this.#nativeBindings.get(`${actor.rawSlot}:${actor.generation}`);
-        return { ...actor, health: observations.get(binding?.simulationId ?? -1)?.health ?? 0 };
+        const simId = binding?.simulationId ?? -1;
+        return { ...actor, unitType: this.#unitStats.get(simId)?.index ?? actor.unitType, health: observations.get(simId)?.health ?? 0 };
       });
       const staticCells = this.simulation.staticObstacleCells;
       const staticObstacles = Object.fromEntries(this.mission.browserAi!.teams.map(team => [team.team, staticCells]));

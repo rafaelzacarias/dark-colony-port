@@ -20,8 +20,10 @@ import { createCampaignMissionPicker } from "./ui/campaign-mission-picker";
 import { cancelCampaignIntro, shouldShowCampaignIntro, showCampaignIntro, type CampaignLaunchReason } from "./ui/campaign-intro";
 import { cancelCinematic, INTRO_CINEMATIC, outcomeCinematic, playCinematic } from "./ui/cinematics";
 import { closeEncyclopediaModal, openEncyclopediaModal } from "./ui/encyclopedia";
+import { closeWarRoomModal, isWarRoomModalOpen, openWarRoomModal } from "./ui/war-room";
 import "./ui/campaign-intro.css";
 import "./ui/encyclopedia.css";
+import "./ui/war-room.css";
 import "./ui/mobile-controls.css";
 import "./ui/mobile-mission-menu.css";
 import "./ui/game-menu.css";
@@ -192,6 +194,7 @@ app.innerHTML = `
                 <button type="button" data-menu-open="new">New game</button>
                 <button type="button" data-menu-load>Load game</button>
                 <button id="open-encyclopedia" type="button" data-open-encyclopedia>Encyclopedia</button>
+                <button id="open-war-room" type="button" data-open-war-room>War Room</button>
                 <button type="button" data-menu-open="options">Options</button>
               </nav>
               <section data-menu-screen="new" aria-labelledby="new-game-title" hidden>
@@ -252,6 +255,7 @@ app.innerHTML = `
                 <button id="select-all-units" class="legacy-text-command" type="button">SELECT ALL</button>
                 <button id="load-mission" class="legacy-text-command" type="button">LOAD GAME</button>
                 <button id="mission-encyclopedia" class="legacy-text-command" type="button" data-open-encyclopedia>ENCYCLOPEDIA</button>
+                <button id="mission-war-room" class="legacy-text-command" type="button" data-open-war-room>WAR ROOM</button>
                 <span id="save-mission-status" role="status" aria-live="polite"></span>
               </div>
               <div class="legacy-command-grid" hidden>
@@ -477,6 +481,7 @@ let loadingToken = 0;
     saveMenu.dispose();
     cameraPan.dispose();
     closeEncyclopediaModal();
+    closeWarRoomModal();
   });
 let playing = false;
 let previousAnimationTime = 0;
@@ -626,7 +631,7 @@ const cameraPan = createCameraPan(missionCanvas, {
     const mission = activeMission();
     return mission !== null && !document.hidden && objectivesPanel.hidden && missionResult.hidden && !missionDragStart
       && !mobileMenu?.isOpen && !saveMenu.isOpen && !mission.missionDiagnostic && !mission.missionOutcome?.ready
-      && !document.querySelector(".cinematic-player[open], .campaign-intro[open]");
+      && !document.querySelector(".cinematic-player[open], .campaign-intro[open], .encyclopedia-modal[open], .war-room-modal[open]");
   },
   onPan: (x, y) => activeMission()?.panByCells(x, y, false),
 });
@@ -1879,6 +1884,32 @@ function showEncyclopedia(): void {
 document.querySelectorAll<HTMLButtonElement>("[data-open-encyclopedia]").forEach((button) => {
   button.addEventListener("click", showEncyclopedia);
 });
+function showWarRoom(): void {
+  cancelMissionDrag();
+  void openWarRoomModal({
+    muted: missionMute.checked,
+    onMutedChange: (muted) => {
+      missionMute.checked = muted;
+      missionMute.dispatchEvent(new Event("change"));
+    },
+    onLaunchCampaignMission: (faction, missionNumber) => {
+      if (assetMode !== "campaign") switchMode("campaign");
+      void startCampaign(
+        faction,
+        missionNumber,
+        undefined,
+        undefined,
+        missionNumber === 1 ? undefined : { runtimeProfile: "browser-adapted" },
+      );
+    },
+    onLaunchSkirmish: () => {
+      switchMode("simulation");
+    },
+  });
+}
+document.querySelectorAll<HTMLButtonElement>("[data-open-war-room]").forEach((button) => {
+  button.addEventListener("click", showWarRoom);
+});
 function updateMenuSound(): void {
   const button = element<HTMLButtonElement>("#menu-sound");
   button.textContent = missionMute.checked ? "Sound: off" : "Sound: on";
@@ -1959,7 +1990,7 @@ window.addEventListener("resize", () => {
   drawFrame();
 });
 window.addEventListener("keydown", (event) => {
-  if (mobileMenu?.isOpen || saveMenu.isOpen || document.querySelector(".cinematic-player[open], .campaign-intro[open], .encyclopedia-modal[open]")) return;
+  if (mobileMenu?.isOpen || saveMenu.isOpen || (typeof isWarRoomModalOpen === "function" && isWarRoomModalOpen()) || document.querySelector(".cinematic-player[open], .campaign-intro[open], .encyclopedia-modal[open], .war-room-modal[open]")) return;
   if (event.defaultPrevented || event.composedPath().some((node) => node instanceof HTMLElement
     && (node.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(node.tagName)))) return;
   if (!campaignLauncher.hidden) {
@@ -1990,6 +2021,12 @@ window.addEventListener("keydown", (event) => {
   }
   if (assetMode === "campaign" && (event.ctrlKey || event.metaKey || event.altKey)) { cameraPan.cancel(); return; }
   if (assetMode === "campaign" && skirmish instanceof MissionView) {
+    if (event.key === "Enter" && skirmish.deploymentSelection?.canDeploy) {
+      event.preventDefault();
+      skirmish.deploySelected();
+      updateDeploymentControl();
+      return;
+    }
     const key = event.key.toLowerCase();
     if (key === "j") {
       event.preventDefault();

@@ -31,6 +31,20 @@ import {
   type BrowserHealerUnitType,
 } from "./browser-healers";
 import {
+  BROWSER_ARTILLERY_PROFILES,
+  BROWSER_SCOUT_SPOTTER_PROFILES,
+  canArtilleryAcquireTarget,
+  resolveArtilleryEffectiveRange,
+  resolveArtilleryUnitType,
+  resolveScoutSpotterUnitType,
+  type BrowserArtillerySpottingOptions,
+  type BrowserArtilleryTargetInput,
+  type BrowserArtilleryUnitType,
+  type BrowserScoutSpotterUnitType,
+  type BrowserUnitIdentityInput,
+  type ResolvedArtilleryEffectiveRange,
+} from "./browser-artillery-spotting";
+import {
   completeLegacyInspireTask13, getLegacyInspireChargeGates, getLegacyInspireProfile,
   LEGACY_INSPIRE_NATIVE_RANDOM_TABLE, resolveLegacyInspireMultiplierQ8, scanLegacyInspireEffect,
   updateLegacyInspireCounters, verifiedLegacyInspireDeployFin,
@@ -410,6 +424,12 @@ interface BuildingState {
   readonly constructionQueue: ConstructionState[];
 }
 
+export interface BrowserArtillerySpottingCheckpoint {
+  readonly artillery: readonly { readonly unitId: number; readonly unitType: BrowserArtilleryUnitType }[];
+  readonly scouts: readonly { readonly unitId: number; readonly unitType: BrowserScoutSpotterUnitType }[];
+  readonly autoSpottedTargets?: readonly number[];
+}
+
 export interface SimulationCheckpoint {
   readonly groundMovement?: "eight-way-v1";
   readonly version: 1 | 2;
@@ -438,6 +458,7 @@ export interface SimulationCheckpoint {
   readonly resourceActorEvents?: readonly ResourceActorEvent[];
   readonly adaptedInspire?: AdaptedInspireCheckpoint;
   readonly browserHealers?: BrowserHealerCheckpoint;
+  readonly browserArtillerySpotting?: BrowserArtillerySpottingCheckpoint;
   readonly projectiles?: readonly ProjectileState[];
   readonly nextProjectileId?: number;
 }
@@ -691,6 +712,18 @@ function validateSimulationCheckpoint(input: unknown): asserts input is Simulati
         unitCost: positive,
       })),
     }),
+    browserArtillerySpotting: checkpointObject({
+      artillery: checkpointArray(checkpointObject({
+        unitId: positive,
+        unitType: checkpointChoice(3, 11),
+      })),
+      scouts: checkpointArray(checkpointObject({
+        unitId: positive,
+        unitType: checkpointChoice(5, 13, 24),
+      })),
+    }, {
+      autoSpottedTargets: checkpointArray(positive),
+    }),
   })(input);
   const saved = input as SimulationCheckpoint;
   const area = saved.grid.width * saved.grid.height;
@@ -721,6 +754,17 @@ function validateSimulationCheckpoint(input: unknown): asserts input is Simulati
     if (saved.browserHealers.unitCosts) {
       const costIds = saved.browserHealers.unitCosts.map((record) => record.unitId);
       checkpointRequire(new Set(costIds).size === costIds.length && costIds.every((id) => alive.has(id)));
+    }
+  }
+  if (saved.browserArtillerySpotting) {
+    const alive = new Set(saved.units.filter((unit) => unit.health > 0).map((unit) => unit.id));
+    const artIds = saved.browserArtillerySpotting.artillery.map((record) => record.unitId);
+    const scoutIds = saved.browserArtillerySpotting.scouts.map((record) => record.unitId);
+    checkpointRequire(new Set(artIds).size === artIds.length && artIds.every((id) => alive.has(id)));
+    checkpointRequire(new Set(scoutIds).size === scoutIds.length && scoutIds.every((id) => alive.has(id)));
+    if (saved.browserArtillerySpotting.autoSpottedTargets) {
+      const spottedIds = saved.browserArtillerySpotting.autoSpottedTargets;
+      checkpointRequire(new Set(spottedIds).size === spottedIds.length && spottedIds.every((id) => alive.has(id)));
     }
   }
   const actorIds = new Set<number>();
@@ -1069,6 +1113,9 @@ export class DeterministicSimulation implements Simulation {
   readonly #healers = new Map<number, { unitType: BrowserHealerUnitType; charge: number }>();
   readonly #unitHealCosts = new Map<number, { unitType?: number; unitCost?: number }>();
   readonly #healerEvents: BrowserHealerHealEvent[] = [];
+  readonly #artilleryUnits = new Map<number, { unitType: BrowserArtilleryUnitType; sprite: "BARR" | "ATRIL" }>();
+  readonly #scoutSpotters = new Map<number, { unitType: BrowserScoutSpotterUnitType; sprite: "SCGM" | "ORTU" | "AVII" }>();
+  readonly #autoSpottedArtilleryTargets = new Set<number>();
 
   constructor(grid: NavigationGrid, options: SimulationOptions = {}) {
     if (options.groundMovement !== undefined && options.groundMovement !== "eight-way-v1") {
@@ -1144,6 +1191,7 @@ export class DeterministicSimulation implements Simulation {
       resourceActors: [...this.#resourceActors.values()], resourceActorEvents: this.#resourceActorEvents,
       ...this.#adaptedInspireCheckpoint(),
       ...this.#browserHealersCheckpoint(),
+      ...this.#browserArtillerySpottingCheckpoint(),
       ...(this.#projectiles.length ? { projectiles: this.#projectiles } : {}),
       ...(this.#nextProjectileId > 1 ? { nextProjectileId: this.#nextProjectileId } : {}),
     });
@@ -1172,6 +1220,25 @@ export class DeterministicSimulation implements Simulation {
         ...(unitCost !== undefined ? { unitCost } : {}),
       }));
     return { browserHealers: { healers, ...(unitCosts.length ? { unitCosts } : {}) } };
+  }
+
+  #browserArtillerySpottingCheckpoint(): { browserArtillerySpotting?: BrowserArtillerySpottingCheckpoint } {
+    const live = (id: number) => this.#adaptedInspireLive(id);
+    const artillery = [...this.#artilleryUnits]
+      .filter(([id]) => live(id))
+      .map(([unitId, { unitType }]) => ({ unitId, unitType }));
+    const scouts = [...this.#scoutSpotters]
+      .filter(([id]) => live(id))
+      .map(([unitId, { unitType }]) => ({ unitId, unitType }));
+    if (!artillery.length && !scouts.length) return {};
+    const autoSpottedTargets = [...this.#autoSpottedArtilleryTargets].filter((id) => live(id));
+    return {
+      browserArtillerySpotting: {
+        artillery,
+        scouts,
+        ...(autoSpottedTargets.length ? { autoSpottedTargets } : {}),
+      },
+    };
   }
 
   #adaptedInspireLive(id: number): boolean {
@@ -1238,6 +1305,17 @@ export class DeterministicSimulation implements Simulation {
           ...(unitType !== undefined ? { unitType } : {}),
           ...(unitCost !== undefined ? { unitCost } : {}),
         });
+      }
+    }
+    if (saved.browserArtillerySpotting) {
+      for (const { unitId, unitType } of saved.browserArtillerySpotting.artillery) {
+        simulation.#artilleryUnits.set(unitId, { unitType, sprite: BROWSER_ARTILLERY_PROFILES[unitType].sprite });
+      }
+      for (const { unitId, unitType } of saved.browserArtillerySpotting.scouts) {
+        simulation.#scoutSpotters.set(unitId, { unitType, sprite: BROWSER_SCOUT_SPOTTER_PROFILES[unitType].sprite });
+      }
+      for (const unitId of saved.browserArtillerySpotting.autoSpottedTargets ?? []) {
+        simulation.#autoSpottedArtilleryTargets.add(unitId);
       }
     }
     return simulation;
@@ -1873,6 +1951,14 @@ export class DeterministicSimulation implements Simulation {
         : HEALER_INITIAL_CHARGE;
       this.#healers.set(id, { unitType: healerType, charge });
     }
+    const artilleryType = resolveArtilleryUnitType(options.unitType, options.sprite, options.sourceDefense?.sourceTypeIndex);
+    if (artilleryType !== null) {
+      this.#artilleryUnits.set(id, { unitType: artilleryType, sprite: BROWSER_ARTILLERY_PROFILES[artilleryType].sprite });
+    }
+    const scoutType = resolveScoutSpotterUnitType(options.unitType, options.sprite, options.sourceDefense?.sourceTypeIndex);
+    if (scoutType !== null) {
+      this.#scoutSpotters.set(id, { unitType: scoutType, sprite: BROWSER_SCOUT_SPOTTER_PROFILES[scoutType].sprite });
+    }
     return id;
   }
 
@@ -1890,7 +1976,251 @@ export class DeterministicSimulation implements Simulation {
     this.#adaptedInspireTargets.delete(id);
     this.#healers.delete(id);
     this.#unitHealCosts.delete(id);
+    this.#artilleryUnits.delete(id);
+    this.#scoutSpotters.delete(id);
+    this.#autoSpottedArtilleryTargets.delete(id);
     return this.#units.delete(id);
+  }
+
+  registerBrowserArtillery(unitId: number, unitTypeOrSprite: number | string = 3): boolean {
+    const unitType = resolveArtilleryUnitType(unitTypeOrSprite);
+    if (!unitType) throw new RangeError(`unsupported artillery type or sprite: ${String(unitTypeOrSprite)}`);
+    if (!this.#adaptedInspireLive(unitId) || this.#resourceActors.has(unitId)) return false;
+    this.#artilleryUnits.set(unitId, { unitType, sprite: BROWSER_ARTILLERY_PROFILES[unitType].sprite });
+    return true;
+  }
+
+  registerBrowserScoutSpotter(unitId: number, unitTypeOrSprite: number | string = 5): boolean {
+    const unitType = resolveScoutSpotterUnitType(unitTypeOrSprite);
+    if (!unitType) throw new RangeError(`unsupported scout spotter type or sprite: ${String(unitTypeOrSprite)}`);
+    if (!this.#adaptedInspireLive(unitId) || this.#resourceActors.has(unitId)) return false;
+    this.#scoutSpotters.set(unitId, { unitType, sprite: BROWSER_SCOUT_SPOTTER_PROFILES[unitType].sprite });
+    return true;
+  }
+
+  resolveArtilleryEffectiveRange(
+    unitId: number,
+    options?: BrowserArtillerySpottingOptions,
+  ): ResolvedArtilleryEffectiveRange | null {
+    const unit = this.#units.get(unitId);
+    if (!unit || unit.health <= 0 || unit.activity === "die") return null;
+    const artMeta = this.#artilleryUnits.get(unitId);
+    const inferredType =
+      artMeta?.unitType ??
+      resolveArtilleryUnitType(this.#unitHealCosts.get(unitId)?.unitType, undefined, unit.sourceDefense?.sourceTypeIndex) ??
+      (unit.weapon?.weaponId !== undefined
+        ? ([10, 11, 12].includes(unit.weapon.weaponId)
+          ? 3
+          : [24, 25, 26].includes(unit.weapon.weaponId)
+            ? 11
+            : null)
+        : null);
+    if (inferredType === null) return null;
+    const cell = this.#unitCell(unit);
+    const artilleryActor: BrowserUnitIdentityInput = {
+      id: unit.id,
+      unitType: inferredType,
+      sprite: BROWSER_ARTILLERY_PROFILES[inferredType].sprite,
+      faction: unit.faction,
+      ...(unit.team !== undefined ? { team: unit.team } : {}),
+      cellX: cell.x,
+      cellY: cell.y,
+      health: unit.health,
+      maxHealth: unit.maxHealth,
+      activity: unit.activity,
+      weapon: unit.weapon,
+      vision: unit.vision,
+    };
+    const scouts: BrowserUnitIdentityInput[] = [];
+    for (const other of [...this.#units.values()].sort((left, right) => left.id - right.id)) {
+      if (other.id === unit.id || other.health <= 0 || other.activity === "die") continue;
+      if (this.#resourceOwned(other.id) || this.#dormantUnits.has(other.id)) continue;
+      const scoutMeta = this.#scoutSpotters.get(other.id);
+      const scoutType =
+        scoutMeta?.unitType ??
+        resolveScoutSpotterUnitType(this.#unitHealCosts.get(other.id)?.unitType, undefined, other.sourceDefense?.sourceTypeIndex);
+      if (scoutType === null) continue;
+      const otherCell = this.#unitCell(other);
+      scouts.push({
+        id: other.id,
+        unitType: scoutType,
+        sprite: BROWSER_SCOUT_SPOTTER_PROFILES[scoutType].sprite,
+        faction: other.faction,
+        ...(other.team !== undefined ? { team: other.team } : {}),
+        cellX: otherCell.x,
+        cellY: otherCell.y,
+        health: other.health,
+        maxHealth: other.maxHealth,
+        activity: other.activity,
+        vision: other.vision,
+      });
+    }
+    return resolveArtilleryEffectiveRange(artilleryActor, scouts, {
+      daylightPermille: this.daylightPermille,
+      timeOfDay: this.daylightPermille >= 500 ? "day" : "night",
+      isNight: this.daylightPermille < 500,
+      teamAlliances: this.#teamAlliances,
+      ...options,
+    });
+  }
+
+  canArtilleryAcquireTarget(
+    unitId: number,
+    targetIdOrTarget: number | BrowserArtilleryTargetInput,
+    options?: BrowserArtillerySpottingOptions,
+  ): boolean {
+    const effective = this.resolveArtilleryEffectiveRange(unitId, options);
+    if (!effective || !effective.isArtillery) return false;
+    if (typeof targetIdOrTarget === "number") {
+      if (!this.canAutoTarget(unitId, targetIdOrTarget)) return false;
+      const target = this.#attackTarget(targetIdOrTarget);
+      if (!target) return false;
+      const targetCell = this.#unitCell(target);
+      const targetDesc: BrowserUnitIdentityInput = {
+        id: target.id,
+        faction: target.faction,
+        ...(target.team !== undefined ? { team: target.team } : {}),
+        cellX: targetCell.x,
+        cellY: targetCell.y,
+        cells: this.#targetCells(target),
+        health: target.health,
+        maxHealth: target.maxHealth,
+        ...("activity" in target ? { activity: target.activity } : {}),
+      };
+      return canArtilleryAcquireTarget(
+        {
+          id: unitId,
+          unitType: effective.unitType!,
+          sprite: effective.sprite!,
+          faction: this.#units.get(unitId)!.faction,
+          ...(this.#units.get(unitId)!.team !== undefined ? { team: this.#units.get(unitId)!.team } : {}),
+          cellX: this.#unitCell(this.#units.get(unitId)!).x,
+          cellY: this.#unitCell(this.#units.get(unitId)!).y,
+          health: this.#units.get(unitId)!.health,
+          maxHealth: this.#units.get(unitId)!.maxHealth,
+          weapon: this.#units.get(unitId)!.weapon,
+          vision: this.#units.get(unitId)!.vision,
+        },
+        targetDesc,
+        effective.spottingScouts,
+        {
+          daylightPermille: this.daylightPermille,
+          timeOfDay: this.daylightPermille >= 500 ? "day" : "night",
+          isNight: this.daylightPermille < 500,
+          teamAlliances: this.#teamAlliances,
+          ...options,
+        },
+      );
+    }
+    return effective.canArtilleryAcquireTarget(targetIdOrTarget, options);
+  }
+
+  deployUnitToStaticTarget(
+    unitId: number,
+    options: Omit<AddStaticTargetOptions, "cell" | "faction" | "team"> & {
+      readonly cell?: GridPoint;
+      readonly faction?: Faction;
+      readonly team?: number;
+    },
+  ): boolean {
+    const unit = this.#units.get(unitId);
+    if (!unit || unit.health <= 0 || unit.activity === "die" || this.#resourceActors.has(unitId) || this.#inspireUnitSlots.has(unitId)) {
+      return false;
+    }
+    const faction = options.faction ?? unit.faction;
+    const team = options.team !== undefined ? options.team : unit.team;
+    validateTeam(team);
+    const cell = options.cell ?? this.#unitCell(unit);
+    if (!this.grid.contains(cell.x, cell.y)) {
+      throw new RangeError(`static target cell is out of bounds: ${cell.x},${cell.y}`);
+    }
+    if (!Number.isInteger(options.maxHealth) || options.maxHealth <= 0) {
+      throw new RangeError("static target maxHealth must be a positive integer");
+    }
+    const health = options.health ?? Math.min(options.maxHealth, Math.max(1, unit.health));
+    if (!Number.isInteger(health) || health <= 0) {
+      throw new RangeError("static target health must be a positive integer");
+    }
+    const xSubcells = options.positionSubcells?.x ?? cellCenter(cell.x);
+    const ySubcells = options.positionSubcells?.y ?? cellCenter(cell.y);
+    if (
+      !Number.isFinite(xSubcells) || !Number.isFinite(ySubcells) ||
+      xSubcells < 0 || ySubcells < 0 ||
+      xSubcells >= this.grid.width * SUBCELLS_PER_CELL ||
+      ySubcells >= this.grid.height * SUBCELLS_PER_CELL
+    ) {
+      throw new RangeError("static target positionSubcells is out of bounds");
+    }
+    const footprint = [...new Set((options.footprint ?? []).map((point) => this.grid.index(point.x, point.y)))];
+    const sourceDefense = options.sourceDefense ? copyLegacyDefenseProfile(options.sourceDefense) : null;
+    if (options.mine) {
+      validateBrowserMineOptions(options.mine);
+      if (options.weapon || options.vision || footprint.length || team === undefined || team > 8
+        || (sourceDefense?.sourceTypeIndex !== undefined && sourceDefense.sourceTypeIndex !== options.mine.sourceTypeIndex)) {
+        throw new RangeError("Adapted mines require a source team, matching type, no turret weapon/vision and no footprint");
+      }
+    }
+    if (options.weapon) this.#validateWeapon(options.weapon);
+    if (options.vision) this.#validateVision(options.vision);
+
+    this.#units.delete(unitId);
+    this.#dormantUnits.delete(unitId);
+    this.#adaptedInspireCasters.delete(unitId);
+    this.#adaptedInspireTargets.delete(unitId);
+    this.#healers.delete(unitId);
+    this.#unitHealCosts.delete(unitId);
+    this.#artilleryUnits.delete(unitId);
+    this.#scoutSpotters.delete(unitId);
+    this.#autoSpottedArtilleryTargets.delete(unitId);
+    for (const reservations of [this.#movementReservations, this.#airMovementReservations]) {
+      for (const [index, owners] of reservations) {
+        if (owners.delete(unitId) && owners.size === 0) reservations.delete(index);
+      }
+    }
+    for (let i = this.#commands.length - 1; i >= 0; i -= 1) {
+      const entry = this.#commands[i];
+      if ("unitIds" in entry.command && entry.command.unitIds.includes(unitId)) {
+        const remaining = entry.command.unitIds.filter((id) => id !== unitId);
+        if (remaining.length === 0) this.#commands.splice(i, 1);
+        else this.#commands[i] = { ...entry, command: { ...entry.command, unitIds: remaining } };
+      }
+    }
+    for (let i = this.#reservationEvents.length - 1; i >= 0; i -= 1) {
+      if (this.#reservationEvents[i].unitId === unitId) this.#reservationEvents.splice(i, 1);
+    }
+    for (let i = this.#movementFinishedEvents.length - 1; i >= 0; i -= 1) {
+      if (this.#movementFinishedEvents[i].unitId === unitId) this.#movementFinishedEvents.splice(i, 1);
+    }
+    if (options.mine) {
+      for (const other of this.#units.values()) if (other.attackTargetId === unitId) other.attackTargetId = null;
+      for (const other of this.#staticTargets.values()) if (other.attackTargetId === unitId) other.attackTargetId = null;
+    }
+
+    this.#staticTargets.set(unitId, {
+      id: unitId,
+      faction,
+      team,
+      xSubcells,
+      ySubcells,
+      footprint,
+      health,
+      maxHealth: options.maxHealth,
+      sourceDefense,
+      ...(options.mine ? { mine: structuredClone(options.mine) } : {}),
+      ...(options.weapon ? {
+        weapon: structuredClone(options.weapon),
+        attackCooldown: 0,
+        attackTargetId: null,
+        ...(options.vision ? { vision: { ...options.vision } } : {}),
+      } : {}),
+    });
+    for (const index of footprint) {
+      const blocker = this.#staticBlockers.get(index);
+      if (blocker) blocker.count += 1;
+      else this.#staticBlockers.set(index, { count: 1, priorCost: this.grid.costs[index] });
+      this.grid.costs[index] = 0;
+    }
+    return true;
   }
 
   setDormantUnits(ids: Iterable<number>): void {
@@ -2125,6 +2455,24 @@ export class DeterministicSimulation implements Simulation {
         const startXSubcells = unit.xSubcells;
         const startYSubcells = unit.ySubcells;
         if (unit.attackCooldown > 0) unit.attackCooldown -= 1;
+        if (this.#artilleryUnits.has(unit.id) && unit.weapon) {
+          if (unit.activity === "attack" && this.#autoSpottedArtilleryTargets.has(unit.id)) {
+            if (unit.attackTargetId === null || !this.canArtilleryAcquireTarget(unit.id, unit.attackTargetId)) {
+              this.#autoSpottedArtilleryTargets.delete(unit.id);
+              this.#clearOrders(unit);
+              unit.activity = "idle";
+            }
+          }
+          if (unit.activity === "idle" && unit.displacement === undefined) {
+            const candidates = [...this.#units.values(), ...this.#staticTargets.values()].sort((left, right) => left.id - right.id);
+            const acquired = candidates.find((candidate) => this.canArtilleryAcquireTarget(unit.id, candidate.id));
+            if (acquired) {
+              unit.attackTargetId = acquired.id;
+              unit.activity = "attack";
+              this.#autoSpottedArtilleryTargets.add(unit.id);
+            }
+          }
+        }
         if (unit.activity === "move") {
           if (this.#advancePath(unit)) unit.activity = "idle";
         } else if (unit.activity === "attack") {
@@ -2203,6 +2551,9 @@ export class DeterministicSimulation implements Simulation {
           this.#adaptedInspireTargets.delete(target.id);
           this.#healers.delete(target.id);
           this.#unitHealCosts.delete(target.id);
+          this.#artilleryUnits.delete(target.id);
+          this.#scoutSpotters.delete(target.id);
+          this.#autoSpottedArtilleryTargets.delete(target.id);
         } else {
           if (target.weapon) target.attackTargetId = null;
           for (const index of target.footprint) {
@@ -2780,7 +3131,16 @@ export class DeterministicSimulation implements Simulation {
       return null;
     }
     // A pursuing unit finishes its current leg before firing: DC.EXE moves centre to centre and re-evaluates range between legs.
-    const cell = this.#unitCell(unit), range = unit.weapon.rangeCells;
+    const cell = this.#unitCell(unit);
+    let range = unit.weapon.rangeCells;
+    if (this.#artilleryUnits.has(unit.id)) {
+      const effective = this.resolveArtilleryEffectiveRange(unit.id);
+      if (effective) {
+        range = this.canArtilleryAcquireTarget(unit.id, target.id)
+          ? Math.max(unit.weapon.rangeCells, effective.effectiveRange)
+          : effective.unspottedRange;
+      }
+    }
     const midLeg = unit.pathIndex < unit.path.length && (unit.xSubcells !== cellCenter(cell.x) || unit.ySubcells !== cellCenter(cell.y));
     if (midLeg) {
       const legEnd = unit.path[unit.pathIndex];
@@ -2851,8 +3211,11 @@ export class DeterministicSimulation implements Simulation {
     }
     const originX = unit.xSubcells >> 2, originY = unit.ySubcells >> 2;
     const splash = (unit.weapon.splash ?? 0) > 0;
+    const launchRange = "activity" in unit && this.#artilleryUnits.has(unit.id)
+      ? Math.max(unit.weapon.rangeCells, this.resolveArtilleryEffectiveRange(unit.id)?.effectiveRange ?? unit.weapon.rangeCells)
+      : unit.weapon.rangeCells;
     const vector = projectileLaunchVector(originX, originY, target.xSubcells >> 2, target.ySubcells >> 2, speed,
-      unit.weapon.rangeCells, splash);
+      launchRange, splash);
     const projectile: ProjectileState = {
       id: this.#nextProjectileId++, attackerId: unit.id, ...(unit.team === undefined ? {} : { attackerTeam: unit.team }),
       targetId: target.id, weaponId: unit.weapon.weaponId ?? 0, damage: unit.weapon.damage,
@@ -3028,6 +3391,7 @@ export class DeterministicSimulation implements Simulation {
   }
 
   #clearOrders(unit: UnitState): void {
+    this.#autoSpottedArtilleryTargets.delete(unit.id);
     unit.path = [];
     unit.pathIndex = 0;
     unit.reservedDestination = null;

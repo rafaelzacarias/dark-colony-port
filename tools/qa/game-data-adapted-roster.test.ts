@@ -45,7 +45,7 @@ for (const faction of ["human", "alien"] as const) {
       const session = new CampaignSession(sourceBrowserCampaignSessionOptions(mission));
       const choices = production ? sourceProductionUi(createCampaignProduction({ ...production, sessionId: `${mission.scenario.id}:browser` }), 0) : [];
       const roster = choices.filter(choice => choice.kind === "unit" && source.some(entry => entry.unitType === choice.unitType));
-      if (production && missionNumber >= 3) assert.equal(roster.length, 4);
+      if (production && missionNumber >= 3) assert.equal(roster.length, 7);
       else assert.deepEqual(roster, []);
       census.push({ mission: mission.scenario.id, credits: production?.teams[0].credits ?? null,
         profiles: production?.adaptedUnitProfiles?.map(profile => profile.unitType) ?? [],

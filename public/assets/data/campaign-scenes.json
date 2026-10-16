@@ -1,0 +1,1877 @@
+{
+  "schemaVersion": 1,
+  "sources": {
+    "human": {
+      "path": "raw_cd/DC/GAMESTAT/HSCENE.TXT",
+      "sha256": "56740dba1f63d7e1523f8c7126eb8c268c698fa7c8a882c70dcbd391e0e68b0b"
+    },
+    "alien": {
+      "path": "raw_cd/DC/GAMESTAT/GSCENE.TXT",
+      "sha256": "6924a69e14be0148cbee2e88f8a3c3b9c6af3fad0c751928a0068134babd87fc"
+    }
+  },
+  "tribes": [
+    "Pan Luma",
+    "Stratus",
+    "Taar",
+    "Taar Council",
+    "Unknown",
+    "Roswell Taar",
+    "Unknown",
+    "Aerogen"
+  ],
+  "campaigns": {
+    "human": [
+      {
+        "missionNumber": 1,
+        "faction": "human",
+        "scnPath": "human/human01.scn",
+        "title": "RED LANDING",
+        "location": "CHRYSE BASIN",
+        "scenarioStem": "scenario/human/human01",
+        "introAvi": "avi/hvad2.avi",
+        "outroAvi": "avi/avhd4.avi",
+        "introVideoStem": "HVAD2",
+        "outroVideoStem": "AVHD4",
+        "introVideo": {
+          "stem": "HVAD2",
+          "mp4": "/assets/generated/media/video/AVI/HVAD2.mp4",
+          "webm": "/assets/generated/media/video/AVI/HVAD2.webm"
+        },
+        "outroVideo": {
+          "stem": "AVHD4",
+          "mp4": "/assets/generated/media/video/AVI/AVHD4.mp4",
+          "webm": "/assets/generated/media/video/AVI/AVHD4.webm"
+        },
+        "params": [
+          25,
+          110,
+          30
+        ],
+        "flag": 0,
+        "objectives": [
+          2
+        ],
+        "briefingPath": "/assets/generated/data/briefings/HUMAN/HUMAN01.json",
+        "briefingSourceSha256": "8d79b46ecf33a039b774542bb710c2536a2500907832d9f4231d6b46b111dcae",
+        "voicePath": "/assets/generated/media/audio/MISSION/H1.ogg"
+      },
+      {
+        "missionNumber": 2,
+        "faction": "human",
+        "scnPath": "human/human02.scn",
+        "title": "BASE CAMP ALPHA",
+        "location": "SEN FIELDS",
+        "scenarioStem": "scenario/human/human02",
+        "introAvi": "avi/desnight.avi",
+        "outroAvi": "avi/htran8.avi",
+        "introVideoStem": "DESNIGHT",
+        "outroVideoStem": "HTRAN8",
+        "introVideo": {
+          "stem": "DESNIGHT",
+          "mp4": "/assets/generated/media/video/AVI/DESNIGHT.mp4",
+          "webm": "/assets/generated/media/video/AVI/DESNIGHT.webm"
+        },
+        "outroVideo": {
+          "stem": "HTRAN8",
+          "mp4": "/assets/generated/media/video/AVI/HTRAN8.mp4",
+          "webm": "/assets/generated/media/video/AVI/HTRAN8.webm"
+        },
+        "params": [
+          70,
+          70,
+          70
+        ],
+        "flag": 0,
+        "objectives": [
+          4,
+          5,
+          3
+        ],
+        "briefingPath": "/assets/generated/data/briefings/HUMAN/HUMAN02.json",
+        "briefingSourceSha256": "9d38ef944ab27c5a5e310acb92159141cae913830fc0acc1782cc69f3a2d7699",
+        "voicePath": "/assets/generated/media/audio/MISSION/H2.ogg"
+      },
+      {
+        "missionNumber": 3,
+        "faction": "human",
+        "scnPath": "human/human03.scn",
+        "title": "ALLIED INTERVENTION",
+        "location": "NEW VLADAVOSTOK",
+        "scenarioStem": "scenario/human/human03",
+        "introAvi": "avi/hvad5.avi",
+        "outroAvi": "avi/htran10.avi",
+        "introVideoStem": "HVAD5",
+        "outroVideoStem": "HTRAN10",
+        "introVideo": {
+          "stem": "HVAD5",
+          "mp4": "/assets/generated/media/video/AVI/HVAD5.mp4",
+          "webm": "/assets/generated/media/video/AVI/HVAD5.webm"
+        },
+        "outroVideo": {
+          "stem": "HTRAN10",
+          "mp4": "/assets/generated/media/video/AVI/HTRAN10.mp4",
+          "webm": "/assets/generated/media/video/AVI/HTRAN10.webm"
+        },
+        "params": [
+          35,
+          180,
+          90
+        ],
+        "flag": 0,
+        "objectives": [
+          2,
+          3
+        ],
+        "briefingPath": "/assets/generated/data/briefings/HUMAN/HUMAN03.json",
+        "briefingSourceSha256": "a929bca8c241149a31add91ee4a3e7ebcf798fb8c59364371c37e9ba8d6e0e4a",
+        "voicePath": "/assets/generated/media/audio/MISSION/H3.ogg"
+      },
+      {
+        "missionNumber": 4,
+        "faction": "human",
+        "scnPath": "human/human04.scn",
+        "title": "ISLAND ASSAULT",
+        "location": "ALLUSION ISLANDS",
+        "scenarioStem": "scenario/human/human04",
+        "introAvi": "avi/bodys.avi",
+        "outroAvi": "avi/htran4.avi",
+        "introVideoStem": "BODYS",
+        "outroVideoStem": "HTRAN4",
+        "introVideo": {
+          "stem": "BODYS",
+          "mp4": "/assets/generated/media/video/AVI/BODYS.mp4",
+          "webm": "/assets/generated/media/video/AVI/BODYS.webm"
+        },
+        "outroVideo": {
+          "stem": "HTRAN4",
+          "mp4": "/assets/generated/media/video/AVI/HTRAN4.mp4",
+          "webm": "/assets/generated/media/video/AVI/HTRAN4.webm"
+        },
+        "params": [
+          60,
+          140,
+          75
+        ],
+        "flag": 0,
+        "objectives": [
+          5,
+          2
+        ],
+        "briefingPath": "/assets/generated/data/briefings/HUMAN/HUMAN04.json",
+        "briefingSourceSha256": "54a3d1e9091e4321fa5b7a06fbd603c3055c61973cefd37f2dc0ac9c5385c656",
+        "voicePath": "/assets/generated/media/audio/MISSION/H4.ogg"
+      },
+      {
+        "missionNumber": 5,
+        "faction": "human",
+        "scnPath": "human/human05.scn",
+        "title": "DARKEST HOUR",
+        "location": "CORYNTHE PLATEAU",
+        "scenarioStem": "scenario/human/human05",
+        "introAvi": "avi/capture.avi",
+        "outroAvi": "avi/lizards.avi",
+        "introVideoStem": "CAPTURE",
+        "outroVideoStem": "LIZARDS",
+        "introVideo": {
+          "stem": "CAPTURE",
+          "mp4": "/assets/generated/media/video/AVI/CAPTURE.mp4",
+          "webm": "/assets/generated/media/video/AVI/CAPTURE.webm"
+        },
+        "outroVideo": {
+          "stem": "LIZARDS",
+          "mp4": "/assets/generated/media/video/AVI/LIZARDS.mp4",
+          "webm": "/assets/generated/media/video/AVI/LIZARDS.webm"
+        },
+        "params": [
+          1,
+          115,
+          90
+        ],
+        "flag": 0,
+        "objectives": [
+          2,
+          3,
+          5
+        ],
+        "briefingPath": "/assets/generated/data/briefings/HUMAN/HUMAN05.json",
+        "briefingSourceSha256": "cf9c9bcfc0b50fb194acc20c0d87a47a1ad248128b6810834cadc6ad57e4db85",
+        "voicePath": "/assets/generated/media/audio/MISSION/H5.ogg"
+      },
+      {
+        "missionNumber": 6,
+        "faction": "human",
+        "scnPath": "human/human06.scn",
+        "title": "ANCIENT LEGACY",
+        "location": "THE UNDERGROUND",
+        "scenarioStem": "scenario/human/human06",
+        "introAvi": "avi/lenz.avi",
+        "outroAvi": "avi/sylunge.avi",
+        "introVideoStem": "LENZ",
+        "outroVideoStem": "SYLUNGE",
+        "introVideo": {
+          "stem": "LENZ",
+          "mp4": "/assets/generated/media/video/AVI/LENZ.mp4",
+          "webm": "/assets/generated/media/video/AVI/LENZ.webm"
+        },
+        "outroVideo": {
+          "stem": "SYLUNGE",
+          "mp4": "/assets/generated/media/video/AVI/SYLUNGE.mp4",
+          "webm": "/assets/generated/media/video/AVI/SYLUNGE.webm"
+        },
+        "params": [
+          0,
+          0,
+          0
+        ],
+        "flag": 0,
+        "objectives": [
+          4,
+          5
+        ],
+        "briefingPath": "/assets/generated/data/briefings/HUMAN/HUMAN06.json",
+        "briefingSourceSha256": "a989dec8958cd825ef836056b0ec3cf7a94564c7a9ab0083765fb84678ab23b9",
+        "voicePath": "/assets/generated/media/audio/MISSION/H6.ogg"
+      },
+      {
+        "missionNumber": 7,
+        "faction": "human",
+        "scnPath": "human/human07.scn",
+        "title": "RETRIBUTION",
+        "location": "BENTOK MOUNTAINS",
+        "scenarioStem": "scenario/human/human07",
+        "introAvi": "avi/barbq.avi",
+        "outroAvi": "avi/htran7.avi",
+        "introVideoStem": "BARBQ",
+        "outroVideoStem": "HTRAN7",
+        "introVideo": {
+          "stem": "BARBQ",
+          "mp4": "/assets/generated/media/video/AVI/BARBQ.mp4",
+          "webm": "/assets/generated/media/video/AVI/BARBQ.webm"
+        },
+        "outroVideo": {
+          "stem": "HTRAN7",
+          "mp4": "/assets/generated/media/video/AVI/HTRAN7.mp4",
+          "webm": "/assets/generated/media/video/AVI/HTRAN7.webm"
+        },
+        "params": [
+          20,
+          80,
+          30
+        ],
+        "flag": 0,
+        "objectives": [
+          4,
+          3,
+          2
+        ],
+        "briefingPath": "/assets/generated/data/briefings/HUMAN/HUMAN07.json",
+        "briefingSourceSha256": "e030243e8c2a13354cf52e570866a6d286766b20087895e90ed2c293615d378b",
+        "voicePath": "/assets/generated/media/audio/MISSION/H7.ogg"
+      },
+      {
+        "missionNumber": 8,
+        "faction": "human",
+        "scnPath": "human/human08.scn",
+        "title": "SHATTERED FRONT",
+        "location": "BROWNBILL SWAMPS",
+        "scenarioStem": "scenario/human/human08",
+        "introAvi": "avi/hvad.avi",
+        "outroAvi": "avi/htran5.avi",
+        "introVideoStem": "HVAD",
+        "outroVideoStem": "HTRAN5",
+        "introVideo": {
+          "stem": "HVAD",
+          "mp4": "/assets/generated/media/video/AVI/HVAD.mp4",
+          "webm": "/assets/generated/media/video/AVI/HVAD.webm"
+        },
+        "outroVideo": {
+          "stem": "HTRAN5",
+          "mp4": "/assets/generated/media/video/AVI/HTRAN5.mp4",
+          "webm": "/assets/generated/media/video/AVI/HTRAN5.webm"
+        },
+        "params": [
+          30,
+          130,
+          85
+        ],
+        "flag": 0,
+        "objectives": [
+          5,
+          3,
+          2
+        ],
+        "briefingPath": "/assets/generated/data/briefings/HUMAN/HUMAN08.json",
+        "briefingSourceSha256": "90e802a445fc9c748aa5100f77792b641869d4858b061f76340c8ec9497a5156",
+        "voicePath": "/assets/generated/media/audio/MISSION/H8.ogg"
+      },
+      {
+        "missionNumber": 9,
+        "faction": "human",
+        "scnPath": "human/human09.scn",
+        "title": "EXTERMINATION",
+        "location": "SUNDARR FOREST",
+        "scenarioStem": "scenario/human/human09",
+        "introAvi": "avi/stratus.avi",
+        "outroAvi": "avi/htran3.avi",
+        "introVideoStem": "STRATUS",
+        "outroVideoStem": "HTRAN3",
+        "introVideo": {
+          "stem": "STRATUS",
+          "mp4": "/assets/generated/media/video/AVI/STRATUS.mp4",
+          "webm": "/assets/generated/media/video/AVI/STRATUS.webm"
+        },
+        "outroVideo": {
+          "stem": "HTRAN3",
+          "mp4": "/assets/generated/media/video/AVI/HTRAN3.mp4",
+          "webm": "/assets/generated/media/video/AVI/HTRAN3.webm"
+        },
+        "params": [
+          75,
+          70,
+          90
+        ],
+        "flag": 0,
+        "objectives": [
+          5,
+          3,
+          2
+        ],
+        "briefingPath": "/assets/generated/data/briefings/HUMAN/HUMAN09.json",
+        "briefingSourceSha256": "8fa417deff642531b7d320c37770588e2e090c21739e5d3e9f03c7181ae0fd23",
+        "voicePath": "/assets/generated/media/audio/MISSION/H9.ogg"
+      },
+      {
+        "missionNumber": 10,
+        "faction": "human",
+        "scnPath": "human/human10.scn",
+        "title": "SILENT STRIKE",
+        "location": "MACHEA VALLEY",
+        "scenarioStem": "scenario/human/human10",
+        "introAvi": "avi/hdtemp.avi",
+        "outroAvi": "avi/avhd5.avi",
+        "introVideoStem": "HDTEMP",
+        "outroVideoStem": "AVHD5",
+        "introVideo": {
+          "stem": "HDTEMP",
+          "mp4": "/assets/generated/media/video/AVI/HDTEMP.mp4",
+          "webm": "/assets/generated/media/video/AVI/HDTEMP.webm"
+        },
+        "outroVideo": {
+          "stem": "AVHD5",
+          "mp4": "/assets/generated/media/video/AVI/AVHD5.mp4",
+          "webm": "/assets/generated/media/video/AVI/AVHD5.webm"
+        },
+        "params": [
+          10,
+          150,
+          30
+        ],
+        "flag": 0,
+        "objectives": [
+          4,
+          5,
+          3,
+          2
+        ],
+        "briefingPath": "/assets/generated/data/briefings/HUMAN/HUMAN10.json",
+        "briefingSourceSha256": "5abfd2bd7689f802c5eceadba47bd10164174c93ea2107e21f22306aa03118c0",
+        "voicePath": "/assets/generated/media/audio/MISSION/H10.ogg"
+      },
+      {
+        "missionNumber": 11,
+        "faction": "human",
+        "scnPath": "human/human11.scn",
+        "title": "THE PRIZE",
+        "location": "THE UNDERGROUND",
+        "scenarioStem": "scenario/human/human11",
+        "introAvi": "avi/kaoxmakt.avi",
+        "outroAvi": "avi/atavhd.avi",
+        "introVideoStem": "KAOXMAKT",
+        "outroVideoStem": "ATAVHD",
+        "introVideo": {
+          "stem": "KAOXMAKT",
+          "mp4": "/assets/generated/media/video/AVI/KAOXMAKT.mp4",
+          "webm": "/assets/generated/media/video/AVI/KAOXMAKT.webm"
+        },
+        "outroVideo": {
+          "stem": "ATAVHD",
+          "mp4": "/assets/generated/media/video/AVI/ATAVHD.mp4",
+          "webm": "/assets/generated/media/video/AVI/ATAVHD.webm"
+        },
+        "params": [
+          10,
+          150,
+          30
+        ],
+        "flag": 0,
+        "objectives": [
+          4,
+          5
+        ],
+        "briefingPath": "/assets/generated/data/briefings/HUMAN/HUMAN11.json",
+        "briefingSourceSha256": "d0e02b4b7d62a0cac8c7e94cc16804322abb2d30f016d4c30d1fc35789bae5ab",
+        "voicePath": "/assets/generated/media/audio/MISSION/H11.ogg"
+      },
+      {
+        "missionNumber": 12,
+        "faction": "human",
+        "scnPath": "human/human12.scn",
+        "title": "BLOOD CANYON",
+        "location": "BLOOD CANYON",
+        "scenarioStem": "scenario/human/human12",
+        "introAvi": "avi/hvad6.avi",
+        "outroAvi": "avi/avhd.avi",
+        "introVideoStem": "HVAD6",
+        "outroVideoStem": "AVHD",
+        "introVideo": {
+          "stem": "HVAD6",
+          "mp4": "/assets/generated/media/video/AVI/HVAD6.mp4",
+          "webm": "/assets/generated/media/video/AVI/HVAD6.webm"
+        },
+        "outroVideo": {
+          "stem": "AVHD",
+          "mp4": "/assets/generated/media/video/AVI/AVHD.mp4",
+          "webm": "/assets/generated/media/video/AVI/AVHD.webm"
+        },
+        "params": [
+          30,
+          130,
+          85
+        ],
+        "flag": 0,
+        "objectives": [
+          2,
+          3
+        ],
+        "briefingPath": "/assets/generated/data/briefings/HUMAN/HUMAN12.json",
+        "briefingSourceSha256": "a9da68080dfa95e0f1493667b9ce966773cdd8aa1c0d713d0976a3213528e7d5",
+        "voicePath": "/assets/generated/media/audio/MISSION/H12.ogg"
+      },
+      {
+        "missionNumber": 13,
+        "faction": "human",
+        "scnPath": "human/human13.scn",
+        "title": "LAST FRONT",
+        "location": "SOUTHERN HEMISPHERE",
+        "scenarioStem": "scenario/human/human13",
+        "introAvi": "avi/hjtemp.avi",
+        "outroAvi": "avi/htran1.avi",
+        "introVideoStem": "HJTEMP",
+        "outroVideoStem": "HTRAN1",
+        "introVideo": {
+          "stem": "HJTEMP",
+          "mp4": "/assets/generated/media/video/AVI/HJTEMP.mp4",
+          "webm": "/assets/generated/media/video/AVI/HJTEMP.webm"
+        },
+        "outroVideo": {
+          "stem": "HTRAN1",
+          "mp4": "/assets/generated/media/video/AVI/HTRAN1.mp4",
+          "webm": "/assets/generated/media/video/AVI/HTRAN1.webm"
+        },
+        "params": [
+          15,
+          120,
+          66
+        ],
+        "flag": 0,
+        "objectives": [
+          5,
+          3,
+          2,
+          3
+        ],
+        "briefingPath": "/assets/generated/data/briefings/HUMAN/HUMAN13.json",
+        "briefingSourceSha256": "8bd88d704b17839d2512ebaef655db7d9233c9ab1c42273ac3bb77359192d6d9",
+        "voicePath": "/assets/generated/media/audio/MISSION/H13.ogg"
+      },
+      {
+        "missionNumber": 14,
+        "faction": "human",
+        "scnPath": "human/human14.scn",
+        "title": "ULTIMATE DISCOVERY",
+        "location": "THE UNDERGROUND",
+        "scenarioStem": "scenario/human/human14",
+        "introAvi": "avi/ultimate.avi",
+        "outroAvi": "avi/sylunge.avi",
+        "introVideoStem": "ULTIMATE",
+        "outroVideoStem": "SYLUNGE",
+        "introVideo": {
+          "stem": "ULTIMATE",
+          "mp4": "/assets/generated/media/video/AVI/ULTIMATE.mp4",
+          "webm": "/assets/generated/media/video/AVI/ULTIMATE.webm"
+        },
+        "outroVideo": {
+          "stem": "SYLUNGE",
+          "mp4": "/assets/generated/media/video/AVI/SYLUNGE.mp4",
+          "webm": "/assets/generated/media/video/AVI/SYLUNGE.webm"
+        },
+        "params": [
+          5,
+          160,
+          60
+        ],
+        "flag": 0,
+        "objectives": [
+          5,
+          4
+        ],
+        "briefingPath": "/assets/generated/data/briefings/HUMAN/HUMAN14.json",
+        "briefingSourceSha256": "76f6f7e58cc1dcf66179dd2ab628fb90965acb67f02cee34859f4cfcd99ecb2f",
+        "voicePath": "/assets/generated/media/audio/MISSION/H14.ogg"
+      },
+      {
+        "missionNumber": 15,
+        "faction": "human",
+        "scnPath": "human/human15.scn",
+        "title": "FINEST HOUR",
+        "location": "DROMOS THREE",
+        "scenarioStem": "scenario/human/human15",
+        "introAvi": "avi/hending.avi",
+        "outroAvi": "avi/afield.avi",
+        "introVideoStem": "HENDING",
+        "outroVideoStem": "AFIELD",
+        "introVideo": {
+          "stem": "HENDING",
+          "mp4": "/assets/generated/media/video/AVI/HENDING.mp4",
+          "webm": "/assets/generated/media/video/AVI/HENDING.webm"
+        },
+        "outroVideo": {
+          "stem": "AFIELD",
+          "mp4": "/assets/generated/media/video/AVI/AFIELD.mp4",
+          "webm": "/assets/generated/media/video/AVI/AFIELD.webm"
+        },
+        "params": [
+          40,
+          90,
+          130
+        ],
+        "flag": 0,
+        "objectives": [
+          3,
+          2
+        ],
+        "briefingPath": "/assets/generated/data/briefings/HUMAN/HUMAN15.json",
+        "briefingSourceSha256": "e9665c19ba1f0b5a7f016703dc263ece10a69c2219ba4b4e82496efc60e0da41",
+        "voicePath": "/assets/generated/media/audio/MISSION/H15.ogg"
+      }
+    ],
+    "alien": [
+      {
+        "missionNumber": 1,
+        "faction": "alien",
+        "scnPath": "alien/alien01.scn",
+        "title": "FIRST STRIKE",
+        "location": "CYDONIA REGION",
+        "scenarioStem": "scenario/alien/alien01",
+        "introAvi": "avi/avhd4.avi",
+        "outroAvi": "avi/hvad2.avi",
+        "introVideoStem": "AVHD4",
+        "outroVideoStem": "HVAD2",
+        "introVideo": {
+          "stem": "AVHD4",
+          "mp4": "/assets/generated/media/video/AVI/AVHD4.mp4",
+          "webm": "/assets/generated/media/video/AVI/AVHD4.webm"
+        },
+        "outroVideo": {
+          "stem": "HVAD2",
+          "mp4": "/assets/generated/media/video/AVI/HVAD2.mp4",
+          "webm": "/assets/generated/media/video/AVI/HVAD2.webm"
+        },
+        "params": [
+          5,
+          160,
+          60
+        ],
+        "flag": 0,
+        "objectives": [
+          2
+        ],
+        "briefingPath": "/assets/generated/data/briefings/ALIEN/ALIEN01.json",
+        "briefingSourceSha256": "e05dd7cbe6795aac568c351724fd12e9725d70a3268a3e8b4f1e436b5e8a26be",
+        "voicePath": "/assets/generated/media/audio/MISSION/G1.ogg"
+      },
+      {
+        "missionNumber": 2,
+        "faction": "alien",
+        "scnPath": "alien/alien02.scn",
+        "title": "INTERFERENCE",
+        "location": "RAMSTRONG VALLEY",
+        "scenarioStem": "scenario/alien/alien02",
+        "introAvi": "avi/avhd5.avi",
+        "outroAvi": "avi/atran3.avi",
+        "introVideoStem": "AVHD5",
+        "outroVideoStem": "ATRAN3",
+        "introVideo": {
+          "stem": "AVHD5",
+          "mp4": "/assets/generated/media/video/AVI/AVHD5.mp4",
+          "webm": "/assets/generated/media/video/AVI/AVHD5.webm"
+        },
+        "outroVideo": {
+          "stem": "ATRAN3",
+          "mp4": "/assets/generated/media/video/AVI/ATRAN3.mp4",
+          "webm": "/assets/generated/media/video/AVI/ATRAN3.webm"
+        },
+        "params": [
+          10,
+          150,
+          30
+        ],
+        "flag": 0,
+        "objectives": [
+          5,
+          3,
+          2
+        ],
+        "briefingPath": "/assets/generated/data/briefings/ALIEN/ALIEN02.json",
+        "briefingSourceSha256": "0f891d3032d14c1efca607df09f826549f117dab59d5846883176f0281161d11",
+        "voicePath": "/assets/generated/media/audio/MISSION/G2.ogg"
+      },
+      {
+        "missionNumber": 3,
+        "faction": "alien",
+        "scnPath": "alien/alien03.scn",
+        "title": "LEGACY REVEALED",
+        "location": "ANCONA",
+        "scenarioStem": "scenario/alien/alien03",
+        "introAvi": "avi/jtalk3.avi",
+        "outroAvi": "avi/jcrawl.avi",
+        "introVideoStem": "JTALK3",
+        "outroVideoStem": "JCRAWL",
+        "introVideo": {
+          "stem": "JTALK3",
+          "mp4": "/assets/generated/media/video/AVI/JTALK3.mp4",
+          "webm": "/assets/generated/media/video/AVI/JTALK3.webm"
+        },
+        "outroVideo": {
+          "stem": "JCRAWL",
+          "mp4": "/assets/generated/media/video/AVI/JCRAWL.mp4",
+          "webm": "/assets/generated/media/video/AVI/JCRAWL.webm"
+        },
+        "params": [
+          75,
+          100,
+          60
+        ],
+        "flag": 0,
+        "objectives": [
+          5,
+          3,
+          2
+        ],
+        "briefingPath": "/assets/generated/data/briefings/ALIEN/ALIEN03.json",
+        "briefingSourceSha256": "6fa717d1807f4e7d8ceb18eeb9317dff47629d3f1565e59fbb4385e61ed4f1ae",
+        "voicePath": "/assets/generated/media/audio/MISSION/G3.ogg"
+      },
+      {
+        "missionNumber": 4,
+        "faction": "alien",
+        "scnPath": "alien/alien04.scn",
+        "title": "OPERATION:BREAKTHROUGH",
+        "location": "TENDIRO PLAINS",
+        "scenarioStem": "scenario/alien/alien04",
+        "introAvi": "avi/escape.avi",
+        "outroAvi": "avi/atran2.avi",
+        "introVideoStem": "ESCAPE",
+        "outroVideoStem": "ATRAN2",
+        "introVideo": {
+          "stem": "ESCAPE",
+          "mp4": "/assets/generated/media/video/AVI/ESCAPE.mp4",
+          "webm": "/assets/generated/media/video/AVI/ESCAPE.webm"
+        },
+        "outroVideo": {
+          "stem": "ATRAN2",
+          "mp4": "/assets/generated/media/video/AVI/ATRAN2.mp4",
+          "webm": "/assets/generated/media/video/AVI/ATRAN2.webm"
+        },
+        "params": [
+          30,
+          130,
+          85
+        ],
+        "flag": 0,
+        "objectives": [
+          2,
+          3
+        ],
+        "briefingPath": "/assets/generated/data/briefings/ALIEN/ALIEN04.json",
+        "briefingSourceSha256": "5c2f5766f8a14c1c92da90b59f7625add6e69fbf1f273c3eefa559cce904c893",
+        "voicePath": "/assets/generated/media/audio/MISSION/G4.ogg"
+      },
+      {
+        "missionNumber": 5,
+        "faction": "alien",
+        "scnPath": "alien/alien05.scn",
+        "title": "ROSWELL REVISITED",
+        "location": "AREA 51",
+        "scenarioStem": "scenario/alien/alien05",
+        "introAvi": "avi/scrub.avi",
+        "outroAvi": "avi/waste.avi",
+        "introVideoStem": "SCRUB",
+        "outroVideoStem": "WASTE",
+        "introVideo": {
+          "stem": "SCRUB",
+          "mp4": "/assets/generated/media/video/AVI/SCRUB.mp4",
+          "webm": "/assets/generated/media/video/AVI/SCRUB.webm"
+        },
+        "outroVideo": {
+          "stem": "WASTE",
+          "mp4": "/assets/generated/media/video/AVI/WASTE.mp4",
+          "webm": "/assets/generated/media/video/AVI/WASTE.webm"
+        },
+        "params": [
+          1,
+          80,
+          43
+        ],
+        "flag": 1,
+        "objectives": [
+          3,
+          2
+        ],
+        "briefingPath": "/assets/generated/data/briefings/ALIEN/ALIEN05.json",
+        "briefingSourceSha256": "04e89e605f1d2675f462bec764a873cebfc300532808e3d46bd6f677535643ef",
+        "voicePath": "/assets/generated/media/audio/MISSION/G5.ogg"
+      },
+      {
+        "missionNumber": 6,
+        "faction": "alien",
+        "scnPath": "alien/alien06.scn",
+        "title": "PUPPET MASTERS",
+        "location": "THE CITADEL",
+        "scenarioStem": "scenario/alien/alien06",
+        "introAvi": "avi/dtalk2.avi",
+        "outroAvi": "avi/atran6.avi",
+        "introVideoStem": "DTALK2",
+        "outroVideoStem": "ATRAN6",
+        "introVideo": {
+          "stem": "DTALK2",
+          "mp4": "/assets/generated/media/video/AVI/DTALK2.mp4",
+          "webm": "/assets/generated/media/video/AVI/DTALK2.webm"
+        },
+        "outroVideo": {
+          "stem": "ATRAN6",
+          "mp4": "/assets/generated/media/video/AVI/ATRAN6.mp4",
+          "webm": "/assets/generated/media/video/AVI/ATRAN6.webm"
+        },
+        "params": [
+          40,
+          90,
+          130
+        ],
+        "flag": 0,
+        "objectives": [
+          5,
+          2
+        ],
+        "briefingPath": "/assets/generated/data/briefings/ALIEN/ALIEN06.json",
+        "briefingSourceSha256": "e50eb2a0dca9d28c4e7beffae2e1bbb5347a79a6c5ff9b77467eb0b58bdb9d7b",
+        "voicePath": "/assets/generated/media/audio/MISSION/G6.ogg"
+      },
+      {
+        "missionNumber": 7,
+        "faction": "alien",
+        "scnPath": "alien/alien07.scn",
+        "title": "CIVIL WAR",
+        "location": "STRATUS SPHERE-3",
+        "scenarioStem": "scenario/alien/alien07",
+        "introAvi": "avi/jtalk2.avi",
+        "outroAvi": "avi/bodys.avi",
+        "introVideoStem": "JTALK2",
+        "outroVideoStem": "BODYS",
+        "introVideo": {
+          "stem": "JTALK2",
+          "mp4": "/assets/generated/media/video/AVI/JTALK2.mp4",
+          "webm": "/assets/generated/media/video/AVI/JTALK2.webm"
+        },
+        "outroVideo": {
+          "stem": "BODYS",
+          "mp4": "/assets/generated/media/video/AVI/BODYS.mp4",
+          "webm": "/assets/generated/media/video/AVI/BODYS.webm"
+        },
+        "params": [
+          20,
+          80,
+          30
+        ],
+        "flag": 0,
+        "objectives": [
+          4,
+          2
+        ],
+        "briefingPath": "/assets/generated/data/briefings/ALIEN/ALIEN07.json",
+        "briefingSourceSha256": "cb3c5e17fa5b4924cd077da6f18930b199bd03364859bd6e2b5a24dd9be96cb7",
+        "voicePath": "/assets/generated/media/audio/MISSION/G7.ogg"
+      },
+      {
+        "missionNumber": 8,
+        "faction": "alien",
+        "scnPath": "alien/alien08.scn",
+        "title": "THE SCREAMER",
+        "location": "VALLEY OF SCREAMS",
+        "scenarioStem": "scenario/alien/alien08",
+        "introAvi": "avi/tick.avi",
+        "outroAvi": "avi/atran7.avi",
+        "introVideoStem": "TICK",
+        "outroVideoStem": "ATRAN7",
+        "introVideo": {
+          "stem": "TICK",
+          "mp4": "/assets/generated/media/video/AVI/TICK.mp4",
+          "webm": "/assets/generated/media/video/AVI/TICK.webm"
+        },
+        "outroVideo": {
+          "stem": "ATRAN7",
+          "mp4": "/assets/generated/media/video/AVI/ATRAN7.mp4",
+          "webm": "/assets/generated/media/video/AVI/ATRAN7.webm"
+        },
+        "params": [
+          70,
+          80,
+          40
+        ],
+        "flag": 0,
+        "objectives": [
+          3,
+          2
+        ],
+        "briefingPath": "/assets/generated/data/briefings/ALIEN/ALIEN08.json",
+        "briefingSourceSha256": "3f545d379cfb3d483509381de61220d1fdab80d90ec8b6601aab71d7ee2b66a4",
+        "voicePath": "/assets/generated/media/audio/MISSION/G8.ogg"
+      },
+      {
+        "missionNumber": 9,
+        "faction": "alien",
+        "scnPath": "alien/alien09.scn",
+        "title": "BURIED TREASURE",
+        "location": "THE UNDERGROUND",
+        "scenarioStem": "scenario/alien/alien09",
+        "introAvi": "avi/tektaara.avi",
+        "outroAvi": "avi/crawl.avi",
+        "introVideoStem": "TEKTAARA",
+        "outroVideoStem": "CRAWL",
+        "introVideo": {
+          "stem": "TEKTAARA",
+          "mp4": "/assets/generated/media/video/AVI/TEKTAARA.mp4",
+          "webm": "/assets/generated/media/video/AVI/TEKTAARA.webm"
+        },
+        "outroVideo": {
+          "stem": "CRAWL",
+          "mp4": "/assets/generated/media/video/AVI/CRAWL.mp4",
+          "webm": "/assets/generated/media/video/AVI/CRAWL.webm"
+        },
+        "params": [
+          70,
+          80,
+          40
+        ],
+        "flag": 0,
+        "objectives": [
+          4,
+          5
+        ],
+        "briefingPath": "/assets/generated/data/briefings/ALIEN/ALIEN09.json",
+        "briefingSourceSha256": "5fbb2342e15469b57e70483ee9f5d87c48acdc6440632263d6ee799c66819e53",
+        "voicePath": "/assets/generated/media/audio/MISSION/G9.ogg"
+      },
+      {
+        "missionNumber": 10,
+        "faction": "alien",
+        "scnPath": "alien/alien10.scn",
+        "title": "ANIMAL INSTINCT",
+        "location": "TAAR SWAMP",
+        "scenarioStem": "scenario/alien/alien10",
+        "introAvi": "avi/lizards.avi",
+        "outroAvi": "avi/atran1.avi",
+        "introVideoStem": "LIZARDS",
+        "outroVideoStem": "ATRAN1",
+        "introVideo": {
+          "stem": "LIZARDS",
+          "mp4": "/assets/generated/media/video/AVI/LIZARDS.mp4",
+          "webm": "/assets/generated/media/video/AVI/LIZARDS.webm"
+        },
+        "outroVideo": {
+          "stem": "ATRAN1",
+          "mp4": "/assets/generated/media/video/AVI/ATRAN1.mp4",
+          "webm": "/assets/generated/media/video/AVI/ATRAN1.webm"
+        },
+        "params": [
+          30,
+          150,
+          60
+        ],
+        "flag": 0,
+        "objectives": [
+          5,
+          2
+        ],
+        "briefingPath": "/assets/generated/data/briefings/ALIEN/ALIEN10.json",
+        "briefingSourceSha256": "db34b2360953bcbe8adeecdc821183b31332ca7ebe6fc23b277351eb3d75929a",
+        "voicePath": "/assets/generated/media/audio/MISSION/G10.ogg"
+      },
+      {
+        "missionNumber": 11,
+        "faction": "alien",
+        "scnPath": "alien/alien11.scn",
+        "title": "SPIDER CANYON",
+        "location": "SPIDER CANYON",
+        "scenarioStem": "scenario/alien/alien11",
+        "introAvi": "avi/avhd.avi",
+        "outroAvi": "avi/hvad.avi",
+        "introVideoStem": "AVHD",
+        "outroVideoStem": "HVAD",
+        "introVideo": {
+          "stem": "AVHD",
+          "mp4": "/assets/generated/media/video/AVI/AVHD.mp4",
+          "webm": "/assets/generated/media/video/AVI/AVHD.webm"
+        },
+        "outroVideo": {
+          "stem": "HVAD",
+          "mp4": "/assets/generated/media/video/AVI/HVAD.mp4",
+          "webm": "/assets/generated/media/video/AVI/HVAD.webm"
+        },
+        "params": [
+          75,
+          70,
+          90
+        ],
+        "flag": 0,
+        "objectives": [
+          4,
+          5
+        ],
+        "briefingPath": "/assets/generated/data/briefings/ALIEN/ALIEN11.json",
+        "briefingSourceSha256": "67c3385caee482f876196a691b3eb5856f6f17f617edcd538670dc5e84d64e31",
+        "voicePath": "/assets/generated/media/audio/MISSION/G11.ogg"
+      },
+      {
+        "missionNumber": 12,
+        "faction": "alien",
+        "scnPath": "alien/alien12.scn",
+        "title": "THEN THERE WAS ONE",
+        "location": "PLAINS OF AABADU",
+        "scenarioStem": "scenario/alien/alien12",
+        "introAvi": "avi/jtalk1.avi",
+        "outroAvi": "avi/atran4.avi",
+        "introVideoStem": "JTALK1",
+        "outroVideoStem": "ATRAN4",
+        "introVideo": {
+          "stem": "JTALK1",
+          "mp4": "/assets/generated/media/video/AVI/JTALK1.mp4",
+          "webm": "/assets/generated/media/video/AVI/JTALK1.webm"
+        },
+        "outroVideo": {
+          "stem": "ATRAN4",
+          "mp4": "/assets/generated/media/video/AVI/ATRAN4.mp4",
+          "webm": "/assets/generated/media/video/AVI/ATRAN4.webm"
+        },
+        "params": [
+          10,
+          150,
+          30
+        ],
+        "flag": 0,
+        "objectives": [
+          5,
+          3,
+          2
+        ],
+        "briefingPath": "/assets/generated/data/briefings/ALIEN/ALIEN12.json",
+        "briefingSourceSha256": "753fb5485b6ec861837fab454ff1e0f1cc703951db47207fbdf87f70522c6500",
+        "voicePath": "/assets/generated/media/audio/MISSION/G12.ogg"
+      },
+      {
+        "missionNumber": 13,
+        "faction": "alien",
+        "scnPath": "alien/alien13.scn",
+        "title": "EARTH INTERVENES",
+        "location": "OREMAN FIELDS",
+        "scenarioStem": "scenario/alien/alien13",
+        "introAvi": "avi/adtemp.avi",
+        "outroAvi": "avi/hvad5.avi",
+        "introVideoStem": "ADTEMP",
+        "outroVideoStem": "HVAD5",
+        "introVideo": {
+          "stem": "ADTEMP",
+          "mp4": "/assets/generated/media/video/AVI/ADTEMP.mp4",
+          "webm": "/assets/generated/media/video/AVI/ADTEMP.webm"
+        },
+        "outroVideo": {
+          "stem": "HVAD5",
+          "mp4": "/assets/generated/media/video/AVI/HVAD5.mp4",
+          "webm": "/assets/generated/media/video/AVI/HVAD5.webm"
+        },
+        "params": [
+          20,
+          100,
+          38
+        ],
+        "flag": 0,
+        "objectives": [
+          4,
+          3,
+          2
+        ],
+        "briefingPath": "/assets/generated/data/briefings/ALIEN/ALIEN13.json",
+        "briefingSourceSha256": "623f78c7d9e3fcf3918f8de8d19ffe54c28db9372e30ac5924f9732e4ca9873c",
+        "voicePath": "/assets/generated/media/audio/MISSION/G13.ogg"
+      },
+      {
+        "missionNumber": 14,
+        "faction": "alien",
+        "scnPath": "alien/alien14.scn",
+        "title": "THE ANSWER",
+        "location": "THE UNDERGROUND",
+        "scenarioStem": "scenario/alien/alien14",
+        "introAvi": "avi/portalis.avi",
+        "outroAvi": "avi/crawl.avi",
+        "introVideoStem": "PORTALIS",
+        "outroVideoStem": "CRAWL",
+        "introVideo": {
+          "stem": "PORTALIS",
+          "mp4": "/assets/generated/media/video/AVI/PORTALIS.mp4",
+          "webm": "/assets/generated/media/video/AVI/PORTALIS.webm"
+        },
+        "outroVideo": {
+          "stem": "CRAWL",
+          "mp4": "/assets/generated/media/video/AVI/CRAWL.mp4",
+          "webm": "/assets/generated/media/video/AVI/CRAWL.webm"
+        },
+        "params": [
+          20,
+          100,
+          38
+        ],
+        "flag": 0,
+        "objectives": [
+          5,
+          4
+        ],
+        "briefingPath": "/assets/generated/data/briefings/ALIEN/ALIEN14.json",
+        "briefingSourceSha256": "e29aa7620e18f5ccde33eb89d642e04906d211b41fe1e6ad52007a468163d00b",
+        "voicePath": "/assets/generated/media/audio/MISSION/G14.ogg"
+      },
+      {
+        "missionNumber": 15,
+        "faction": "alien",
+        "scnPath": "alien/alien15.scn",
+        "title": "FINAL EVACUATION",
+        "location": "DESTINY ONE",
+        "scenarioStem": "scenario/alien/alien15",
+        "introAvi": "avi/aending.avi",
+        "outroAvi": "avi/council.avi",
+        "introVideoStem": "AENDING",
+        "outroVideoStem": "COUNCIL",
+        "introVideo": {
+          "stem": "AENDING",
+          "mp4": "/assets/generated/media/video/AVI/AENDING.mp4",
+          "webm": "/assets/generated/media/video/AVI/AENDING.webm"
+        },
+        "outroVideo": {
+          "stem": "COUNCIL",
+          "mp4": "/assets/generated/media/video/AVI/COUNCIL.mp4",
+          "webm": "/assets/generated/media/video/AVI/COUNCIL.webm"
+        },
+        "params": [
+          15,
+          120,
+          66
+        ],
+        "flag": 0,
+        "objectives": [
+          5,
+          2,
+          3
+        ],
+        "briefingPath": "/assets/generated/data/briefings/ALIEN/ALIEN15.json",
+        "briefingSourceSha256": "c9b828c8f6d11ae88ad39084e49008a3842632c42196c29edcfbefcc7a45d5b4",
+        "voicePath": "/assets/generated/media/audio/MISSION/G15.ogg"
+      }
+    ]
+  },
+  "skirmishMaps": [
+    {
+      "stem": "A2PLAY01",
+      "title": "Entrails from the Crypt",
+      "family": "A2",
+      "environment": "atlantis",
+      "maxPlayers": 2,
+      "width": 96,
+      "height": 84,
+      "mapPath": "/assets/generated/maps/MPLAYER/A2PLAY01.json",
+      "mapSha256": "a97066a10f1a215d851d2dc07c4790c43232f9dbbbed8ef5bf1255a82834d4f5",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/A2PLAY01.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/A2PLAY01.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D2PLAY01",
+      "title": "Dead Man's Wharf",
+      "family": "D2",
+      "environment": "desert",
+      "maxPlayers": 2,
+      "width": 96,
+      "height": 84,
+      "mapPath": "/assets/generated/maps/MPLAYER/D2PLAY01.json",
+      "mapSha256": "c248612c766571c35c52d1cb35a80a5d762e201cba7d2159b2d60891255545b4",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D2PLAY01.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D2PLAY01.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D2PLAY02",
+      "title": "The Rennat Maze",
+      "family": "D2",
+      "environment": "desert",
+      "maxPlayers": 2,
+      "width": 128,
+      "height": 112,
+      "mapPath": "/assets/generated/maps/MPLAYER/D2PLAY02.json",
+      "mapSha256": "758c3ad81c79f24759c9a83dbb1b8079479949775c83f1437b4d4a356a68671b",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D2PLAY02.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D2PLAY02.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D2PLAY03",
+      "title": "Sergei's Inlet",
+      "family": "D2",
+      "environment": "desert",
+      "maxPlayers": 2,
+      "width": 96,
+      "height": 84,
+      "mapPath": "/assets/generated/maps/MPLAYER/D2PLAY03.json",
+      "mapSha256": "d5dc92a824c3e58318a2ad406ab204eec7240d759fe7fe993dcbfdcdf5b9c59a",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D2PLAY03.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D2PLAY03.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D2PLAY04",
+      "title": "No-man's Land",
+      "family": "D2",
+      "environment": "desert",
+      "maxPlayers": 2,
+      "width": 96,
+      "height": 84,
+      "mapPath": "/assets/generated/maps/MPLAYER/D2PLAY04.json",
+      "mapSha256": "057ba2e5859e94875cd6832592ec10bc2aa6f4d27f2f9c6f574a5f50494babd9",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D2PLAY04.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D2PLAY04.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D2PLAY05",
+      "title": "Near..Far",
+      "family": "D2",
+      "environment": "desert",
+      "maxPlayers": 2,
+      "width": 96,
+      "height": 84,
+      "mapPath": "/assets/generated/maps/MPLAYER/D2PLAY05.json",
+      "mapSha256": "af595fef44481e2a7dd7fda67b1dca957c8a3a8058b505bdc86b57a39acaf8db",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D2PLAY05.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D2PLAY05.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D2PLAY06",
+      "title": "Kiss o' Death",
+      "family": "D2",
+      "environment": "desert",
+      "maxPlayers": 2,
+      "width": 96,
+      "height": 84,
+      "mapPath": "/assets/generated/maps/MPLAYER/D2PLAY06.json",
+      "mapSha256": "513afee22e0603cec28b1ecd02b38d9d012bbfbb816f46d242166af6fd9df1ed",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D2PLAY06.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D2PLAY06.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D2PLAY07",
+      "title": "Hide and Go",
+      "family": "D2",
+      "environment": "desert",
+      "maxPlayers": 2,
+      "width": 64,
+      "height": 56,
+      "mapPath": "/assets/generated/maps/MPLAYER/D2PLAY07.json",
+      "mapSha256": "8097aec0ad9b4a4d7c4f8b6c7538765dcde26fdb1083b05e6337730229c665a7",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D2PLAY07.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D2PLAY07.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D2PLAY08",
+      "title": "Sneak Attack",
+      "family": "D2",
+      "environment": "desert",
+      "maxPlayers": 2,
+      "width": 96,
+      "height": 84,
+      "mapPath": "/assets/generated/maps/MPLAYER/D2PLAY08.json",
+      "mapSha256": "7e98a6850096851ee11e131625646dc437bf418a69479301843fb6c90ec33141",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D2PLAY08.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D2PLAY08.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D2PLAY09",
+      "title": "Stairway to Hell",
+      "family": "D2",
+      "environment": "desert",
+      "maxPlayers": 2,
+      "width": 96,
+      "height": 84,
+      "mapPath": "/assets/generated/maps/MPLAYER/D2PLAY09.json",
+      "mapSha256": "f21c89a74cbe4924f6458a34c8b206d8cd5a825a105fcc985962e2717d2e7c2d",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D2PLAY09.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D2PLAY09.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D2PLAY10",
+      "title": "Treasure Rift",
+      "family": "D2",
+      "environment": "desert",
+      "maxPlayers": 2,
+      "width": 96,
+      "height": 84,
+      "mapPath": "/assets/generated/maps/MPLAYER/D2PLAY10.json",
+      "mapSha256": "cebcfbd8c00a5b9f03d27b12c59e5ec592a4e28f291701656ad826bc1361141e",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D2PLAY10.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D2PLAY10.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D4PLAY01",
+      "title": "Four Corners",
+      "family": "D4",
+      "environment": "desert",
+      "maxPlayers": 4,
+      "width": 128,
+      "height": 112,
+      "mapPath": "/assets/generated/maps/MPLAYER/D4PLAY01.json",
+      "mapSha256": "148aa7910b5283406280b1dd693263620c60393896cb832472dcaa8e53bc95b5",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D4PLAY01.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D4PLAY01.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D4PLAY02",
+      "title": "Monkey in the Middle",
+      "family": "D4",
+      "environment": "desert",
+      "maxPlayers": 4,
+      "width": 160,
+      "height": 140,
+      "mapPath": "/assets/generated/maps/MPLAYER/D4PLAY02.json",
+      "mapSha256": "2256c4502ac96c5588f5d9166fe7dee9b0fa127007aeae893f68b456e536c1e7",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D4PLAY02.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D4PLAY02.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D4PLAY03",
+      "title": "Napalm Valley",
+      "family": "D4",
+      "environment": "desert",
+      "maxPlayers": 4,
+      "width": 128,
+      "height": 112,
+      "mapPath": "/assets/generated/maps/MPLAYER/D4PLAY03.json",
+      "mapSha256": "6aba0ba4f0131ec8e56b7fc6c94c90b2edc5276f96a88bb2a2176c6b15d96e41",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D4PLAY03.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D4PLAY03.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D4PLAY04",
+      "title": "Island Petra Madness",
+      "family": "D4",
+      "environment": "desert",
+      "maxPlayers": 4,
+      "width": 160,
+      "height": 140,
+      "mapPath": "/assets/generated/maps/MPLAYER/D4PLAY04.json",
+      "mapSha256": "900c0faa940c1f163c8d5faab2312a756d7852f8d0b435602be0238f628fa9be",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D4PLAY04.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D4PLAY04.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D4PLAY05",
+      "title": "Martian Bridges",
+      "family": "D4",
+      "environment": "desert",
+      "maxPlayers": 4,
+      "width": 128,
+      "height": 112,
+      "mapPath": "/assets/generated/maps/MPLAYER/D4PLAY05.json",
+      "mapSha256": "d260990d3cfe21841ec3a24c7d2687c3ee46578121461c7087f5e32355d90c0d",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D4PLAY05.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D4PLAY05.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D4PLAY06",
+      "title": "The Crossroads",
+      "family": "D4",
+      "environment": "desert",
+      "maxPlayers": 4,
+      "width": 128,
+      "height": 112,
+      "mapPath": "/assets/generated/maps/MPLAYER/D4PLAY06.json",
+      "mapSha256": "8429033d88de9a1bf9275f0d1280094c7b89c05385ddeb51076e7a58c8069530",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D4PLAY06.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D4PLAY06.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D4PLAY07",
+      "title": "Hell's Bucket",
+      "family": "D4",
+      "environment": "desert",
+      "maxPlayers": 4,
+      "width": 128,
+      "height": 112,
+      "mapPath": "/assets/generated/maps/MPLAYER/D4PLAY07.json",
+      "mapSha256": "c9be2366f9d7cc1adf5f28bd4330bfac45530a56d9f3ddc80c006ac92bb2229b",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D4PLAY07.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D4PLAY07.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D4PLAY08",
+      "title": "Beon Bay",
+      "family": "D4",
+      "environment": "desert",
+      "maxPlayers": 4,
+      "width": 128,
+      "height": 112,
+      "mapPath": "/assets/generated/maps/MPLAYER/D4PLAY08.json",
+      "mapSha256": "fb4aba6f981d2e6b77935df477079e6fe5b2acedd1f5440d663c8fc0b2f04586",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D4PLAY08.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D4PLAY08.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D4PLAY09",
+      "title": "Bloody Cross",
+      "family": "D4",
+      "environment": "desert",
+      "maxPlayers": 4,
+      "width": 128,
+      "height": 112,
+      "mapPath": "/assets/generated/maps/MPLAYER/D4PLAY09.json",
+      "mapSha256": "ec06272a23f00043b4566fa7dfa1b3e33eaa9ce0624427a4a4f602159ee00c1d",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D4PLAY09.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D4PLAY09.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D4PLAY10",
+      "title": "River Rage",
+      "family": "D4",
+      "environment": "desert",
+      "maxPlayers": 4,
+      "width": 128,
+      "height": 112,
+      "mapPath": "/assets/generated/maps/MPLAYER/D4PLAY10.json",
+      "mapSha256": "07a3597a7dc3698db2c691f5576db1692ed9b61b469e0154a29fedf3adb682bc",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D4PLAY10.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D4PLAY10.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D8PLAY01",
+      "title": "Armageddon",
+      "family": "D8",
+      "environment": "desert",
+      "maxPlayers": 8,
+      "width": 160,
+      "height": 140,
+      "mapPath": "/assets/generated/maps/MPLAYER/D8PLAY01.json",
+      "mapSha256": "a0b74f7405756b38ddfced5251a44d428e7f03a1ae3be7c50931a2afec8a4dd8",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D8PLAY01.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D8PLAY01.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D8PLAY02",
+      "title": "Black Widow",
+      "family": "D8",
+      "environment": "desert",
+      "maxPlayers": 8,
+      "width": 160,
+      "height": 140,
+      "mapPath": "/assets/generated/maps/MPLAYER/D8PLAY02.json",
+      "mapSha256": "0448e1901a5051e276582020c3355dd9d18330363ec7b0aca8404f5ed11bb140",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D8PLAY02.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D8PLAY02.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D8PLAY03",
+      "title": "Circle of Friends",
+      "family": "D8",
+      "environment": "desert",
+      "maxPlayers": 8,
+      "width": 160,
+      "height": 140,
+      "mapPath": "/assets/generated/maps/MPLAYER/D8PLAY03.json",
+      "mapSha256": "41b615310cb2cf367991a77b636e2276bba0dfa994bd2efdf815d8093cf09fea",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D8PLAY03.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D8PLAY03.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D8PLAY04",
+      "title": "Close Encounters",
+      "family": "D8",
+      "environment": "desert",
+      "maxPlayers": 8,
+      "width": 128,
+      "height": 112,
+      "mapPath": "/assets/generated/maps/MPLAYER/D8PLAY04.json",
+      "mapSha256": "2445df0f23afe1692b619b6a9b66d4d8473f735df571058da6b91206088e4b6f",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D8PLAY04.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D8PLAY04.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D8PLAY05",
+      "title": "Olympus Mons",
+      "family": "D8",
+      "environment": "desert",
+      "maxPlayers": 8,
+      "width": 160,
+      "height": 140,
+      "mapPath": "/assets/generated/maps/MPLAYER/D8PLAY05.json",
+      "mapSha256": "a881fb9fbf9164e4f56b99e2c2ce11d8637ed7b1415906363e3016da8e2fa913",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D8PLAY05.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D8PLAY05.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D8PLAY06",
+      "title": "Big Crater",
+      "family": "D8",
+      "environment": "desert",
+      "maxPlayers": 8,
+      "width": 160,
+      "height": 140,
+      "mapPath": "/assets/generated/maps/MPLAYER/D8PLAY06.json",
+      "mapSha256": "11f346539dadd851c8ea2695c5abb041bf767f23394b4c419c99b5d9478ccd8d",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D8PLAY06.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D8PLAY06.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D8PLAY07",
+      "title": "Lost Treasure",
+      "family": "D8",
+      "environment": "desert",
+      "maxPlayers": 8,
+      "width": 160,
+      "height": 140,
+      "mapPath": "/assets/generated/maps/MPLAYER/D8PLAY07.json",
+      "mapSha256": "49150ecdbfc76190516a29c95defb097a9ceeadf696c96a66149c90d8259bf80",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D8PLAY07.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D8PLAY07.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D8PLAY08",
+      "title": "New Mississippi",
+      "family": "D8",
+      "environment": "desert",
+      "maxPlayers": 8,
+      "width": 160,
+      "height": 140,
+      "mapPath": "/assets/generated/maps/MPLAYER/D8PLAY08.json",
+      "mapSha256": "cccfbdfd02e3682c2bedd6eb84daf0335430982961616e3b4511bc5a85458f7d",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D8PLAY08.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D8PLAY08.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D8PLAY09",
+      "title": "Nowhere to Run",
+      "family": "D8",
+      "environment": "desert",
+      "maxPlayers": 8,
+      "width": 160,
+      "height": 140,
+      "mapPath": "/assets/generated/maps/MPLAYER/D8PLAY09.json",
+      "mapSha256": "3e0e71824360f63268a23466bdf2478a1d997f32dab92d1fd6145f137c40b68d",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D8PLAY09.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D8PLAY09.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "D8PLAY10",
+      "title": "Crater Valley",
+      "family": "D8",
+      "environment": "desert",
+      "maxPlayers": 8,
+      "width": 160,
+      "height": 140,
+      "mapPath": "/assets/generated/maps/MPLAYER/D8PLAY10.json",
+      "mapSha256": "20bcdd0cf61d779025ef7c18104b04c995aef7fe90768c67688cd1e7f06da820",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/D8PLAY10.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/D8PLAY10.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "J2PLAY01",
+      "title": "Pond Thing",
+      "family": "J2",
+      "environment": "jungle",
+      "maxPlayers": 2,
+      "width": 96,
+      "height": 84,
+      "mapPath": "/assets/generated/maps/MPLAYER/J2PLAY01.json",
+      "mapSha256": "f77243212a43898596c17fb55bf2bbb43d2fafb5df08b4914f127c5004d738f4",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/J2PLAY01.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/J2PLAY01.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "J2PLAY02",
+      "title": "Rough in the Jungle",
+      "family": "J2",
+      "environment": "jungle",
+      "maxPlayers": 2,
+      "width": 96,
+      "height": 84,
+      "mapPath": "/assets/generated/maps/MPLAYER/J2PLAY02.json",
+      "mapSha256": "7f4ee8df13ba0991bcd288efeef05f3d32edb60bf7af325797d66bfffd240cdf",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/J2PLAY02.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/J2PLAY02.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "J2PLAY03",
+      "title": "The Split",
+      "family": "J2",
+      "environment": "jungle",
+      "maxPlayers": 2,
+      "width": 96,
+      "height": 84,
+      "mapPath": "/assets/generated/maps/MPLAYER/J2PLAY03.json",
+      "mapSha256": "ce423fc1db921a44224e48fcd066042b8d1da05e5d691a36f82867fdeaed7140",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/J2PLAY03.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/J2PLAY03.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "J2PLAY04",
+      "title": "Death's Ribcage",
+      "family": "J2",
+      "environment": "jungle",
+      "maxPlayers": 2,
+      "width": 96,
+      "height": 84,
+      "mapPath": "/assets/generated/maps/MPLAYER/J2PLAY04.json",
+      "mapSha256": "a92610a2d93a335eb131e32894de794d12bb50d234a0124b43d3c0d6ad94af63",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/J2PLAY04.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/J2PLAY04.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "J2PLAY05",
+      "title": "Bottlenecks",
+      "family": "J2",
+      "environment": "jungle",
+      "maxPlayers": 2,
+      "width": 112,
+      "height": 98,
+      "mapPath": "/assets/generated/maps/MPLAYER/J2PLAY05.json",
+      "mapSha256": "09c24167a5e3ca6ba7aa6ca2285f5af2f5bfcb1358f8356a8830a37046d5500b",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/J2PLAY05.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/J2PLAY05.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "J2PLAY06",
+      "title": "Hidden Rift",
+      "family": "J2",
+      "environment": "jungle",
+      "maxPlayers": 2,
+      "width": 96,
+      "height": 84,
+      "mapPath": "/assets/generated/maps/MPLAYER/J2PLAY06.json",
+      "mapSha256": "b4d30e9930a97dae62013429a3bd924288bdd2e186046bc19c985965c60d169a",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/J2PLAY06.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/J2PLAY06.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "J2PLAY07",
+      "title": "Mine Fields",
+      "family": "J2",
+      "environment": "jungle",
+      "maxPlayers": 2,
+      "width": 96,
+      "height": 84,
+      "mapPath": "/assets/generated/maps/MPLAYER/J2PLAY07.json",
+      "mapSha256": "47d703d9881edf7ac29c8924497cdb8e787bb0795af31a2b82409f17d7f9d8a8",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/J2PLAY07.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/J2PLAY07.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "J2PLAY08",
+      "title": "Sideswiped",
+      "family": "J2",
+      "environment": "jungle",
+      "maxPlayers": 2,
+      "width": 96,
+      "height": 84,
+      "mapPath": "/assets/generated/maps/MPLAYER/J2PLAY08.json",
+      "mapSha256": "a50261405cc17c55e58b95b38b2c22b3315699ce77cf881919a1a1eff1bdb665",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/J2PLAY08.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/J2PLAY08.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "J2PLAY09",
+      "title": "Martian Zoo",
+      "family": "J2",
+      "environment": "jungle",
+      "maxPlayers": 2,
+      "width": 64,
+      "height": 56,
+      "mapPath": "/assets/generated/maps/MPLAYER/J2PLAY09.json",
+      "mapSha256": "a925030286784dd12da7e955380b44fbd7fc3f63a7a1fee424e98ebaad191e7f",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/J2PLAY09.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/J2PLAY09.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "J4PLAY01",
+      "title": "4 Kingdoms",
+      "family": "J4",
+      "environment": "jungle",
+      "maxPlayers": 4,
+      "width": 128,
+      "height": 112,
+      "mapPath": "/assets/generated/maps/MPLAYER/J4PLAY01.json",
+      "mapSha256": "edd357403531c918c1001e670ac712644677e190dcbbefccaac4f8c9ba8004ba",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/J4PLAY01.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/J4PLAY01.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "J4PLAY02",
+      "title": "Jungle Joe",
+      "family": "J4",
+      "environment": "jungle",
+      "maxPlayers": 4,
+      "width": 96,
+      "height": 84,
+      "mapPath": "/assets/generated/maps/MPLAYER/J4PLAY02.json",
+      "mapSha256": "3198ad2164df923085646f110c546fd9072733e7ffaab82226943606bcc19679",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/J4PLAY02.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/J4PLAY02.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "J4PLAY03",
+      "title": "Green Achers",
+      "family": "J4",
+      "environment": "jungle",
+      "maxPlayers": 4,
+      "width": 128,
+      "height": 112,
+      "mapPath": "/assets/generated/maps/MPLAYER/J4PLAY03.json",
+      "mapSha256": "342f9d32e3dea835729cd266f7faaa62b103ae81afb585f94e9af240771c18bb",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/J4PLAY03.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/J4PLAY03.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "J4PLAY04",
+      "title": "Nowhere to Walk",
+      "family": "J4",
+      "environment": "jungle",
+      "maxPlayers": 4,
+      "width": 108,
+      "height": 92,
+      "mapPath": "/assets/generated/maps/MPLAYER/J4PLAY04.json",
+      "mapSha256": "095fbe783d6541578e6107657b3fd61814b9eea27408f55eca9fd96a02669fec",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/J4PLAY04.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/J4PLAY04.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "J4PLAY05",
+      "title": "Checkers",
+      "family": "J4",
+      "environment": "jungle",
+      "maxPlayers": 4,
+      "width": 128,
+      "height": 112,
+      "mapPath": "/assets/generated/maps/MPLAYER/J4PLAY05.json",
+      "mapSha256": "2759a6a4ef0191f5301f95ec0567229903f39bf37ccdada8de015c801be39d6c",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/J4PLAY05.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/J4PLAY05.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "J4PLAY06",
+      "title": "Inside Corner",
+      "family": "J4",
+      "environment": "jungle",
+      "maxPlayers": 4,
+      "width": 96,
+      "height": 84,
+      "mapPath": "/assets/generated/maps/MPLAYER/J4PLAY06.json",
+      "mapSha256": "14ffe9251b87ed66eb7bc3b24e84274321fc1f9ce253fdfec07efcf52c3af21b",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/J4PLAY06.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/J4PLAY06.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "J4PLAY07",
+      "title": "The Rice Fields",
+      "family": "J4",
+      "environment": "jungle",
+      "maxPlayers": 4,
+      "width": 128,
+      "height": 112,
+      "mapPath": "/assets/generated/maps/MPLAYER/J4PLAY07.json",
+      "mapSha256": "b19b1a389aa153f740bcba9f5f4a1ea55ed48e453e2eb55271db69f41eef3dcb",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/J4PLAY07.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/J4PLAY07.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "J6PLAY01",
+      "title": "Martian Mansion",
+      "family": "J6",
+      "environment": "jungle",
+      "maxPlayers": 6,
+      "width": 128,
+      "height": 112,
+      "mapPath": "/assets/generated/maps/MPLAYER/J6PLAY01.json",
+      "mapSha256": "8c939f2fe7737c6ba6adbacb46ed688965afe18a24a7dd00e004f5899fe6fe92",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/J6PLAY01.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/J6PLAY01.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "J6PLAY02",
+      "title": "Martian Mayhem",
+      "family": "J6",
+      "environment": "jungle",
+      "maxPlayers": 6,
+      "width": 128,
+      "height": 112,
+      "mapPath": "/assets/generated/maps/MPLAYER/J6PLAY02.json",
+      "mapSha256": "8431cc89196e1213ee8999f58b05735a100300074724291e12ae755642c65d7d",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/J6PLAY02.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/J6PLAY02.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "J8PLAY01",
+      "title": "Plink - O",
+      "family": "J8",
+      "environment": "jungle",
+      "maxPlayers": 8,
+      "width": 160,
+      "height": 140,
+      "mapPath": "/assets/generated/maps/MPLAYER/J8PLAY01.json",
+      "mapSha256": "a130c0b5cecb8e8d820292bd14ee02bea2a03c4a245d0dbd9ee6d1bbcd3a4218",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/J8PLAY01.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/J8PLAY01.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "J8PLAY02",
+      "title": "Hoops of Fury",
+      "family": "J8",
+      "environment": "jungle",
+      "maxPlayers": 8,
+      "width": 128,
+      "height": 112,
+      "mapPath": "/assets/generated/maps/MPLAYER/J8PLAY02.json",
+      "mapSha256": "ff487a2791994cd1686eb6bee4108a55402396e92922b548324395fdf451fde2",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/J8PLAY02.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/J8PLAY02.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "J8PLAY03",
+      "title": "Scars and Stripes",
+      "family": "J8",
+      "environment": "jungle",
+      "maxPlayers": 8,
+      "width": 128,
+      "height": 112,
+      "mapPath": "/assets/generated/maps/MPLAYER/J8PLAY03.json",
+      "mapSha256": "cea258780d37a0d0ff48de7efbf14a2375c6f0da4732139912d126ff0683c0a3",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/J8PLAY03.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/J8PLAY03.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "J8PLAY04",
+      "title": "Hole in the Middle",
+      "family": "J8",
+      "environment": "jungle",
+      "maxPlayers": 8,
+      "width": 128,
+      "height": 112,
+      "mapPath": "/assets/generated/maps/MPLAYER/J8PLAY04.json",
+      "mapSha256": "7db50745703a941b275a5e092bcf57f8a994cda99b3779eaf459db5196427f60",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/J8PLAY04.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/J8PLAY04.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "J8PLAY05",
+      "title": "The Crossroads II",
+      "family": "J8",
+      "environment": "jungle",
+      "maxPlayers": 8,
+      "width": 160,
+      "height": 140,
+      "mapPath": "/assets/generated/maps/MPLAYER/J8PLAY05.json",
+      "mapSha256": "5d4869e4ed354ccc21948d3fe56bae6543adaa3a41baa3ac7f867e59751e5f68",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/J8PLAY05.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/J8PLAY05.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "J8PLAY06",
+      "title": "River Rush",
+      "family": "J8",
+      "environment": "jungle",
+      "maxPlayers": 8,
+      "width": 160,
+      "height": 140,
+      "mapPath": "/assets/generated/maps/MPLAYER/J8PLAY06.json",
+      "mapSha256": "fdf819a3d15e75128ffb2e882320603ca16551fe697d7c31cc1198331411120e",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/J8PLAY06.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/J8PLAY06.json",
+      "hasScenarioData": true
+    },
+    {
+      "stem": "J8PLAY07",
+      "title": "Rings of fire",
+      "family": "J8",
+      "environment": "jungle",
+      "maxPlayers": 8,
+      "width": 160,
+      "height": 140,
+      "mapPath": "/assets/generated/maps/MPLAYER/J8PLAY07.json",
+      "mapSha256": "c8aa0dfa3d78ead6a95fdba4de1cbc4a77a879c5cdfe9ec9bc9f20b8c603c271",
+      "scenarioPath": "/assets/generated/data/scenarios/MPLAYER/J8PLAY07.json",
+      "triggersPath": "/assets/generated/data/triggers/MPLAYER/J8PLAY07.json",
+      "hasScenarioData": true
+    }
+  ]
+}

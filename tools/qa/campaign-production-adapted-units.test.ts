@@ -115,7 +115,9 @@ test("adapted units: contracts match original decoded tables and existing combat
     assert.deepEqual([entry.cost, entry.dependencies, entry.rawFields], [source.cost, source.dependencies, [1, source.unitType]]);
     assert.deepEqual([unit.rawTail![10], unit.rawTail![12]], [source.queue, source.exitSelector]);
     assert.equal(unit.rawTail![2], source.plane === "flying" ? 1 : 0);
-    for (const level of [0, 1, 2]) assert.ok(unitOptionsFromLegacy(unit, weapons, level).weapon);
+    for (const level of [0, 1, 2]) {
+      assert.equal(Boolean(unitOptionsFromLegacy(unit, weapons, level).weapon), unit.weapons[level] >= 0);
+    }
   }
 });
 
@@ -222,12 +224,13 @@ for (const source of ADAPTED_UNIT_PRODUCTION_SOURCES) {
 }
 
 for (const race of [0, 1] as const) {
-  test(`adapted units ${race}: excludes unsupported roles and other faction without migrating collectors`, () => {
+  test(`adapted units ${race}: admits full 7-unit adapted roster and excludes other faction without migrating collectors`, () => {
     const setup = options(race, true), state = createCampaignProduction(setup);
     assert.deepEqual(state.adaptedCollectorProfiles, setup.adaptedCollectorProfiles);
-    assert.deepEqual(sourceProductionUi(state, 0).map(choice => choice.unitType).sort((left, right) => left! - right!),
-      [0, 2, 3, 4, 5, 6].map(type => type + race * 8));
-    for (const unitType of [1, 9, 43, 44, 49, 50]) {
+    const expected = race ? [8, 9, 10, 11, 12, 13, 14, 44, 50] : [0, 1, 2, 3, 4, 5, 6, 43, 49];
+    const otherFaction = race ? [0, 1, 2, 3, 4, 5, 6, 43, 49] : [8, 9, 10, 11, 12, 13, 14, 44, 50];
+    assert.deepEqual(sourceProductionUi(state, 0).map(choice => choice.unitType).sort((left, right) => left! - right!), expected);
+    for (const unitType of otherFaction) {
       const dependency = records.find(entry => entry.rawFields[0] === 1 && entry.rawFields[1] === unitType)!.id;
       assert.equal(productionChoices(state, 0).find(choice => choice.dependency === dependency)!.supported, false);
       assert.throws(() => act(state, { type: "reserve", dependency }), /eligible|profile/);
@@ -237,8 +240,8 @@ for (const race of [0, 1] as const) {
   });
   test(`adapted units ${race}: shared collector/air FIFO resets clocks and selects each source exit`, () => {
     const initial = createCampaignProduction(options(race, true));
-    const collector = race ? 21 : 7, aircraft = race ? 24 : 10;
-    for (const sequence of [[collector, aircraft], [aircraft, collector]]) {
+    const collector = race ? 21 : 7, aircraft = race ? 24 : 10, medic = race ? 84 : 83;
+    for (const sequence of [[collector, aircraft], [aircraft, collector], [collector, medic], [medic, collector]]) {
       let production = initial;
       for (const dependency of sequence) production = enqueue(production, dependency);
       let frame = { production, world: worldFixture(race) };
@@ -247,10 +250,11 @@ for (const race of [0, 1] as const) {
         assert.equal(frame.production.teams[0].queues[2].adaptedElapsedVisits, 0);
         for (let count = 0; count < (dependency === collector ? 2 : 3); count++) frame = step(frame, 2);
         assert.equal(transportHostState(frame.world).slots[152 + position]!.unitType,
-          dependency === collector ? 6 + race * 8 : 5 + race * 8);
+          dependency === collector ? 6 + race * 8 : dependency === aircraft ? 5 + race * 8 : 49 + race);
       }
       assert.equal(frame.production.teams[0].queues[2].items.length, 0);
-      assert.deepEqual([frame.production.teams[0].credits, frame.production.teams[0].costAccumulator], [17900, 2100]);
+      const expectedCost = sequence.includes(medic) ? 2400 : 2100;
+      assert.deepEqual([frame.production.teams[0].credits, frame.production.teams[0].costAccumulator], [20000 - expectedCost, expectedCost]);
     }
     const limited = createCampaignProduction({ ...options(race, true), queueSafetyLimit: 1 });
     const reserved = act(limited, { type: "reserve", dependency: aircraft });
@@ -261,7 +265,7 @@ for (const race of [0, 1] as const) {
     const lowLevel = createCampaignProduction({ ...setup, teams: [{ ...setup.teams[0],
       slots: setup.teams[0].slots.map(slot => ({ ...slot, level: 0 })) }] });
     const allowed = productionChoices(lowLevel, 0).filter(choice => choice.supported && choice.maxAdditional > 0).map(choice => choice.dependency);
-    assert.deepEqual(allowed, race ? [23, 25, 27] : [9, 11, 13]);
+    assert.deepEqual(allowed, race ? [23, 25, 27, 28] : [9, 11, 13, 29]);
     const production = enqueue(lowLevel, race ? 25 : 11);
     const world = worldFixture(race);
     const lower = { ...world, entities: world.entities.map(entity => entity.rawSlot === 2 ? { ...entity, unitType: race ? 30 : 18 } : entity) };
@@ -283,7 +287,7 @@ test("adapted units: invalid opt-in, metadata, costs, dependencies and selectors
   const setup = options(0), profile = setup.adaptedUnitProfiles[0];
   assert.throws(() => createCampaignProduction({ ...setup, adaptedUnitProfiles: [profile, profile] }), /unique/);
   assert.throws(() => createCampaignProduction({ ...setup, sourceProfiles: undefined }), /source infantry/);
-  assert.throws(() => createCampaignProduction({ ...setup, adaptedUnitProfiles: [{ ...profile, unitType: 1 as 2 }] }), /Invalid adapted/);
+  assert.throws(() => createCampaignProduction({ ...setup, adaptedUnitProfiles: [{ ...profile, unitType: 6 as 2 }] }), /Invalid adapted/);
   assert.throws(() => createCampaignProduction({ ...setup,
     adaptedUnitProfiles: [{ ...profile, runtimeProfile: "strict-native" as "browser-adapted" }] }), /Invalid adapted/);
   for (const replacement of [{ cost: 1 }, { dependencies: [1] }]) {

@@ -45,7 +45,7 @@ export interface AdaptedCollectorProductionProfile {
 
 export interface AdaptedUnitProductionProfile {
   readonly runtimeProfile: "browser-adapted";
-  readonly unitType: 2 | 3 | 4 | 5 | 10 | 11 | 12 | 13;
+  readonly unitType: 1 | 2 | 3 | 4 | 5 | 9 | 10 | 11 | 12 | 13 | 43 | 44 | 49 | 50;
   readonly completionVisits: number;
 }
 
@@ -54,14 +54,20 @@ export interface AdaptedProductionUpgrades {
 }
 
 export const ADAPTED_UNIT_PRODUCTION_SOURCES = freeze([
+  { unitType: 1, race: 0, dependency: 8, cost: 900, dependencies: [5], queue: 1, exitSelector: 0, exitOffset: { x: 2, y: 3 }, plane: "ground" },
   { unitType: 2, race: 0, dependency: 11, cost: 600, dependencies: [3, 2], queue: 1, exitSelector: 0, exitOffset: { x: 2, y: 3 }, plane: "ground" },
   { unitType: 3, race: 0, dependency: 12, cost: 1000, dependencies: [5, 4], queue: 1, exitSelector: 0, exitOffset: { x: 2, y: 3 }, plane: "ground" },
   { unitType: 4, race: 0, dependency: 13, cost: 1500, dependencies: [1, 6], queue: 3, exitSelector: 0, exitOffset: { x: -4, y: 3 }, plane: "ground" },
   { unitType: 5, race: 0, dependency: 10, cost: 600, dependencies: [0, 3, 4], queue: 2, exitSelector: 1, exitOffset: { x: -5, y: -1 }, plane: "flying" },
+  { unitType: 43, race: 0, dependency: 29, cost: 450, dependencies: [1, 2], queue: 0, exitSelector: 0, exitOffset: { x: 0, y: -3 }, plane: "ground" },
+  { unitType: 49, race: 0, dependency: 83, cost: 900, dependencies: [4, 3, 6], queue: 2, exitSelector: 1, exitOffset: { x: -5, y: -1 }, plane: "flying" },
+  { unitType: 9, race: 1, dependency: 22, cost: 900, dependencies: [19], queue: 1, exitSelector: 0, exitOffset: { x: 2, y: 3 }, plane: "ground" },
   { unitType: 10, race: 1, dependency: 25, cost: 600, dependencies: [17, 16], queue: 1, exitSelector: 0, exitOffset: { x: 2, y: 3 }, plane: "ground" },
   { unitType: 11, race: 1, dependency: 26, cost: 1000, dependencies: [19, 18], queue: 1, exitSelector: 0, exitOffset: { x: 2, y: 3 }, plane: "ground" },
   { unitType: 12, race: 1, dependency: 27, cost: 1500, dependencies: [15, 20], queue: 3, exitSelector: 0, exitOffset: { x: -4, y: 3 }, plane: "ground" },
   { unitType: 13, race: 1, dependency: 24, cost: 600, dependencies: [14, 17, 18], queue: 2, exitSelector: 1, exitOffset: { x: -5, y: -1 }, plane: "flying" },
+  { unitType: 44, race: 1, dependency: 28, cost: 450, dependencies: [15, 16], queue: 0, exitSelector: 0, exitOffset: { x: 0, y: -3 }, plane: "ground" },
+  { unitType: 50, race: 1, dependency: 84, cost: 900, dependencies: [18, 15, 20], queue: 2, exitSelector: 1, exitOffset: { x: -5, y: -1 }, plane: "flying" },
 ] as const);
 
 export function productionProducerSlot(queue: QueueIndex): 0 | 1 | 2 | 4 {
@@ -388,7 +394,9 @@ export function synchronizeBrowserProductionColony(previous: CampaignProductionS
     }
     refresh(state, team);
     for (const entry of state.catalog) {
-      if (team.eligibility[entry.id] === 1) continue;
+      const producerDestroyed = entry.kind === "unit" && adaptedProfile(state, entry.unitType!)
+        && team.slots[productionProducerSlot(unitSource(state, entry.unitType!).queue)].health === 0;
+      if (team.eligibility[entry.id] === 1 && !producerDestroyed) continue;
       const pending = team.pending[entry.id] ?? 0;
       if (pending > 0) {
         changeCredits(team, entry.cost * pending);
@@ -461,9 +469,11 @@ export function productionChoices(state: CampaignProductionState, teamId: number
       || !!state.adaptedCollectorProfiles?.some(profile => profile.unitType === entry.unitType && profile.unitType === 6 + team.race * 8)
       || adaptedUnitForRace(state, entry.unitType, team.race))
       : entry.kind !== "building" || supportedBuilding(entry, team.race);
-    const eligible = supported && team.eligibility[entry.id] === 1;
-    const pending = team.pending[entry.id] ?? 0;
     const queueIndex = entry.kind === "unit" ? state.units.find((unit) => unit.unitType === entry.unitType)!.queue : null;
+    const producerAlive = queueIndex === null || !adaptedProfile(state, entry.unitType!)
+      || team.slots[productionProducerSlot(queueIndex)].health > 0;
+    const eligible = supported && team.eligibility[entry.id] === 1 && producerAlive;
+    const pending = team.pending[entry.id] ?? 0;
     const queue = queueIndex === null ? null : team.queues[queueIndex];
     const queued = queue?.items.filter((item) => item.dependency === entry.id).length ?? 0;
     const reserved = queue === null ? 0 : state.catalog.filter((candidate) => candidate.kind === "unit"
@@ -480,6 +490,10 @@ export function productionChoices(state: CampaignProductionState, teamId: number
 function actionable(state: ProductionData, team: TeamState, dependency: number): LegacyProductionEntry {
   const entry = state.catalog.find((candidate) => candidate.id === dependency);
   requireProduction(entry && team.eligibility[dependency] === 1, "Dependency is not eligible");
+  if (entry.kind === "unit" && adaptedProfile(state, entry.unitType!)) {
+    requireProduction(team.slots[productionProducerSlot(unitSource(state, entry.unitType!).queue)].health > 0,
+      "Dependency is not eligible");
+  }
   if (state.sourceProfiles && !(entry.kind === "building" && state.constructionHosts?.some(host => host.configuration.team === team.team))) {
     const profile = state.sourceProfiles.find((candidate) => candidate.unitType === entry.unitType);
     const adapted = state.adaptedCollectorProfiles?.find(candidate => candidate.unitType === entry.unitType

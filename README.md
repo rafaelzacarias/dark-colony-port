@@ -86,9 +86,14 @@ text. The **Encyclopedia** button on the main menu and in-mission options panel
 opens the authentic 25-entry Dark Colony Encyclopedia (`ENCY.GIF`) with
 category filters (`All`, `Human`, `Taar / Alien`, `Corporations & Artifacts`),
 320x200 3D rotating turntable unit/artifact renders, styled `ENCYCLO/*.TXT`
-specifications, and `.ogg` voice narrations. The menu and phone controls share
-charcoal, beveled steel, and warm red accents inspired by the original
-interface.
+specifications, and `.ogg` voice narrations. The **War Room** button on the
+main menu and in-mission options panel opens the 30-mission Campaign Scene &
+Briefing Archive (`HSCENE.TXT` / `GSCENE.TXT`) with full mission transcripts,
+voiceover playback, cutscene viewer, and direct mission launch, plus the 56-map
+Council Wars / Skirmish (`MPLAYER`) browser filterable by environment (`Desert`,
+`Jungle`, `Atlantis`) and player count (`2P`, `4P`, `6P`, `8P`). The menu and
+phone controls share charcoal, beveled steel, and warm red accents inspired by
+the original interface.
 
 Saving is **manual only**, with three independent slots. In a mission, choose
 **Save game** from the original options panel or the phone's **Options** menu,
@@ -207,6 +212,17 @@ authentic `DC.EXE` (`0x413C20`) proximity healing of wounded allied ground units
 on a 16-tick scan cadence. Mission audio also includes the `.AMB` terrain and
 day/night ambient soundscape scheduler (`DESERT.AMB`, `JUNGLE.AMB`,
 `ATLANTIS.AMB`, and `SLIST.DAT` carrier bindings).
+
+Campaign production supports the full 14-unit player-producible roster across
+Human and Taar forces (adding `TURR`, `XENO`, `ENGI` Sentinel, `SLOM` Slomborg,
+`BEON` Medi-Craft, and `ZISP` when unlocked by scenario dependencies). `DC.EXE`
+Task-13 (`0x416784` -> `0x417B0C`) unit deployment and `0x41310F` 3-charge mine
+mechanics allow `ENGI`/`SLOM` mine-laying (`HMINE`/`AMINE`, up to 3 mines per
+unit) and `SARGE`/`PSYC` stealth deployment via the HUD command button or the
+`Enter` key (`HTRAIN3`/`HTRAIN6`). Long-range artillery (`BARR` Firestorm and
+`ATRIL` Gorrem) supports scout-assisted artillery spotting via allied scouts
+(`SCGM` Scout Bike, `ORTU` Ortu, and `AVII` Observer) with line-of-sight
+extension and spotter accuracy bonuses.
 
 See `ARCHITECTURE.md` for disc geometry, discovered formats, ownership rules,
 and phase gates.
