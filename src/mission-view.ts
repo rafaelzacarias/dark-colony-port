@@ -23,7 +23,7 @@ import { createMissionTerrain, type MissionMode3Terrain } from "./render/mission
 import { createMissionSpritePalettes } from "./render/mission-sprites";
 import { beginMode1ShadowFrame, endMode1ShadowFrame } from "./render/mode1-canvas";
 import { createLegacyInfantryFamilyMask } from "./engine/legacy-navigation";
-import { projectLegacyColony } from "./engine/legacy-colony";
+import { legacyColonySlotOffsetForUnitType, projectLegacyColony } from "./engine/legacy-colony";
 import { legacyStaticOccupancyFieldsFromSource, projectLegacyStaticOccupancy } from "./engine/legacy-static-occupancy";
 import { createCampaignSession, CampaignSession, type CampaignSessionFrame, type CampaignReservation,
   type CampaignVisibilityInput, type BrowserViewFrame } from "./engine/campaign-session";
@@ -3252,9 +3252,14 @@ export class MissionView {
     for (const actor of this.constructionVisuals.filter(actor => actor.team === 8)) {
       const worldX = actor.position.x / 256, worldY = actor.position.y / 256;
       if (!visibility[Math.floor(worldY) * this.grid.width + Math.floor(worldX)]) continue;
+      const colonyOffset = legacyColonySlotOffsetForUnitType(actor.unitType);
+      const bodyWorldX = colonyOffset ? worldX - colonyOffset.offsetX / 32 : worldX;
+      const bodyWorldY = colonyOffset ? worldY - colonyOffset.offsetY / 32 : worldY;
       drawables.push({ y: actor.position.y * 4, draw: () => this.#drawVisual(context, actor.sprite, "idle",
-        this.#screenX(worldX, width), this.#screenY(worldY, height) - actor.position.height / 8, snapshot.tick,
-        undefined, { rawSlot: actor.nativeId, xSubcells: actor.position.x * 4, ySubcells: actor.position.y * 4,
+        this.#screenX(bodyWorldX, width), this.#screenY(bodyWorldY, height) - actor.position.height / 8, snapshot.tick,
+        undefined, { rawSlot: actor.nativeId,
+          xSubcells: (actor.position.x - (colonyOffset ? colonyOffset.offsetX * 8 : 0)) * 4,
+          ySubcells: (actor.position.y - (colonyOffset ? colonyOffset.offsetY * 8 : 0)) * 4,
           heightSubcells: actor.position.height * 4 }) });
     }
     for (const source of this.#cachedResourceSources()) {
@@ -3295,11 +3300,18 @@ export class MissionView {
         draw: () => {
           const target = staticStates.get(object.id);
           if (!target) return;
-          const screenX = this.#screenX(x + 0.5, width), screenY = this.#screenY(y + 0.5, height);
-          const scene = this.#sceneCapture(object.id, target.xSubcells, target.ySubcells);
-          this.#drawVisual(context, object.stat.sprite, "idle", screenX, screenY, snapshot.tick, object.id, scene,
+          const worldX = x + 0.5, worldY = y + 0.5;
+          const screenX = this.#screenX(worldX, width), screenY = this.#screenY(worldY, height);
+          const colonyOffset = legacyColonySlotOffsetForUnitType(object.stat.index);
+          const bodyScreenX = this.#screenX(colonyOffset ? worldX - colonyOffset.offsetX / 32 : worldX, width);
+          const bodyScreenY = this.#screenY(colonyOffset ? worldY - colonyOffset.offsetY / 32 : worldY, height);
+          const bodyScene = this.#sceneCapture(object.id,
+            colonyOffset ? target.xSubcells - colonyOffset.offsetX * 32 : target.xSubcells,
+            colonyOffset ? target.ySubcells - colonyOffset.offsetY * 32 : target.ySubcells);
+          this.#drawVisual(context, object.stat.sprite, "idle", bodyScreenX, bodyScreenY, snapshot.tick, object.id, bodyScene,
             this.#buildingStateOverride(object.stat.sprite, target));
-          this.#drawBuildingReaction(context, object, target, screenX, screenY, snapshot.tick, scene);
+          const reactionScene = this.#sceneCapture(object.id, target.xSubcells, target.ySubcells);
+          this.#drawBuildingReaction(context, object, target, screenX, screenY, snapshot.tick, reactionScene);
           if (target.health > 0 && target.maxHealth > 1) {
             overlays.push(() => this.#drawBuildingHealth(context, object.id, target, screenX, screenY));
           }

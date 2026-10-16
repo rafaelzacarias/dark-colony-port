@@ -55,6 +55,20 @@ const UNIT_TYPES = [
 ] as const;
 
 const POSITION_OFFSETS = [[-64, 15], [0, 0], [32, 64], [64, 10], [-32, 65], [0, 32]] as const;
+const COLONY_SLOT_BY_UNIT_TYPE: Readonly<Record<number, 0 | 1 | 2 | 3 | 4>> = {
+  16: 0, 17: 1, 18: 2, 19: 2, 20: 3, 21: 3, 22: 4,
+  28: 0, 29: 1, 30: 2, 31: 2, 32: 3, 33: 3, 34: 4, 35: 4,
+};
+
+/** DC.EXE 0x444C58: colony pod/hive FIN children are authored around the shared base origin, so rendering subtracts the slot offset. */
+export function legacyColonySlotOffsetForUnitType(
+  unitType: number,
+): { readonly slot: number; readonly offsetX: number; readonly offsetY: number } | undefined {
+  const slot = COLONY_SLOT_BY_UNIT_TYPE[unitType];
+  if (slot === undefined) return undefined;
+  const [offsetX, offsetY] = POSITION_OFFSETS[slot];
+  return { slot, offsetX, offsetY };
+}
 const FOOTPRINT_OFFSETS = [
   [[-3, 0], [-2, 0], [-3, 1], [-2, 1]],
   [[-1, -1], [0, -1], [-1, -2], [0, -2]],
