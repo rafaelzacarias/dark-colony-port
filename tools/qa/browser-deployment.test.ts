@@ -794,16 +794,17 @@ test("MissionView integration: deploySelected() converts 1->41 (T), 9->42 (XDEPL
     ]) {
       const original = await loadCampaignMission(campaign, missionNumber, "browser-adapted");
       const parsed = parseScenario(atob(original.scenario.rawScenario!));
+      const interceptorType = campaign === "alien" ? 12 : 4;
       let replacedCount = 0;
       const placementRows = original.scenario.placementRows.map((row) => {
-        if (row[3] === 0 && [0, 2, 8, 10].includes(row[2]) && replacedCount < 2) {
+        if (row[3] === 0 && [0, 2, 8, 10].includes(row[2]) && replacedCount < 3) {
           replacedCount += 1;
-          const nextType = replacedCount === 1 ? mobileTurret : mobileMine;
+          const nextType = replacedCount === 1 ? mobileTurret : replacedCount === 2 ? mobileMine : interceptorType;
           return row.map((value, idx) => (idx === 2 ? nextType : value));
         }
         return row;
       });
-      assert.equal(replacedCount, 2);
+      assert.equal(replacedCount, 3);
 
       const scenario = { ...original.scenario, ...parsed, placementRows };
       const fixture = { ...original, scenario, browserEconomy: undefined, browserResearch: undefined };
@@ -833,20 +834,43 @@ test("MissionView integration: deploySelected() converts 1->41 (T), 9->42 (XDEPL
         const beforeDeploy = view.checkpoint();
         const turretUnitId = beforeDeploy.state.unitStats.find((s) => s.type === mobileTurret)?.id;
         const mineUnitId = beforeDeploy.state.unitStats.find((s) => s.type === mobileMine)?.id;
+        const interceptorUnitId = beforeDeploy.state.unitStats.find((s) => s.type === interceptorType)?.id;
         assert.ok(turretUnitId !== undefined, `Expected mobile turret ${mobileTurret} in MissionView`);
         assert.ok(mineUnitId !== undefined, `Expected mobile mine ${mobileMine} in MissionView`);
+        assert.ok(interceptorUnitId !== undefined, `Expected interceptor ${interceptorType} in MissionView`);
+
+        const turretLabel = mobileTurret === 1 ? "Deploy Firestorm" : "Deploy Xenowort";
+        const mineLabel = mobileMine === 43 ? "Deploy Sentinel" : "Deploy Slom";
+        const defaultLabel = campaign === "alien" ? "Deploy Gorrem" : "Deploy SARGE";
+        const undeployLabel = campaign === "alien" ? "Undeploy Gorrem" : "Undeploy SARGE";
+
+        // Select interceptor (4 or 12) -> deploy and undeploy labels
+        view.replaceSelection([interceptorUnitId]);
+        assert.deepEqual(view.deploymentSelection, { canDeploy: true, canUndeploy: false });
+        assert.equal(view.deploymentSelection.label, defaultLabel);
+        assert.deepEqual(view.deploySelected(), [interceptorUnitId]);
+        assert.deepEqual(view.deploymentSelection, { canDeploy: false, canUndeploy: true });
+        assert.equal(view.deploymentSelection.label, undeployLabel);
+        assert.deepEqual(view.undeploySelected(), [interceptorUnitId]);
+        assert.deepEqual(view.deploymentSelection, { canDeploy: true, canUndeploy: false });
+        assert.equal(view.deploymentSelection.label, defaultLabel);
 
         // Select mobile turret (1 or 9) -> canDeploy is true, canUndeploy is false
         view.replaceSelection([turretUnitId]);
         assert.deepEqual(view.deploymentSelection, { canDeploy: true, canUndeploy: false });
+        assert.equal(view.deploymentSelection.label, turretLabel);
         assert.deepEqual(view.deploySelected(), [turretUnitId]);
         assert.deepEqual(view.deploymentSelection, { canDeploy: false, canUndeploy: false });
+        assert.equal(view.deploymentSelection.label, defaultLabel);
 
         // Select mobile mine (43 or 44) -> canDeploy is true, deploySelected converts to 45/46
         const mineUnitBefore = view.simulation.snapshot.units.find((u) => u.id === mineUnitId)!;
         view.replaceSelection([mineUnitId]);
         assert.deepEqual(view.deploymentSelection, { canDeploy: true, canUndeploy: false });
+        assert.equal(view.deploymentSelection.label, mineLabel);
         assert.deepEqual(view.deploySelected(), [mineUnitId]);
+        assert.deepEqual(view.deploymentSelection, { canDeploy: false, canUndeploy: false });
+        assert.equal(view.deploymentSelection.label, defaultLabel);
 
         const afterDeploy = view.checkpoint();
         assert.equal(afterDeploy.state.unitStats.find((s) => s.id === turretUnitId)?.type, deployedTurret);

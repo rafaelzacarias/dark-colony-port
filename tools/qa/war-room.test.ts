@@ -575,11 +575,21 @@ test("openWarRoomModal renders Human/Alien missions and 56 Skirmish maps, contro
   }
 });
 
-test("main.ts wires War Room styles, buttons, modal opener, and Enter key deployment", () => {
+test("main.ts wires War Room styles, buttons, modal opener, Enter key deployment/undeployment, ambient audio, and theater mode", () => {
   const mainSource = readRepoFile("src/main.ts").toString("utf8");
+  const styleSource = readRepoFile("src/style.css").toString("utf8");
   assert.match(mainSource, /import "\.\/ui\/war-room\.css";/);
   assert.match(mainSource, /openWarRoomModal/);
   assert.match(mainSource, /data-open-war-room/);
-  assert.match(mainSource, /event\.key === "Enter" && skirmish\.deploymentSelection\?\.canDeploy/);
+  assert.match(
+    mainSource,
+    /event\.key === "Enter" && \(skirmish\.deploymentSelection\?\.canUndeploy \|\| skirmish\.deploymentSelection\?\.canDeploy\)/,
+  );
+  assert.match(mainSource, /const ambientScheduler = new AmbientAudioScheduler\(\)/);
+  assert.match(mainSource, /ambientScheduler\.step\(\{ profile, tick: stats\.tick, daylightPermille \}\)/);
+  assert.match(mainSource, /showCampaignIntro\(\{ faction, missionNumber, briefing: mission\.briefing/);
+  assert.match(mainSource, /data-toggle-theater/);
+  assert.match(styleSource, /\.asset-lab\.theater-mode/);
+  assert.match(styleSource, /image-rendering: pixelated/);
 });
 

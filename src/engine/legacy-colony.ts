@@ -59,15 +59,36 @@ const COLONY_SLOT_BY_UNIT_TYPE: Readonly<Record<number, 0 | 1 | 2 | 3 | 4>> = {
   16: 0, 17: 1, 18: 2, 19: 2, 20: 3, 21: 3, 22: 4,
   28: 0, 29: 1, 30: 2, 31: 2, 32: 3, 33: 3, 34: 4, 35: 4,
 };
+const COLONY_FOUNDATION_STATE_BY_UNIT_TYPE: Readonly<Record<number, string>> = {
+  16: "EXOSTAND0",
+  17: "TRAININGSTAND0",
+  18: "ROBOTICSSTAND0",
+  19: "ROBOTICSSTAND0",
+  20: "SCIENCESTAND0",
+  21: "SCIENCESTAND0",
+  22: "HUMRESSTAND0",
+  28: "BIOLABSTAND0",
+  29: "WARHIVESTAND0",
+  30: "GENTICSTAND0",
+  31: "GENTICSTAND0",
+  32: "MINDHIVESTAND0",
+  33: "MINDHIVESTAND0",
+  34: "ALIENRESSTAND0",
+  35: "ALIENRESSTAND0",
+};
+
+export function legacyColonyFoundationStateForUnitType(unitType: number): string | undefined {
+  return COLONY_FOUNDATION_STATE_BY_UNIT_TYPE[unitType];
+}
 
 /** DC.EXE 0x444C58: colony pod/hive FIN children are authored around the shared base origin, so rendering subtracts the slot offset. */
 export function legacyColonySlotOffsetForUnitType(
   unitType: number,
-): { readonly slot: number; readonly offsetX: number; readonly offsetY: number } | undefined {
+): { readonly slot: number; readonly offsetX: number; readonly offsetY: number; readonly foundationState: string } | undefined {
   const slot = COLONY_SLOT_BY_UNIT_TYPE[unitType];
   if (slot === undefined) return undefined;
   const [offsetX, offsetY] = POSITION_OFFSETS[slot];
-  return { slot, offsetX, offsetY };
+  return { slot, offsetX, offsetY, foundationState: COLONY_FOUNDATION_STATE_BY_UNIT_TYPE[unitType] };
 }
 const FOOTPRINT_OFFSETS = [
   [[-3, 0], [-2, 0], [-3, 1], [-2, 1]],

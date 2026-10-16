@@ -568,6 +568,72 @@ async function loadMissionVisual(sprite: string): Promise<MissionVisual> {
   };
 }
 
+async function loadBuiltileVisual(canvas?: HTMLCanvasElement): Promise<MissionVisual> {
+  const archive = await loadJson<AnimationMetadata>(`${ASSET_ROOT}/animations/BUILTILE.json`);
+  const animation: AnimationMetadata = {
+    states: archive.states,
+    timeline: archive.timeline.map((entry) => ({
+      ...entry,
+      children: entry.children.map((child) => ({ ...child, flags: 16, valueA: 2, valueB: 0 })),
+    })),
+  };
+  const byFrame = new Map<number, { width: number; height: number }>();
+  for (const entry of animation.timeline) {
+    for (const child of entry.children) {
+      byFrame.set(child.frame, {
+        width: Math.max(64, Math.abs(child.x) * 2),
+        height: Math.max(64, Math.abs(child.y) * 2),
+      });
+    }
+  }
+  const frames: FinAtlasFrame[] = Array.from({ length: 14 }, (_, index) => {
+    const size = byFrame.get(index);
+    return size
+      ? { index, x: index * 96, y: 0, width: size.width, height: size.height, anchorX: 0, anchorY: 0, empty: false }
+      : { index, x: 0, y: 0, width: 0, height: 0, anchorX: 0, anchorY: 0, empty: true };
+  });
+  let image = { width: 14 * 96, height: 96 } as unknown as HTMLImageElement;
+  if (typeof HTMLCanvasElement !== "undefined" && canvas?.ownerDocument) {
+    const surface = canvas.ownerDocument.createElement("canvas");
+    surface.width = 14 * 96;
+    surface.height = 96;
+    const ctx = surface.getContext("2d");
+    if (ctx) {
+      for (const frame of frames) {
+        if (frame.empty) continue;
+        const cx = frame.x + frame.width / 2, cy = frame.y + frame.height / 2;
+        const rx = frame.width * 0.46, ry = frame.height * 0.36;
+        const gradient = ctx.createRadialGradient(cx, cy, 4, cx, cy, Math.max(rx, ry));
+        if (frame.index < 8) {
+          gradient.addColorStop(0, "rgba(42, 24, 28, 0.58)");
+          gradient.addColorStop(0.65, "rgba(28, 16, 20, 0.36)");
+          gradient.addColorStop(1, "rgba(18, 10, 12, 0)");
+        } else {
+          gradient.addColorStop(0, "rgba(38, 42, 46, 0.55)");
+          gradient.addColorStop(0.7, "rgba(24, 27, 30, 0.34)");
+          gradient.addColorStop(1, "rgba(14, 16, 18, 0)");
+        }
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    image = surface as unknown as HTMLImageElement;
+  }
+  const metadata: SpriteMetadata = { frames };
+  const atlases = new Map([["BUILTILE", { image, metadata }]]);
+  return {
+    animation,
+    atlases,
+    lookup: createFinFrameLookup({ BUILTILE: metadata }),
+    selector: createFinSelector(animation, {
+      prefix: "BUILTILE", directions: TRSC_GRAY_VISUAL_DIRECTIONS, layerOrder: "source",
+    }),
+    sample: createFinSourceSampler(animation),
+  };
+}
+
 export class MissionView {
   readonly canvas: HTMLCanvasElement;
   readonly stage: HTMLElement;
@@ -1289,11 +1355,18 @@ export class MissionView {
             if (stat && !sprites.includes(stat.sprite)) sprites.push(stat.sprite);
           }
         }
-        await Promise.all(sprites.map(async (sprite) => {
-          this.#visuals.set(sprite, await loadMissionVisual(sprite));
-        }));
+        await Promise.all([
+          ...sprites.map(async (sprite) => {
+            this.#visuals.set(sprite, await loadMissionVisual(sprite));
+          }),
+          loadBuiltileVisual(this.canvas).then((visual) => {
+            this.#visuals.set("BUILTILE", visual);
+          }),
+        ]);
         if (this.#disposed) return;
-        const names = [...this.#visuals.values()].flatMap((visual) => [...visual.atlases.keys()]);
+        const names = [...this.#visuals.entries()]
+          .filter(([sprite]) => sprite !== "BUILTILE")
+          .flatMap(([, visual]) => [...visual.atlases.keys()]);
         if (this.#research) {
           const metadata = await loadJson<SpriteMetadata>(`${ASSET_ROOT}/sprites/CURSOR/CURS.json`);
           const frame = metadata.frames.find(frame => frame.index === 6);
@@ -1467,23 +1540,44 @@ export class MissionView {
       : { mobile: 4 as const, deployed: 77, mobileSprite: "SARG", deployedSprite: "SARGSTL" };
   }
 
-  get deploymentSelection() {
+  get deploymentSelection(): { readonly canDeploy: boolean; readonly canUndeploy: boolean; readonly label: string } {
     const deployed = this.#browserEconomy?.deployedInterceptors ?? [];
     const eligible = this.mission.runtimeProfile === "browser-adapted" && this.#browserEconomy
       && !this.#disposed && !this.#missionDiagnostic && !this.#outcome?.ready;
     const mobile = this.#interceptorTypes.mobile;
     const units = this.simulation.snapshot.units.filter(unit => this.#selectedIds.has(unit.id)
       && unit.team === 0 && unit.health > 0);
-    return {
-      canDeploy: Boolean(eligible && units.some(unit => {
-        if (unit.activity !== "idle") return false;
-        const type = this.#unitStats.get(unit.id)?.index ?? -1;
-        if (type === mobile) return !deployed.includes(unit.id);
-        return isMobileTurretUnitType(type) || isMobileMineUnitType(type);
-      })),
-      canUndeploy: Boolean(eligible && units.some(unit =>
-        this.#unitStats.get(unit.id)?.index === mobile && deployed.includes(unit.id))),
+    const deployableUnit = eligible ? units.find(unit => {
+      if (unit.activity !== "idle") return false;
+      const type = this.#unitStats.get(unit.id)?.index ?? -1;
+      if (type === mobile) return !deployed.includes(unit.id);
+      return isMobileTurretUnitType(type) || isMobileMineUnitType(type);
+    }) : undefined;
+    const undeployableUnit = eligible ? units.find(unit => {
+      const type = this.#unitStats.get(unit.id)?.index ?? -1;
+      return (type === mobile || type === this.#interceptorTypes.deployed) && deployed.includes(unit.id);
+    }) : undefined;
+    const canDeploy = Boolean(deployableUnit);
+    const canUndeploy = Boolean(undeployableUnit);
+    const undeployType = undeployableUnit ? this.#unitStats.get(undeployableUnit.id)?.index ?? -1 : -1;
+    const deployType = deployableUnit ? this.#unitStats.get(deployableUnit.id)?.index ?? -1 : -1;
+    const label = canUndeploy
+      ? (undeployType === 12 || undeployType === 78 || this.playerFaction === "alien" ? "Undeploy Gorrem" : "Undeploy SARGE")
+      : canDeploy
+        ? (deployType === 1 ? "Deploy Firestorm"
+          : deployType === 9 ? "Deploy Xenowort"
+          : deployType === 43 ? "Deploy Sentinel"
+          : deployType === 44 ? "Deploy Slom"
+          : deployType === 12 ? "Deploy Gorrem"
+          : "Deploy SARGE")
+        : (this.playerFaction === "alien" ? "Deploy Gorrem" : "Deploy SARGE");
+    const result = { canDeploy, canUndeploy } as {
+      readonly canDeploy: boolean;
+      readonly canUndeploy: boolean;
+      readonly label: string;
     };
+    Object.defineProperty(result, "label", { value: label, enumerable: false, configurable: true });
+    return result;
   }
 
   deploySelected(): readonly number[] {
@@ -3303,6 +3397,9 @@ export class MissionView {
           const worldX = x + 0.5, worldY = y + 0.5;
           const screenX = this.#screenX(worldX, width), screenY = this.#screenY(worldY, height);
           const colonyOffset = legacyColonySlotOffsetForUnitType(object.stat.index);
+          if (colonyOffset && target.health > 0) {
+            this.#drawColonyFoundation(context, colonyOffset.foundationState, screenX, screenY, snapshot.tick);
+          }
           const bodyScreenX = this.#screenX(colonyOffset ? worldX - colonyOffset.offsetX / 32 : worldX, width);
           const bodyScreenY = this.#screenY(colonyOffset ? worldY - colonyOffset.offsetY / 32 : worldY, height);
           const bodyScene = this.#sceneCapture(object.id,
@@ -3312,7 +3409,7 @@ export class MissionView {
             this.#buildingStateOverride(object.stat.sprite, target));
           const reactionScene = this.#sceneCapture(object.id, target.xSubcells, target.ySubcells);
           this.#drawBuildingReaction(context, object, target, screenX, screenY, snapshot.tick, reactionScene);
-          if (target.health > 0 && target.maxHealth > 1) {
+          if (target.health > 0 && target.maxHealth > 1 && object.stat.index !== 40) {
             overlays.push(() => this.#drawBuildingHealth(context, object.id, target, screenX, screenY));
           }
         },
@@ -3642,8 +3739,22 @@ export class MissionView {
     return state ?? undefined;
   }
 
+  #drawColonyFoundation(context: CanvasRenderingContext2D, stateName: string, screenX: number, screenY: number, tick: number): void {
+    const visual = this.#visuals.get("BUILTILE");
+    const state = this.#finState("BUILTILE", stateName);
+    if (!visual || !state) return;
+    const sample = visual.sample({ state, action: "Stand", direction: null, fallback: false }, tick + this.#interpolation);
+    const parts = composeFinSample(sample, visual.lookup);
+    drawFinComposition(context, parts, (name) => visual.atlases.get(name.toUpperCase())?.image,
+      { x: screenX, y: screenY }, this.#tileSize / 32);
+  }
+
   /** DC.EXE binds SCRCH/BURN per type (0x43c217): BURN falls back to SCRCH, SCRCH falls back to STAND. */
   #buildingStateOverride(sprite: string, target: StaticTargetSnapshot): { state: FinStateData; action: FinAction; since: number } | undefined {
+    if (sprite === "VENT") {
+      const state = this.#finState("VENT", "VENTSTAND0");
+      return state && { state, action: "Stand", since: -16 };
+    }
     if (target.health <= 0) {
       if (this.#visuals.get(sprite)?.selector.select("Die", "S")) return undefined;
       const ruin = this.#finState(sprite, `${sprite}SCRCH`);

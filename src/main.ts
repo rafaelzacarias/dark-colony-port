@@ -4,7 +4,7 @@ import { SIMULATION_TICKS_PER_SECOND, type Faction } from "./engine";
 import { campaignConstructionPolicy, campaignResultAction, loadCampaignMission, loadSkirmishBalance } from "./game-data";
 import { MissionView } from "./mission-view";
 import { SkirmishView, type SkirmishStats } from "./simulation-view";
-import { WebAudioManager } from "./audio";
+import { AmbientAudioScheduler, WebAudioManager, type AmbientBiomeProfile } from "./audio";
 import { NativeMissionMusic } from "./audio/native-mission-music";
 import { bindControlGroups, createRadar, ORIGINAL_HUD, snapshotRadarEntities } from "./ui";
 import { createMissionCursorController, loadMissionCursorAnimation, MISSION_CURSOR_FALLBACKS, type MissionCursor } from "./ui/mission-cursor";
@@ -157,6 +157,7 @@ app.innerHTML = `
           <button type="button" data-mode="media">MEDIA</button>
           <button type="button" data-mode="simulation">SIM</button>
         </div>
+        <button id="topbar-theater-mode" type="button" class="theater-toggle-button" data-toggle-theater aria-pressed="false" title="Toggle 640×480 Theater Mode">640×480 THEATER</button>
         <div class="build-state"><i></i><span>DECODER ONLINE</span></div>
       </div>
     </header>
@@ -256,6 +257,7 @@ app.innerHTML = `
                 <button id="load-mission" class="legacy-text-command" type="button">LOAD GAME</button>
                 <button id="mission-encyclopedia" class="legacy-text-command" type="button" data-open-encyclopedia>ENCYCLOPEDIA</button>
                 <button id="mission-war-room" class="legacy-text-command" type="button" data-open-war-room>WAR ROOM</button>
+                <button id="mission-theater-mode" class="legacy-text-command" type="button" data-toggle-theater aria-pressed="false" title="Toggle 640×480 Theater Mode">THEATER</button>
                 <span id="save-mission-status" role="status" aria-live="polite"></span>
               </div>
               <div class="legacy-command-grid" hidden>
@@ -278,7 +280,7 @@ app.innerHTML = `
                   <span class="legacy-button-sprite button-inspire"></span>
                 </button>
                 <button id="deploy-units" type="button" title="Deploy SARGE" aria-label="Deploy SARGE" aria-pressed="false" hidden>
-                  <span class="legacy-button-sprite button-deploy"></span>
+                  <span class="legacy-button-sprite button-deploy"></span><span class="command-key" data-deploy-label hidden>Deploy SARGE</span>
                 </button>
               </div>
             </div>
@@ -432,7 +434,16 @@ function updateDeploymentControl(): void {
     inspireUnits.title = inspireLabel;
     inspireUnits.setAttribute("aria-label", inspireLabel);
   }
-  const label = selection?.canUndeploy ? "Undeploy SARGE" : "Deploy SARGE";
+  const selectedCampaignFaction = (skirmish instanceof MissionView ? skirmish.playerFaction : undefined) ?? campaignFaction ?? "human";
+  const label = (selection as { label?: string } | undefined)?.label
+    ?? (selection?.canUndeploy
+      ? (selectedCampaignFaction === "alien" ? "Undeploy Gorrem" : "Undeploy SARGE")
+      : (selectedCampaignFaction === "alien" ? "Deploy Gorrem" : "Deploy SARGE"));
+  const labelNode = typeof deployUnits.querySelector === "function"
+    ? deployUnits.querySelector<HTMLElement>("[data-deploy-label]")
+    : null;
+  if (labelNode) labelNode.textContent = label;
+  else deployUnits.textContent = label;
   deployUnits.title = label;
   deployUnits.setAttribute("aria-label", label);
   deployUnits.setAttribute("aria-pressed", String(Boolean(selection?.canUndeploy)));
@@ -508,6 +519,7 @@ let missionCursorController: ReturnType<typeof createMissionCursorController> | 
 let missionCursorState: MissionCursor = "default";
 let appliedMissionCursorStyle = "";
 let audio: WebAudioManager | undefined;
+const ambientScheduler = new AmbientAudioScheduler();
 let missionMusic: NativeMissionMusic | undefined;
 let radar: ReturnType<typeof createRadar> | null = null;
 let lastProductionKey = "", lastRadarKey = "", lastUiTick = -1, uiDeferrals = 0, uiRefreshDue = true;
@@ -558,6 +570,7 @@ function resetMissionControls(): void {
   radarCanvas.hidden = true;
   controlGroups.reset();
   audio?.stopAll();
+  if (typeof ambientScheduler !== "undefined") ambientScheduler.reset();
   missionDragStart = null;
   missionDragMoved = false;
   missionPointer = null;
@@ -820,6 +833,27 @@ function updateSkirmishStats(stats: SkirmishStats): void {
       // The simulation tick already fills its own frame, so the rebuild waits for the next frame (at most 2 frames late).
       const tickFrame = stats.tick !== lastUiTick;
       lastUiTick = stats.tick;
+      if (tickFrame && !mission.missionDiagnostic && !mission.missionOutcome?.ready
+        && typeof ambientScheduler !== "undefined" && ambientScheduler
+        && (typeof missionMute === "undefined" || !missionMute.checked)) {
+        const rawBank = (mission.mission.scenario as { terrainBank?: string }).terrainBank
+          ?? (mission.mission as { map?: { terrainBank?: string } }).map?.terrainBank
+          ?? "";
+        const profile: AmbientBiomeProfile = /^jungle/i.test(rawBank)
+          ? "jungle"
+          : /^atlantis/i.test(rawBank)
+            ? "atlantis"
+            : "desert";
+        const snapshotDaylight = (mission.simulation?.snapshot as { daylightPermille?: number } | undefined)?.daylightPermille;
+        const parsedDaylight = typeof snapshotDaylight === "number" && Number.isFinite(snapshotDaylight)
+          ? snapshotDaylight
+          : Number.parseInt(stats.daylight, 10);
+        const daylightPermille = Number.isFinite(parsedDaylight) ? parsedDaylight : 1000;
+        const cue = ambientScheduler.step({ profile, tick: stats.tick, daylightPermille });
+        if (cue && audio && "play" in audio && typeof audio.play === "function") {
+          void audio.play({ assetId: cue.assetId, priority: cue.priority }).catch(() => undefined);
+        }
+      }
       uiRefreshDue = !tickFrame || uiDeferrals >= 2;
       uiDeferrals = uiRefreshDue ? 0 : uiDeferrals + 1;
       const productionKey = `${stats.tick}|${mission.selectedIds.join(",")}|${mission.orderMode}|${mission.movementStance}`;
@@ -1336,7 +1370,7 @@ async function startCampaign(faction: Faction, missionNumber = 1, checkpoint?: u
     if (restoringSave) setLoadProgress(10, "RESTORING BATTLE");
     if (shouldShowCampaignIntro(faction, missionNumber, launchReason, checkpoint)) {
       loadState.hidden = true;
-      const decision = await showCampaignIntro({ briefing: mission.briefing, isCurrent: () => token === loadingToken });
+      const decision = await showCampaignIntro({ faction, missionNumber, briefing: mission.briefing, isCurrent: () => token === loadingToken });
       if (token !== loadingToken) return;
       if (decision === "cancel") { showCampaignLauncher(); return; }
       loadState.hidden = false;
@@ -1910,6 +1944,18 @@ function showWarRoom(): void {
 document.querySelectorAll<HTMLButtonElement>("[data-open-war-room]").forEach((button) => {
   button.addEventListener("click", showWarRoom);
 });
+function toggleTheaterMode(force?: boolean): void {
+  const next = typeof force === "boolean" ? force : !assetLab.classList.contains("theater-mode");
+  assetLab.classList.toggle("theater-mode", next);
+  document.querySelectorAll<HTMLButtonElement>("[data-toggle-theater]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(next));
+  });
+  layoutMissionShell();
+  drawFrame();
+}
+document.querySelectorAll<HTMLButtonElement>("[data-toggle-theater]").forEach((button) => {
+  button.addEventListener("click", () => toggleTheaterMode());
+});
 function updateMenuSound(): void {
   const button = element<HTMLButtonElement>("#menu-sound");
   button.textContent = missionMute.checked ? "Sound: off" : "Sound: on";
@@ -2021,9 +2067,10 @@ window.addEventListener("keydown", (event) => {
   }
   if (assetMode === "campaign" && (event.ctrlKey || event.metaKey || event.altKey)) { cameraPan.cancel(); return; }
   if (assetMode === "campaign" && skirmish instanceof MissionView) {
-    if (event.key === "Enter" && skirmish.deploymentSelection?.canDeploy) {
+    if (event.key === "Enter" && (skirmish.deploymentSelection?.canUndeploy || skirmish.deploymentSelection?.canDeploy)) {
       event.preventDefault();
-      skirmish.deploySelected();
+      if (skirmish.deploymentSelection.canUndeploy) skirmish.undeploySelected();
+      else skirmish.deploySelected();
       updateDeploymentControl();
       return;
     }

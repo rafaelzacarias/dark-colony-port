@@ -126,6 +126,25 @@ h1 {
 .dataset-switch button:last-child { border-right: 0; }
 .dataset-switch button.selected { color: #e3e8e0; background: #1a221c; }
 
+.theater-toggle-button {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid #4e6338;
+  border-radius: 2px;
+  background: #10160f;
+  color: #b9f763;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.theater-toggle-button:hover,
+.theater-toggle-button[aria-pressed="true"] {
+  background: #23321d;
+  border-color: #95dc41;
+  color: #fff;
+}
+
 .build-state i {
   width: 7px;
   height: 7px;
@@ -818,6 +837,9 @@ h1 {
 #select-all-units { left: 577px; top: 111px; width: 59px; height: 41px; padding: 2px; }
 #save-mission-status { position: absolute; left: 577px; top: 152px; width: 59px; height: 41px; padding: 3px; background: #070a08; font-size: 8px; color: #c2c6be; overflow: hidden; overflow-wrap: anywhere; }
 #save-mission-status:empty { display: none; }
+#mission-encyclopedia { left: 577px; top: 234px; width: 59px; height: 41px; padding: 2px; }
+#mission-war-room { left: 577px; top: 275px; width: 59px; height: 41px; padding: 2px; }
+#mission-theater-mode { left: 577px; top: 316px; width: 59px; height: 41px; padding: 2px; }
 
 .cinematic-player { inset: 0; width: 100%; max-width: 100%; height: 100%; max-height: 100%; margin: 0; padding: 0; border: 0; background: #000; color: #d9e4c2; overflow: hidden; }
 .cinematic-player::backdrop { background: #000; }
@@ -940,6 +962,45 @@ h1 {
   width: 100%;
   height: 100%;
   background: #000;
+}
+
+.asset-lab.theater-mode {
+  height: 100vh;
+  height: 100dvh;
+  grid-template-rows: minmax(0, 1fr);
+  background: #000;
+}
+
+.asset-lab.theater-mode .topbar,
+.asset-lab.theater-mode .archive-panel,
+.asset-lab.theater-mode .preview-heading,
+.asset-lab.theater-mode .transport,
+.asset-lab.theater-mode .frame-data,
+.asset-lab.theater-mode .statusbar,
+.asset-lab.theater-mode .frame-watermark {
+  display: none;
+}
+
+.asset-lab.theater-mode .workbench,
+.asset-lab.theater-mode .preview-panel,
+.asset-lab.theater-mode .preview-panel.simulation-active {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #000;
+}
+
+.asset-lab.theater-mode .preview-stage {
+  width: 100%;
+  height: 100%;
+  background: #000;
+}
+
+.mission-shell,
+.mission-shell canvas,
+.mission-shell img {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }
 
 .load-state {
