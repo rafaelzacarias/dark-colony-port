@@ -1,0 +1,2504 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "path": "raw_cd/DC/INTRFACE/ENCYCLO.TXT",
+    "sha256": "8049ede39200f50a18ee9608e6e48ee00678f3165ea5d028a96839dff349b98f"
+  },
+  "background": "/assets/generated/interface/ENCY.GIF",
+  "entries": [
+    {
+      "key": "GRAY",
+      "title": "Gray",
+      "category": "alien",
+      "textSource": {
+        "path": "raw_cd/DC/ENCYCLO/GRAY.TXT",
+        "sha256": "cd4fc197ac8c6c5566a475896b0c294df6d71db184d1c43f2aa83acd9663dd34"
+      },
+      "tokens": [
+        {
+          "style": 1,
+          "text": "INFANTRY UNIT\n\n"
+        },
+        {
+          "style": 0,
+          "text": "NAME       : "
+        },
+        {
+          "style": 4,
+          "text": "GRAY WARRIOR\n"
+        },
+        {
+          "style": 0,
+          "text": "HEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "1.7m\n"
+        },
+        {
+          "style": 0,
+          "text": "WEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "60kg\n"
+        },
+        {
+          "style": 0,
+          "text": "MAIN WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "PLASMA BOLT\n"
+        },
+        {
+          "style": 0,
+          "text": "ALT. WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "N/A\n"
+        },
+        {
+          "style": 0,
+          "text": "ARMOR      : "
+        },
+        {
+          "style": 4,
+          "text": "POLY-ORGANIC \n"
+        },
+        {
+          "style": 4,
+          "text": "             SKIN\n"
+        },
+        {
+          "style": 0,
+          "text": "FUNCTION   : "
+        },
+        {
+          "style": 4,
+          "text": "INFANTRY\n"
+        },
+        {
+          "style": 0,
+          "text": "WEAKNESS   : "
+        },
+        {
+          "style": 4,
+          "text": "WEAK \n"
+        },
+        {
+          "style": 4,
+          "text": "             WEAPONRY\n\n"
+        },
+        {
+          "style": 4,
+          "text": "AS THE MAIN UNIT OF THE TAAR ARMY, THE WARRIOR IS A WELL ROUNDED UNIT. INEXPENSIVE TO TRAIN AND ABLE TO ATTACK BOTH GROUND AND AIR UNITS, THE WARRIOR IS THE MOST IMPORTANT UNIT BY FAR.\n\nA SMALL BODY SIZE AND RELATIVELY WEAK ARMOR REQUIRES THAT THEY ATTACK IN LARGE NUMBERS TO DO ANY SUBSTANTIAL DAMAGE."
+        }
+      ],
+      "spriteAtlas": "/assets/generated/sprites/ENCYCLO/GRAY.png",
+      "spriteMetadata": "/assets/generated/sprites/ENCYCLO/GRAY.json",
+      "audio": "/assets/generated/media/audio/ENCYCLO/GRAY.ogg"
+    },
+    {
+      "key": "ATRIL",
+      "title": "Atril",
+      "category": "alien",
+      "textSource": {
+        "path": "raw_cd/DC/ENCYCLO/ATRIL.TXT",
+        "sha256": "8b80a0b4ad20745b7f1f1a2f6b19b2285946812893d057b3f37f5ff6a804ed38"
+      },
+      "tokens": [
+        {
+          "style": 1,
+          "text": "MOBILE ARTILLERY BEAST\n\n"
+        },
+        {
+          "style": 0,
+          "text": "NAME       : "
+        },
+        {
+          "style": 4,
+          "text": "ATRIL\n"
+        },
+        {
+          "style": 0,
+          "text": "HEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "3.8m\n"
+        },
+        {
+          "style": 0,
+          "text": "WEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "1000kg\n"
+        },
+        {
+          "style": 0,
+          "text": "MAIN WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "EXPLOSIVE\n"
+        },
+        {
+          "style": 4,
+          "text": "             MUCUS SACK\n"
+        },
+        {
+          "style": 0,
+          "text": "ALT. WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "N/A\n"
+        },
+        {
+          "style": 0,
+          "text": "ARMOR      : "
+        },
+        {
+          "style": 4,
+          "text": "POLY-ORGANIC\n"
+        },
+        {
+          "style": 4,
+          "text": "             SKIN\n"
+        },
+        {
+          "style": 0,
+          "text": "FUNCTION   : "
+        },
+        {
+          "style": 4,
+          "text": "ARTILLERY \n"
+        },
+        {
+          "style": 0,
+          "text": "WEAKNESS   : "
+        },
+        {
+          "style": 4,
+          "text": "ARMOUR/AIR\n"
+        },
+        {
+          "style": 4,
+          "text": "             ATTACKS\n\nBRED FOR LONG RANGE ATTACKS, THE ATRIL HAS A RE-GENERATIVE EXPLOSIVE MUCUS SACK THAT CAN BE PROPELLED GREAT DISTANCES VIA PRESSURIZED CARBON DIOXIDE GENERATED INTERNALLY.\n\nTHE MUCUS SACKS CONTAIN AN EXPLOSIVE SPORE THAT DAMAGES ANY UNIT WITHIN 5m OF DETONATION."
+        }
+      ],
+      "spriteAtlas": "/assets/generated/sprites/ENCYCLO/ATRIL.png",
+      "spriteMetadata": "/assets/generated/sprites/ENCYCLO/ATRIL.json",
+      "audio": "/assets/generated/media/audio/ENCYCLO/ATRIL.ogg"
+    },
+    {
+      "key": "SYTH",
+      "title": "Sy Demon",
+      "category": "alien",
+      "textSource": {
+        "path": "raw_cd/DC/ENCYCLO/SYTH.TXT",
+        "sha256": "bca775f42e0263cefb1e41f0e8a024a46fc8c438d6a46759ca91d8d547be182f"
+      },
+      "tokens": [
+        {
+          "style": 1,
+          "text": "HEAVY ASSAULT CREATURE\n\n"
+        },
+        {
+          "style": 0,
+          "text": "NAME       : "
+        },
+        {
+          "style": 4,
+          "text": "SY DEMON\n"
+        },
+        {
+          "style": 0,
+          "text": "HEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "2.6m\n"
+        },
+        {
+          "style": 0,
+          "text": "WEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "140kg\n"
+        },
+        {
+          "style": 0,
+          "text": "MAIN WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "BIO-SCYTHE\n"
+        },
+        {
+          "style": 0,
+          "text": "ALT. WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "N/A\n"
+        },
+        {
+          "style": 0,
+          "text": "ARMOR      : "
+        },
+        {
+          "style": 4,
+          "text": "POLY-ORGANIC\n"
+        },
+        {
+          "style": 4,
+          "text": "             EXO-SKELETON\n"
+        },
+        {
+          "style": 0,
+          "text": "FUNCTION   : "
+        },
+        {
+          "style": 4,
+          "text": "HEAVY \n"
+        },
+        {
+          "style": 4,
+          "text": "             GROUND ASSAULT\n"
+        },
+        {
+          "style": 0,
+          "text": "WEAKNESS   : "
+        },
+        {
+          "style": 4,
+          "text": "SUSCEPTIBLE \n"
+        },
+        {
+          "style": 4,
+          "text": "             TO AIR ATTACKS\n\nBRED TO BE THE ULTIMATE GROUND ASSAULT WARRIOR, THE SY DEMON IS A LETHAL COMBINATION OF POWER, SPEED, AND VICIOUSNESS. IT IS AN EXCELLENT INFANTRY KILLER, AND CAN BE VERY POTENT AGAINST HARD TARGETS AND DEFENSIVE STRUCTURES.\n\nIT IS THOUGHT TO BE SOMEWHAT SUSCEPTIBLE TO ATTACKS FROM THE AIR."
+        }
+      ],
+      "spriteAtlas": "/assets/generated/sprites/ENCYCLO/SYTH.png",
+      "spriteMetadata": "/assets/generated/sprites/ENCYCLO/SYTH.json",
+      "audio": "/assets/generated/media/audio/ENCYCLO/SYTH.ogg"
+    },
+    {
+      "key": "ORTU",
+      "title": "Ortu",
+      "category": "alien",
+      "textSource": {
+        "path": "raw_cd/DC/ENCYCLO/ORTU.TXT",
+        "sha256": "8edd837335abd68809a5f52853fe501065d87786669df3c715c613aee449f361"
+      },
+      "tokens": [
+        {
+          "style": 1,
+          "text": "RECON / BOMBER UNIT\n\n"
+        },
+        {
+          "style": 0,
+          "text": "NAME       : "
+        },
+        {
+          "style": 4,
+          "text": "ORTU\n"
+        },
+        {
+          "style": 0,
+          "text": "WING SPAN  : "
+        },
+        {
+          "style": 4,
+          "text": "3m\n"
+        },
+        {
+          "style": 0,
+          "text": "WEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "50kg\n"
+        },
+        {
+          "style": 0,
+          "text": "MAIN WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "EXPLOSIVE\n"
+        },
+        {
+          "style": 4,
+          "text": "             FETUS\n"
+        },
+        {
+          "style": 0,
+          "text": "ALT. WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "N/A\n"
+        },
+        {
+          "style": 0,
+          "text": "ARMOR      : "
+        },
+        {
+          "style": 4,
+          "text": "POLY-ORGANIC\n"
+        },
+        {
+          "style": 4,
+          "text": "             SKIN\n"
+        },
+        {
+          "style": 0,
+          "text": "FUNCTION   : "
+        },
+        {
+          "style": 4,
+          "text": "BOMBER / \n"
+        },
+        {
+          "style": 4,
+          "text": "             RECON\n"
+        },
+        {
+          "style": 0,
+          "text": "WEAKNESS   : "
+        },
+        {
+          "style": 4,
+          "text": "WEAK \n"
+        },
+        {
+          "style": 4,
+          "text": "             ARMOR\n\nTHE ORTU IS A MULTI-PURPOSE BOMBER/RECON CREATURE. IT STRIKES FAST AND HARD RAINING DEATH ON THE LUCKLESS UNITS BELOW.\n\nBECAUSE OF IT'S THIN HOLLOW BONE STRUCTURE IT IS VERY MANEUVERABLE AND THUS HARDER FOR LARGER UNITS TO TARGET.\n\nIT'S FRAGILE COMPOSITION MAKES IT VERY SUSCEPTIBLE TO DAMAGE. WITH A FEW WELL PLACED SHOTS IT CAN BE EASILY KILLED."
+        }
+      ],
+      "spriteAtlas": "/assets/generated/sprites/ENCYCLO/ORTU.png",
+      "spriteMetadata": "/assets/generated/sprites/ENCYCLO/ORTU.json",
+      "audio": "/assets/generated/media/audio/ENCYCLO/ORTU.ogg"
+    },
+    {
+      "key": "PSYCH",
+      "title": "Gorrem",
+      "category": "alien",
+      "textSource": {
+        "path": "raw_cd/DC/ENCYCLO/PSYCH.TXT",
+        "sha256": "960fc49714a07441a605a6b75e6c0c49c3a0bbb3a4818dc5a4a089dba32b60f1"
+      },
+      "tokens": [
+        {
+          "style": 1,
+          "text": "REMOTE ASSASSINATION UNIT\n\n"
+        },
+        {
+          "style": 0,
+          "text": "NAME       : "
+        },
+        {
+          "style": 4,
+          "text": "GORREM\n"
+        },
+        {
+          "style": 0,
+          "text": "HEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "2m\n"
+        },
+        {
+          "style": 0,
+          "text": "WEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "73kg\n"
+        },
+        {
+          "style": 0,
+          "text": "MAIN WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "PSYCHIC\n"
+        },
+        {
+          "style": 4,
+          "text": "             MIND-LANCE\n"
+        },
+        {
+          "style": 0,
+          "text": "ALT. WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "DISEASE\n"
+        },
+        {
+          "style": 4,
+          "text": "             SPORE\n"
+        },
+        {
+          "style": 0,
+          "text": "ARMOR      : "
+        },
+        {
+          "style": 4,
+          "text": "NONE\n"
+        },
+        {
+          "style": 0,
+          "text": "FUNCTION   : "
+        },
+        {
+          "style": 4,
+          "text": "LONG RANGE \n"
+        },
+        {
+          "style": 4,
+          "text": "             SNIPER\n"
+        },
+        {
+          "style": 0,
+          "text": "WEAKNESS   : "
+        },
+        {
+          "style": 4,
+          "text": "COSTLY TO\n"
+        },
+        {
+          "style": 4,
+          "text": "             MUTATE\n\nTHE GORREM IS A DOCILE ANIMAL NATIVE THE THE TAAR HOME PLANET.\n\nTHE DISCOVERY OF A PSYCHIC GENE ALLOWED THE TAAR TO BREED THE GORREM INTO A LONG RANGE SNIPER, IDEAL FOR WIPING OUT INFANTRY OPERATIONS.\n\nA LACK OF ARMOR REQUIRES THAT THIS UNIT NOT GET INVOLVED IN BATTLES OF ATTRITION.\n\nA GORREM CAN BE GENETICALLY ALTERED TO PRODUCE A PARA-STORM ATTACK.  A PARA-STORM IS A CLOUD OF CORROSIVE SPORES THAT PARALIZE AND DAMAGE ANYTHING INSIDE IT."
+        }
+      ],
+      "spriteAtlas": "/assets/generated/sprites/ENCYCLO/PSYCH.png",
+      "spriteMetadata": "/assets/generated/sprites/ENCYCLO/PSYCH.json",
+      "audio": "/assets/generated/media/audio/ENCYCLO/PSYCH.ogg"
+    },
+    {
+      "key": "SLUG",
+      "title": "Brozaar",
+      "category": "alien",
+      "textSource": {
+        "path": "raw_cd/DC/ENCYCLO/SLUG.TXT",
+        "sha256": "584705d015f495967036de1b65e6c33a8b225475ed1ebf616a4928f1e277ec10"
+      },
+      "tokens": [
+        {
+          "style": 1,
+          "text": "RESOURCE EXTRACTION ORGANISM\n\n"
+        },
+        {
+          "style": 0,
+          "text": "NAME       : "
+        },
+        {
+          "style": 4,
+          "text": "BROZAAR\n"
+        },
+        {
+          "style": 0,
+          "text": "HEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "2.1m\n"
+        },
+        {
+          "style": 0,
+          "text": "WEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "800kg\n"
+        },
+        {
+          "style": 0,
+          "text": "MAIN WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "N/A\n"
+        },
+        {
+          "style": 0,
+          "text": "ALT. WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "N/A\n"
+        },
+        {
+          "style": 0,
+          "text": "ARMOR      : "
+        },
+        {
+          "style": 4,
+          "text": "POLY-ORGANIC \n"
+        },
+        {
+          "style": 4,
+          "text": "             SKIN\n"
+        },
+        {
+          "style": 0,
+          "text": "FUNCTION   : "
+        },
+        {
+          "style": 4,
+          "text": "RESOURCE\n"
+        },
+        {
+          "style": 4,
+          "text": "             EXTRACTION\n"
+        },
+        {
+          "style": 0,
+          "text": "WEAKNESS   : "
+        },
+        {
+          "style": 4,
+          "text": "NO DEFENSIVE \n"
+        },
+        {
+          "style": 4,
+          "text": "             WEAPONRY\n\n"
+        },
+        {
+          "style": 4,
+          "text": "THE BROZAAR'S MAIN FUNCTION IS TO CONVERT RAW PETRA-7 TO AN ENERGY WAVE FORM.\n\nTHE BASIC UNIT CAN BE GENETICALLY ALTERED TO HANDLE A VARIETY OF TASKS, SUCH AS THE EXCAVATING AND HANDLING OF ANCIENT ARTIFACTS.\n\nEXHAUSTIVE CROSS-BREEDING HAS ALLOWED FOR THE DEVELOPMENT OF A VERY ADVANCED POLY-ORGANIC SKIN, WHICH MAKES IT VERY FAST BUT SUSCEPTIBLE TO A WIDE VARIETY OF WEAPONRY."
+        }
+      ],
+      "spriteAtlas": "/assets/generated/sprites/ENCYCLO/SLUG.png",
+      "spriteMetadata": "/assets/generated/sprites/ENCYCLO/SLUG.json",
+      "audio": "/assets/generated/media/audio/ENCYCLO/SLUG.ogg"
+    },
+    {
+      "key": "XENO",
+      "title": "Xenowort",
+      "category": "alien",
+      "textSource": {
+        "path": "raw_cd/DC/ENCYCLO/XENO.TXT",
+        "sha256": "93f8ae5eb411b166900362b6818f522e769796291cd7926de5a39dacbbd7a22b"
+      },
+      "tokens": [
+        {
+          "style": 1,
+          "text": "MOBILE DEFENCE ORGANISM\n\n"
+        },
+        {
+          "style": 0,
+          "text": "NAME       : "
+        },
+        {
+          "style": 4,
+          "text": "XENOWORT\n"
+        },
+        {
+          "style": 0,
+          "text": "HEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "1.4m\n"
+        },
+        {
+          "style": 0,
+          "text": "WEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "600kg\n"
+        },
+        {
+          "style": 0,
+          "text": "MAIN WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "PLASMA\n"
+        },
+        {
+          "style": 4,
+          "text": "             TURRET\n"
+        },
+        {
+          "style": 0,
+          "text": "ALT. WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "N/A\n"
+        },
+        {
+          "style": 0,
+          "text": "ARMOR      : "
+        },
+        {
+          "style": 4,
+          "text": "DENSE \n"
+        },
+        {
+          "style": 4,
+          "text": "             POLY-ORGANIC\n"
+        },
+        {
+          "style": 4,
+          "text": "             SKIN\n"
+        },
+        {
+          "style": 0,
+          "text": "FUNCTION   : "
+        },
+        {
+          "style": 4,
+          "text": "MOBILE \n"
+        },
+        {
+          "style": 4,
+          "text": "             DEFENCE \n"
+        },
+        {
+          "style": 0,
+          "text": "WEAKNESS   : "
+        },
+        {
+          "style": 4,
+          "text": "WEAK WHEN \n"
+        },
+        {
+          "style": 4,
+          "text": "             MOBILE\n\nTHE XENOWORT WAS BRED AS A PURELY DEFENSIVE UNIT.\n\nWHEN IN IT'S MOBILE FORM IT IS VERY EASILY KILLED BECAUSE OF IT'S FRAGILE STRUCTURE. ONCE DEPLOYED, HOWEVER, ONLY IT'S EXTREMELY DENSE POSTERIOR IS EXPOSED.\n\nGENETICALLY ALTERED TO HAVE MULTIPLE LAYERS OF BONE, SKIN AND CARTILAGE, IT IS VERY DIFFICULT TO DESTROY.\n\nAFTER THE XENOWORT HAS BURIED ITSELF IT LACKS THE ABILITY TO REMOVE ITSELF FROM THE GROUND."
+        }
+      ],
+      "spriteAtlas": "/assets/generated/sprites/ENCYCLO/XENO.png",
+      "spriteMetadata": "/assets/generated/sprites/ENCYCLO/XENO.json",
+      "audio": "/assets/generated/media/audio/ENCYCLO/XENO.ogg"
+    },
+    {
+      "key": "SLOM",
+      "title": "Slom",
+      "category": "alien",
+      "textSource": {
+        "path": "raw_cd/DC/ENCYCLO/SLOM.TXT",
+        "sha256": "7a68f00df900270bc423eeb26d0c38815ce94b9b3e6a2a24efba7261e7af4649"
+      },
+      "tokens": [
+        {
+          "style": 1,
+          "text": "REMOTE DETONATION HYDROGEN SAC\n\n"
+        },
+        {
+          "style": 0,
+          "text": "NAME       : "
+        },
+        {
+          "style": 4,
+          "text": "SLOM\n"
+        },
+        {
+          "style": 0,
+          "text": "HEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "0.5m\n"
+        },
+        {
+          "style": 0,
+          "text": "WEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "15kg\n"
+        },
+        {
+          "style": 0,
+          "text": "MAIN WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "EXPLOSIVE\n"
+        },
+        {
+          "style": 4,
+          "text": "             HYDROGEN SAC\n"
+        },
+        {
+          "style": 0,
+          "text": "ALT. WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "N/A\n"
+        },
+        {
+          "style": 0,
+          "text": "ARMOR      : "
+        },
+        {
+          "style": 4,
+          "text": "THIN ORGANIC\n"
+        },
+        {
+          "style": 4,
+          "text": "             SKIN\n"
+        },
+        {
+          "style": 0,
+          "text": "FUNCTION   : "
+        },
+        {
+          "style": 4,
+          "text": "ANTI PERSONNEL \n"
+        },
+        {
+          "style": 4,
+          "text": "             EXPLOSIVE\n"
+        },
+        {
+          "style": 0,
+          "text": "WEAKNESS   : "
+        },
+        {
+          "style": 4,
+          "text": "NO DEFENSIVE \n"
+        },
+        {
+          "style": 4,
+          "text": "             CAPABILITIES\n\nTHE SLOM HAS BEEN GENETICALLY ENGINEERED TO BE A SUICIDAL DEFENCE BEAST.\n\nIT'S THIN OUTER SKIN BARELY PROTECTS THE HIGHLY VOLATILE HYDROGEN MIXTURE CONTAINED WITHIN IT'S BODY.\n\nTHE SLOM WILL BURY ITSELF IN THE GROUND AND LIE IN WAIT UNTIL AN UNSUSPECTING UNIT PASSES OVER AND TRIGGERS IT'S DEVASTATING BLAST.\n\nTHE SLOM IS CAPABLE OF DELIVERING THREE DETONATIONS BEFORE IT IS DESTROYED."
+        }
+      ],
+      "spriteAtlas": "/assets/generated/sprites/ENCYCLO/SLOM.png",
+      "spriteMetadata": "/assets/generated/sprites/ENCYCLO/SLOM.json",
+      "audio": "/assets/generated/media/audio/ENCYCLO/SLOM.ogg"
+    },
+    {
+      "key": "SAUC",
+      "title": "Saucer",
+      "category": "alien",
+      "textSource": {
+        "path": "raw_cd/DC/ENCYCLO/SAUC.TXT",
+        "sha256": "ed449185c372e715395a79905381c6a25c56d14ed32f02d71a131322df4bbc9d"
+      },
+      "tokens": [
+        {
+          "style": 1,
+          "text": "BATTLEFIELD REINFORCEMENT VESSEL\n\n"
+        },
+        {
+          "style": 0,
+          "text": "NAME       : "
+        },
+        {
+          "style": 4,
+          "text": "SAUCER\n"
+        },
+        {
+          "style": 0,
+          "text": "HEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "7.2m\n"
+        },
+        {
+          "style": 0,
+          "text": "WEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "800kg\n"
+        },
+        {
+          "style": 0,
+          "text": "MAIN WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "N/A\n"
+        },
+        {
+          "style": 0,
+          "text": "ALT. WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "N/A\n"
+        },
+        {
+          "style": 0,
+          "text": "ARMOR      : "
+        },
+        {
+          "style": 4,
+          "text": "BI-ATOMIC\n"
+        },
+        {
+          "style": 4,
+          "text": "             SALINE\n"
+        },
+        {
+          "style": 4,
+          "text": "             SOLUTION\n"
+        },
+        {
+          "style": 0,
+          "text": "FUNCTION   : "
+        },
+        {
+          "style": 4,
+          "text": "BATTLEFIELD \n"
+        },
+        {
+          "style": 4,
+          "text": "             INSERTION /\n"
+        },
+        {
+          "style": 4,
+          "text": "             EXTRACTION\n"
+        },
+        {
+          "style": 0,
+          "text": "WEAKNESS   : "
+        },
+        {
+          "style": 4,
+          "text": "NO DEFENSIVE \n"
+        },
+        {
+          "style": 4,
+          "text": "             WEAPONS\n\nOFTEN DURING BATTLE REINFORCEMENTS ARE NEEDED, GRAYS CAN TELEPATHICALLY CALL IN A SAUCER WITH SUPPORT UNITS DURING SPECIFIC MISSIONS.\n\nTHE GRAY SAUCER ISN'T DESIGNED FOR COMBAT AND HAS NO DEFENSIVE WEAPONS. HIGH RANKING COMMANDERS IN THE TAAR ARMY CAN COMMAND SAUCERS TO ABDUCT ENEMY UNITS."
+        }
+      ],
+      "spriteAtlas": "/assets/generated/sprites/ENCYCLO/SAUC.png",
+      "spriteMetadata": "/assets/generated/sprites/ENCYCLO/SAUC.json",
+      "audio": "/assets/generated/media/audio/ENCYCLO/SAUC.ogg"
+    },
+    {
+      "key": "ZISP",
+      "title": "Zisp",
+      "category": "alien",
+      "textSource": {
+        "path": "raw_cd/DC/ENCYCLO/ZISP.TXT",
+        "sha256": "87459170e68721809589e1bbdc1f85d2cb273b094cc3723d7dce797644910603"
+      },
+      "tokens": [
+        {
+          "style": 1,
+          "text": "MEDICAL / GENETIC HEALING UNIT\n\n"
+        },
+        {
+          "style": 0,
+          "text": "NAME       : "
+        },
+        {
+          "style": 4,
+          "text": "ZISP\n"
+        },
+        {
+          "style": 0,
+          "text": "HEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "3m\n"
+        },
+        {
+          "style": 0,
+          "text": "WEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "60kg\n"
+        },
+        {
+          "style": 0,
+          "text": "MAIN WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "MEDICAL\n"
+        },
+        {
+          "style": 4,
+          "text": "             REPAIR\n"
+        },
+        {
+          "style": 0,
+          "text": "ALT. WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "GENETIC\n"
+        },
+        {
+          "style": 4,
+          "text": "             REPAIR\n"
+        },
+        {
+          "style": 0,
+          "text": "ARMOR      : "
+        },
+        {
+          "style": 4,
+          "text": "NONE\n"
+        },
+        {
+          "style": 0,
+          "text": "FUNCTION   : "
+        },
+        {
+          "style": 4,
+          "text": "HEALING /\n"
+        },
+        {
+          "style": 4,
+          "text": "             REPAIR\n"
+        },
+        {
+          "style": 0,
+          "text": "WEAKNESS   : "
+        },
+        {
+          "style": 4,
+          "text": "NO DEFENSIVE \n"
+        },
+        {
+          "style": 4,
+          "text": "             WEAPONS\n\nTHE ZISP WAS BRED WITH PSYCHIC HEALING ABILITIES TO AID WOUNDED TROOPS IN BATTLE.\n\nTHE ZISP'S PSYCHOKINETIC ENERGY CAN BE CHANNELED THROUGH THE EXTREMITIES AND PROJECTED UPON UNITS OR BUILDINGS BELOW."
+        }
+      ],
+      "spriteAtlas": "/assets/generated/sprites/ENCYCLO/ZISP.png",
+      "spriteMetadata": "/assets/generated/sprites/ENCYCLO/ZISP.json",
+      "audio": "/assets/generated/media/audio/ENCYCLO/ZISP.ogg"
+    },
+    {
+      "key": "TROOP",
+      "title": "Trooper",
+      "category": "human",
+      "textSource": {
+        "path": "raw_cd/DC/ENCYCLO/TROOP.TXT",
+        "sha256": "96895b272d1f80f513dc39bde7a78fd892d16d77555d13347851ad0375cbba80"
+      },
+      "tokens": [
+        {
+          "style": 1,
+          "text": "HUMAN INFANTRY UNIT\n\n"
+        },
+        {
+          "style": 0,
+          "text": "NAME       : "
+        },
+        {
+          "style": 4,
+          "text": "TROOPER\n"
+        },
+        {
+          "style": 0,
+          "text": "HEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "183cm \n"
+        },
+        {
+          "style": 0,
+          "text": "WEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "87kg\n"
+        },
+        {
+          "style": 0,
+          "text": "MAIN WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "EM PULSE\n"
+        },
+        {
+          "style": 4,
+          "text": "             RIFLE\n"
+        },
+        {
+          "style": 0,
+          "text": "ALT. WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "N/A\n"
+        },
+        {
+          "style": 0,
+          "text": "ARMOR      : "
+        },
+        {
+          "style": 4,
+          "text": "TITANIUM\n"
+        },
+        {
+          "style": 4,
+          "text": "             POLYMER\n"
+        },
+        {
+          "style": 4,
+          "text": "             COMPOSITE\n"
+        },
+        {
+          "style": 0,
+          "text": "FUNCTION   : "
+        },
+        {
+          "style": 4,
+          "text": "INFANTRY\n"
+        },
+        {
+          "style": 0,
+          "text": "WEAKNESS   : "
+        },
+        {
+          "style": 4,
+          "text": "THIN ARMOR\n\nTHE GENERIC HUMAN SOLDIER IS EQUIPPED WITH AN ELECTRO-MAGNETIC PULSE RIFLE THAT LAUNCHES TITANIUM SHELLS AT A VELOCITY NEARING NINE TIMES THE SPEED OF SOUND. ALTHOUGH THIS WEAPON IS EFFECTIVE IN LARGE NUMBERS, WEAK ARMOR MAKES THE TROOPER VULNERABLE TO LARGER ENEMY UNITS."
+        }
+      ],
+      "spriteAtlas": "/assets/generated/sprites/ENCYCLO/TROOP.png",
+      "spriteMetadata": "/assets/generated/sprites/ENCYCLO/TROOP.json",
+      "audio": "/assets/generated/media/audio/ENCYCLO/TROOP.ogg"
+    },
+    {
+      "key": "BARR",
+      "title": "Barrager",
+      "category": "human",
+      "textSource": {
+        "path": "raw_cd/DC/ENCYCLO/BARR.TXT",
+        "sha256": "2907fadb2160a49327c29e7b88c1107efb7fa65ab3a242d56f64b7f928e590fa"
+      },
+      "tokens": [
+        {
+          "style": 1,
+          "text": "MOBILE ARTILLERY UNIT\n\n"
+        },
+        {
+          "style": 0,
+          "text": "NAME       : "
+        },
+        {
+          "style": 4,
+          "text": "BARRAGER\n"
+        },
+        {
+          "style": 0,
+          "text": "HEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "4m\n"
+        },
+        {
+          "style": 0,
+          "text": "WEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "400kg\n"
+        },
+        {
+          "style": 0,
+          "text": "MAIN WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "40cm MORTAR\n"
+        },
+        {
+          "style": 4,
+          "text": "             SHELL\n"
+        },
+        {
+          "style": 0,
+          "text": "ALT. WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "N/A\n"
+        },
+        {
+          "style": 0,
+          "text": "ARMOR      : "
+        },
+        {
+          "style": 4,
+          "text": "SHOCK-\n"
+        },
+        {
+          "style": 4,
+          "text": "             RESISTANT\n"
+        },
+        {
+          "style": 4,
+          "text": "             CARBONITE STEEL\n"
+        },
+        {
+          "style": 0,
+          "text": "FUNCTION   : "
+        },
+        {
+          "style": 4,
+          "text": "ARTILLERY\n"
+        },
+        {
+          "style": 0,
+          "text": "WEAKNESS   : "
+        },
+        {
+          "style": 4,
+          "text": "SLOW SPEED\n\nDUE TO ITS LARGE SIZE, THE BARRAGER IS QUITE SLOW, MAKING IT AN EASY TARGET ONCE SIGHTED.\n\nA LARGE VISIBILITY RADIUS ALLOWS LONG RANGE ATTACKS WITH SHELLS THAT DAMAGE ANY UNITS WITHIN A 6m RADIUS."
+        }
+      ],
+      "spriteAtlas": "/assets/generated/sprites/ENCYCLO/BARR.png",
+      "spriteMetadata": "/assets/generated/sprites/ENCYCLO/BARR.json",
+      "audio": "/assets/generated/media/audio/ENCYCLO/BARR.ogg"
+    },
+    {
+      "key": "REAP",
+      "title": "Reaper",
+      "category": "human",
+      "textSource": {
+        "path": "raw_cd/DC/ENCYCLO/REAP.TXT",
+        "sha256": "30ed64866f6cad3c9ddaa66aa5143be794747f663c67b3b723bbc141518e6e2c"
+      },
+      "tokens": [
+        {
+          "style": 1,
+          "text": "HEAVY ASSAULT MECHANIZED ROBOT\n\n"
+        },
+        {
+          "style": 0,
+          "text": "NAME       : "
+        },
+        {
+          "style": 4,
+          "text": "REAPER\n"
+        },
+        {
+          "style": 0,
+          "text": "HEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "3m\n"
+        },
+        {
+          "style": 0,
+          "text": "WEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "800kg\n"
+        },
+        {
+          "style": 0,
+          "text": "MAIN WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "10mm AUTO\n"
+        },
+        {
+          "style": 4,
+          "text": "             CANNON\n"
+        },
+        {
+          "style": 0,
+          "text": "ALT. WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "N/A\n"
+        },
+        {
+          "style": 0,
+          "text": "ARMOR      : "
+        },
+        {
+          "style": 4,
+          "text": "KEVLAR\n"
+        },
+        {
+          "style": 4,
+          "text": "             / TITANIUM\n"
+        },
+        {
+          "style": 4,
+          "text": "             ALLOY\n"
+        },
+        {
+          "style": 0,
+          "text": "FUNCTION   : "
+        },
+        {
+          "style": 4,
+          "text": "HEAVY GROUND \n"
+        },
+        {
+          "style": 4,
+          "text": "             ASSAULT\n"
+        },
+        {
+          "style": 0,
+          "text": "WEAKNESS   : "
+        },
+        {
+          "style": 4,
+          "text": "SHORT RANGE\n\nTHE REAPER CLASS MECH WAS BUILT WITH ONE THING IN MIND, RAW FIRE POWER. ITS 10mm AUTO CANNON MAKES IT AN EXCELLENT GROUND ATTACK WEAPON.\n\nA SMALL GROUP MIXED WITH SOME INFANTRY CAN VERY EASILY TAKE OUT A BUILDING OF ANY SIZE. ITS ONLY DRAWBACK IS ITS SHORT RANGE, BUT THIS IS OVERCOME QUITE NICELY BY THE FACT THAT IT HAS A VERY TOUGH COATING OF KEVLAR OVER ITS TITANIUM ARMOR."
+        }
+      ],
+      "spriteAtlas": "/assets/generated/sprites/ENCYCLO/REAP.png",
+      "spriteMetadata": "/assets/generated/sprites/ENCYCLO/REAP.json",
+      "audio": "/assets/generated/media/audio/ENCYCLO/REAP.ogg"
+    },
+    {
+      "key": "SCGM",
+      "title": "Osprey IV",
+      "category": "human",
+      "textSource": {
+        "path": "raw_cd/DC/ENCYCLO/SCGM.TXT",
+        "sha256": "d18e848ed048e5a7b7ea10cc28b7b6335456dba803d5583f528bf64f7cf1a54d"
+      },
+      "tokens": [
+        {
+          "style": 1,
+          "text": "REMOTELY CONTROLLED RECON BOMBER UNIT\n\n"
+        },
+        {
+          "style": 0,
+          "text": "NAME       : "
+        },
+        {
+          "style": 4,
+          "text": "OSPREY IV\n"
+        },
+        {
+          "style": 0,
+          "text": "HEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "1.04m\n"
+        },
+        {
+          "style": 0,
+          "text": "WEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "800kg\n"
+        },
+        {
+          "style": 0,
+          "text": "MAIN WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "NAPALM\n"
+        },
+        {
+          "style": 4,
+          "text": "             CANISTERS\n"
+        },
+        {
+          "style": 0,
+          "text": "ALT. WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "N/A\n"
+        },
+        {
+          "style": 0,
+          "text": "ARMOR      : "
+        },
+        {
+          "style": 4,
+          "text": "CARBON FIBER\n"
+        },
+        {
+          "style": 0,
+          "text": "FUNCTION   : "
+        },
+        {
+          "style": 4,
+          "text": "BOMBER\n"
+        },
+        {
+          "style": 4,
+          "text": "             / SCOUT\n"
+        },
+        {
+          "style": 0,
+          "text": "WEAKNESS   : "
+        },
+        {
+          "style": 4,
+          "text": "WEAK ARMOR\n\nTHE VTOL'S MAIN USE IS FOR RECONNAISSANCE. HOWEVER, IT IS ALSO VERY EFFECTIVE AGAINST HEAVY GROUND BASED WEAPONS.\n\nBECAUSE OF IT'S CARBON FIBER BODY IT IS VERY MANEUVERABLE, WHICH MAKES IT HARDER FOR LARGER UNITS TO TARGET IT.\n\nIT'S CARBON FIBER ALSO HAS ONE DRAWBACK WHICH IS THAT IT MAKES FOR VERY WEAK ARMOR. WITH A FEW WELL PLACED SHOTS IT IS EASILY RENDERED INOPERATIVE."
+        }
+      ],
+      "spriteAtlas": "/assets/generated/sprites/ENCYCLO/SCGM.png",
+      "spriteMetadata": "/assets/generated/sprites/ENCYCLO/SCGM.json",
+      "audio": "/assets/generated/media/audio/ENCYCLO/SCGM.ogg"
+    },
+    {
+      "key": "CYBO",
+      "title": "S.A.R.G.E",
+      "category": "human",
+      "textSource": {
+        "path": "raw_cd/DC/ENCYCLO/CYBO.TXT",
+        "sha256": "fa71078dec4feda7a632857c90721642f82a1162d8654960a104f19dc8115b7d"
+      },
+      "tokens": [
+        {
+          "style": 1,
+          "text": "REMOTE ASSASSINATION CYBORG\n\n"
+        },
+        {
+          "style": 0,
+          "text": "NAME       : "
+        },
+        {
+          "style": 4,
+          "text": "S.A.R.G.E.\n"
+        },
+        {
+          "style": 0,
+          "text": "HEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "2.5m\n"
+        },
+        {
+          "style": 0,
+          "text": "WEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "500kg\n"
+        },
+        {
+          "style": 0,
+          "text": "MAIN WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "E.M. PULSE\n"
+        },
+        {
+          "style": 4,
+          "text": "             RIFLE\n"
+        },
+        {
+          "style": 0,
+          "text": "ALT. WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "NAPALM\n"
+        },
+        {
+          "style": 4,
+          "text": "             GRENADE\n"
+        },
+        {
+          "style": 0,
+          "text": "ARMOR      : "
+        },
+        {
+          "style": 4,
+          "text": "CHROME\n"
+        },
+        {
+          "style": 4,
+          "text": "             VANADIUM\n"
+        },
+        {
+          "style": 0,
+          "text": "FUNCTION   : "
+        },
+        {
+          "style": 4,
+          "text": "LONG RANGE\n"
+        },
+        {
+          "style": 4,
+          "text": "             ASSASSINATION\n"
+        },
+        {
+          "style": 0,
+          "text": "WEAKNESS   : "
+        },
+        {
+          "style": 4,
+          "text": "EXPENSIVE\n"
+        },
+        {
+          "style": 4,
+          "text": "             TO BUILD\n\nCLASSIFIED..."
+        }
+      ],
+      "spriteAtlas": "/assets/generated/sprites/ENCYCLO/CYBO.png",
+      "spriteMetadata": "/assets/generated/sprites/ENCYCLO/CYBO.json",
+      "audio": "/assets/generated/media/audio/ENCYCLO/CYBO.ogg"
+    },
+    {
+      "key": "EXPL",
+      "title": "Exploiter",
+      "category": "human",
+      "textSource": {
+        "path": "raw_cd/DC/ENCYCLO/EXPL.TXT",
+        "sha256": "9113d3da9fde9375e0d47aa112af549e7f3a1a30bc7adf5a17c8ba1fb4cb716f"
+      },
+      "tokens": [
+        {
+          "style": 1,
+          "text": "RESOURCE EXTRACTION VEHICLE\n\n"
+        },
+        {
+          "style": 0,
+          "text": "NAME       : "
+        },
+        {
+          "style": 4,
+          "text": "EXPLOITER\n"
+        },
+        {
+          "style": 0,
+          "text": "HEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "1.8m\n"
+        },
+        {
+          "style": 0,
+          "text": "WEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "1100kg\n"
+        },
+        {
+          "style": 0,
+          "text": "MAIN WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "N/A\n"
+        },
+        {
+          "style": 0,
+          "text": "ALT. WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "N/A\n"
+        },
+        {
+          "style": 0,
+          "text": "ARMOR      : "
+        },
+        {
+          "style": 4,
+          "text": "CARBON\n"
+        },
+        {
+          "style": 4,
+          "text": "             FIBER\n"
+        },
+        {
+          "style": 4,
+          "text": "             COMPOSITE\n"
+        },
+        {
+          "style": 0,
+          "text": "FUNCTION   : "
+        },
+        {
+          "style": 4,
+          "text": "RESOURCE \n"
+        },
+        {
+          "style": 4,
+          "text": "             EXTRACTION\n"
+        },
+        {
+          "style": 0,
+          "text": "WEAKNESS   : "
+        },
+        {
+          "style": 4,
+          "text": "NO DEFENSIVE \n"
+        },
+        {
+          "style": 4,
+          "text": "             WEAPONS\n\nTHE MAIN FUNCTION OF THE EXPLOITER IS TO CONVERT RAW PETRA-7 INTO AN ENERGY WAVEFORM.\n\nTHE BASIC UNIT CAN BE RETRO-FITTED TO HANDLE A VARIETY OF TASKS, SUCH AS THE EXCAVATION OF \"ARTIFACTS\".\n\nITS CARBON FIBER COMPOSITE ARMOR MAKES IT VERY FAST, YET WEAK AGAINST SMALL ATTACKS. ITS LACK OF DEFENSIVE WEAPONS MAKES IT AN EASY TARGET WHEN LEFT UNGUARDED.\n\nWHEN DEPLOYED OVER A PETRA VENT THE EXPLOITER'S ARMOR LOCKS INTO A MORE STABLE POSITION MAKING IT MUCH HARDER TO DAMAGE."
+        }
+      ],
+      "spriteAtlas": "/assets/generated/sprites/ENCYCLO/EXPL.png",
+      "spriteMetadata": "/assets/generated/sprites/ENCYCLO/EXPL.json",
+      "audio": "/assets/generated/media/audio/ENCYCLO/EXPL.ogg"
+    },
+    {
+      "key": "TURR",
+      "title": "Firestorm",
+      "category": "human",
+      "textSource": {
+        "path": "raw_cd/DC/ENCYCLO/TURR.TXT",
+        "sha256": "e300a5c50f8e61f4ab7dbd3279d52e54f69ea00d901733428deec1e9a355e7c0"
+      },
+      "tokens": [
+        {
+          "style": 1,
+          "text": "MOBILE DEFENCE TURRET\n\n"
+        },
+        {
+          "style": 0,
+          "text": "NAME       : "
+        },
+        {
+          "style": 4,
+          "text": "FIRESTORM\n"
+        },
+        {
+          "style": 0,
+          "text": "HEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "2m (DEPLOYED)\n"
+        },
+        {
+          "style": 0,
+          "text": "WEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "400kg\n"
+        },
+        {
+          "style": 0,
+          "text": "MAIN WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "FIREBOLT VII\n"
+        },
+        {
+          "style": 4,
+          "text": "             MISSILES\n"
+        },
+        {
+          "style": 0,
+          "text": "ALT. WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "N/A\n"
+        },
+        {
+          "style": 0,
+          "text": "ARMOR      : "
+        },
+        {
+          "style": 4,
+          "text": "CARBONIC\n"
+        },
+        {
+          "style": 4,
+          "text": "             STEEL\n"
+        },
+        {
+          "style": 0,
+          "text": "FUNCTION   : "
+        },
+        {
+          "style": 4,
+          "text": "MOBILE \n"
+        },
+        {
+          "style": 4,
+          "text": "             DEFENCE\n"
+        },
+        {
+          "style": 0,
+          "text": "WEAKNESS   : "
+        },
+        {
+          "style": 4,
+          "text": "LOW ARMOR\n"
+        },
+        {
+          "style": 4,
+          "text": "             WHEN MOBILE\n\nMADE STRICTLY FOR DEFENSIVE PURPOSES, THE FIRESTORM SERIES MOBILE TURRET CAN LAUNCH FIRESTORM VII MISSILES AT LAND AND AIR TARGETS. THIS MAKES IT A VERY VALUABLE ASSET IN ALL BATTLE SITUATIONS.\n\nALTHOUGH THE CARBONIC STEEL ARMOR IS VERY STRONG, THE UNIT'S DELICATE COMPONENTS ARE LEFT EXPOSED WHEN MOBILE.\n\nONCE THE FIRESTORM IS DEPLOYED IT IS LOCKED IN PLACE WITH EXPLOSIVE BOLTS AND THEREFORE CANNOT BE UNDEPLOYED."
+        }
+      ],
+      "spriteAtlas": "/assets/generated/sprites/ENCYCLO/TURR.png",
+      "spriteMetadata": "/assets/generated/sprites/ENCYCLO/TURR.json",
+      "audio": "/assets/generated/media/audio/ENCYCLO/TURR.ogg"
+    },
+    {
+      "key": "ENGI",
+      "title": "Sentinel",
+      "category": "human",
+      "textSource": {
+        "path": "raw_cd/DC/ENCYCLO/ENGI.TXT",
+        "sha256": "81dab6e9c2085296f091492fd1cfad69584cce10e13f394a63df21083dceead0"
+      },
+      "tokens": [
+        {
+          "style": 1,
+          "text": "REMOTE DETONATION DEVICE\n\n"
+        },
+        {
+          "style": 0,
+          "text": "NAME       : "
+        },
+        {
+          "style": 4,
+          "text": "SENTINEL\n"
+        },
+        {
+          "style": 0,
+          "text": "HEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "1.11m\n"
+        },
+        {
+          "style": 0,
+          "text": "WEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "227kg\n"
+        },
+        {
+          "style": 0,
+          "text": "MAIN WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "THERMOPLASTIC\n"
+        },
+        {
+          "style": 4,
+          "text": "             EXPLOSIVE AND\n"
+        },
+        {
+          "style": 4,
+          "text": "             CARBIDE\n"
+        },
+        {
+          "style": 4,
+          "text": "             SHRAPNEL\n"
+        },
+        {
+          "style": 0,
+          "text": "ALT. WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "N/A\n"
+        },
+        {
+          "style": 0,
+          "text": "ARMOR      : "
+        },
+        {
+          "style": 4,
+          "text": "STAINLESS\n"
+        },
+        {
+          "style": 4,
+          "text": "             STEEL\n"
+        },
+        {
+          "style": 0,
+          "text": "FUNCTION   : "
+        },
+        {
+          "style": 4,
+          "text": "LAND MINE\n"
+        },
+        {
+          "style": 0,
+          "text": "WEAKNESS   : "
+        },
+        {
+          "style": 4,
+          "text": "VOLATILE \n"
+        },
+        {
+          "style": 4,
+          "text": "             CONTENTS\n"
+        },
+        {
+          "style": 4,
+          "text": "             AND THIN ARMOR\n\nTHE SENTINEL CAN \"WALK\" ITSELF ACROSS BATTLEFIELDS AND BURY ITSELF BELOW THE GROUND, WHERE IT IS HIDDEN FROM ENEMY VIEW.\n\nWHEN DEPLOYED, THE UNIT BURROWS INTO THE GROUND USING AN ELECTRO-HYDRAULIC COUNTER-WEIGHT HAMMER.\n\nANY ENEMY UNIT COMING WITHIN 1m OF THE SENTINEL WILL CAUSE IT TO DETONATE, LAUNCHING EXPLOSIVE SHRAPNEL AT THE ENEMY.\n\nTHE SENTINEL HAS THREE EXPLOSIVE CHARGES.  THE LAST CHARGE COMPLETELY DESTROYS THE SENTINEL."
+        }
+      ],
+      "spriteAtlas": "/assets/generated/sprites/ENCYCLO/ENGI.png",
+      "spriteMetadata": "/assets/generated/sprites/ENCYCLO/ENGI.json",
+      "audio": "/assets/generated/media/audio/ENCYCLO/ENGI.ogg"
+    },
+    {
+      "key": "DROP",
+      "title": "Angel One",
+      "category": "human",
+      "textSource": {
+        "path": "raw_cd/DC/ENCYCLO/DROP.TXT",
+        "sha256": "64d61648a85876918a4fd5819793190ea39c65d2bdf868073d6f40ed247c0ac0"
+      },
+      "tokens": [
+        {
+          "style": 1,
+          "text": "BATTLEFIELD REINFORCEMENT VESSEL\n\n"
+        },
+        {
+          "style": 0,
+          "text": "NAME       : "
+        },
+        {
+          "style": 4,
+          "text": "DROPSHIP\n"
+        },
+        {
+          "style": 0,
+          "text": "HEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "4.6m\n"
+        },
+        {
+          "style": 0,
+          "text": "WEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "1400kg (EMPTY)\n"
+        },
+        {
+          "style": 0,
+          "text": "MAIN WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "N/A\n"
+        },
+        {
+          "style": 0,
+          "text": "ALT. WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "N/A\n"
+        },
+        {
+          "style": 0,
+          "text": "ARMOR      : "
+        },
+        {
+          "style": 4,
+          "text": "TITANIUM\n"
+        },
+        {
+          "style": 4,
+          "text": "             CERAMIC\n"
+        },
+        {
+          "style": 4,
+          "text": "             COMPOSITE\n"
+        },
+        {
+          "style": 0,
+          "text": "FUNCTION   : "
+        },
+        {
+          "style": 4,
+          "text": "UNIT\n"
+        },
+        {
+          "style": 4,
+          "text": "             INSERTION\n"
+        },
+        {
+          "style": 0,
+          "text": "WEAKNESS   : "
+        },
+        {
+          "style": 4,
+          "text": "NO \n"
+        },
+        {
+          "style": 4,
+          "text": "             DEFENSIVE \n"
+        },
+        {
+          "style": 4,
+          "text": "             WEAPONS\n\nTHE DROPSHIP CAN BE CALLED IN FOR SUPPORT ONLY AT SPECIFIC TIMES DURING BATTLE.\nDUE TO THE INTENSE TEMPERATURES ENCOUNTERED DURING RE-ENTRY, THE SHIP'S HULL IS MADE FROM A CERAMIC COMPOUND THAT IS ALMOST IMPERVIOUS TO ANTI-AIRCRAFT FIRE."
+        }
+      ],
+      "spriteAtlas": "/assets/generated/sprites/ENCYCLO/DROP.png",
+      "spriteMetadata": "/assets/generated/sprites/ENCYCLO/DROP.json",
+      "audio": "/assets/generated/media/audio/ENCYCLO/DROP.ogg"
+    },
+    {
+      "key": "BEON",
+      "title": "Medi-Craft",
+      "category": "human",
+      "textSource": {
+        "path": "raw_cd/DC/ENCYCLO/BEON.TXT",
+        "sha256": "5397cb2385e7785e353de8d841c0176167bcf6ea436ac8114af3166ddf332daa"
+      },
+      "tokens": [
+        {
+          "style": 1,
+          "text": "MEDICAL / REPAIR UNIT\n\n"
+        },
+        {
+          "style": 0,
+          "text": "NAME       : "
+        },
+        {
+          "style": 4,
+          "text": "MEDI-CRAFT\n"
+        },
+        {
+          "style": 0,
+          "text": "WINGSPAN   : "
+        },
+        {
+          "style": 4,
+          "text": "2.4m\n"
+        },
+        {
+          "style": 0,
+          "text": "WEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "92kg\n"
+        },
+        {
+          "style": 0,
+          "text": "MAIN WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "MEDICAL\n"
+        },
+        {
+          "style": 4,
+          "text": "             SUPPLY DROP\n"
+        },
+        {
+          "style": 0,
+          "text": "ALT. WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "REPAIR\n"
+        },
+        {
+          "style": 4,
+          "text": "             SUPPLY DROP\n"
+        },
+        {
+          "style": 0,
+          "text": "ARMOR      : "
+        },
+        {
+          "style": 4,
+          "text": "MOLYBDENUM\n"
+        },
+        {
+          "style": 4,
+          "text": "             SHELL\n"
+        },
+        {
+          "style": 0,
+          "text": "FUNCTION   : "
+        },
+        {
+          "style": 4,
+          "text": "HEALING /\n"
+        },
+        {
+          "style": 4,
+          "text": "             REPAIR\n"
+        },
+        {
+          "style": 0,
+          "text": "WEAKNESS   : "
+        },
+        {
+          "style": 4,
+          "text": "NO DEFENSIVE \n"
+        },
+        {
+          "style": 4,
+          "text": "             WEAPONS\n\nTHE MEDI-CRAFT USES A MAG-LEV GENERATOR TO SUSPEND ITSELF 5m ABOVE THE GROUND.\n\nON EACH OF FOUR FOLDING PANELS IS A TACHYON PARTICLE TRANSMITTER CAPABLE OF HEALING OR REPAIRING BATTLEFIELD UNITS."
+        }
+      ],
+      "spriteAtlas": "/assets/generated/sprites/ENCYCLO/BEON.png",
+      "spriteMetadata": "/assets/generated/sprites/ENCYCLO/BEON.json",
+      "audio": "/assets/generated/media/audio/ENCYCLO/BEON.ogg"
+    },
+    {
+      "key": "TKT",
+      "title": "Tektaara",
+      "category": "artifact",
+      "textSource": {
+        "path": "raw_cd/DC/ENCYCLO/TKT.TXT",
+        "sha256": "38d14c15b85bd86df0fb2f236ebb5eff82e40297f1cb0cca31d53a15dc5a6781"
+      },
+      "tokens": [
+        {
+          "style": 1,
+          "text": "LOWER LIFE-FORM MIND CONTROL DEVICE\n\n"
+        },
+        {
+          "style": 0,
+          "text": "NAME       : "
+        },
+        {
+          "style": 4,
+          "text": "TEKTAARA\n"
+        },
+        {
+          "style": 0,
+          "text": "HEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "??m\n"
+        },
+        {
+          "style": 0,
+          "text": "WEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "??kg\n"
+        },
+        {
+          "style": 0,
+          "text": "MAIN WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "ULTRASONIC\n"
+        },
+        {
+          "style": 4,
+          "text": "             WAVES\n"
+        },
+        {
+          "style": 0,
+          "text": "ALT. WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "NONE\n"
+        },
+        {
+          "style": 0,
+          "text": "ARMOR      : "
+        },
+        {
+          "style": 4,
+          "text": "PROPERTIES \n"
+        },
+        {
+          "style": 4,
+          "text": "             UNKNOWN\n"
+        },
+        {
+          "style": 0,
+          "text": "FUNCTION   : "
+        },
+        {
+          "style": 4,
+          "text": "ANCIENT\n"
+        },
+        {
+          "style": 4,
+          "text": "             HERDING\n"
+        },
+        {
+          "style": 4,
+          "text": "             DEVICE\n"
+        },
+        {
+          "style": 0,
+          "text": "WEAKNESS   : "
+        },
+        {
+          "style": 4,
+          "text": "INSUFFICIENT\n"
+        },
+        {
+          "style": 4,
+          "text": "             DATA FOR\n"
+        },
+        {
+          "style": 4,
+          "text": "             ANALYSIS \n\nTHE TEKTAARA IN IT'S DORMANT STATE HOVERS 4.2 METERS ABOVE THE GROUND. ONCE ACTIVATED IT EMITS ULTRASONIC WAVES THAT INDUCE OBEDIENCE IN ALL LOWER LIFE FORMS.\n\nTO DATE, ONLY MARS' INDIGENOUS SPECIES HAVE BEEN AFFECTED BY THESE ULTRASONIC WAVES.\n\nIT IS BELIEVED TO BE AN ANCIENT HERDING DEVICE.\n\nCLASSIFICATION PENDING.\n\nCIRCA APPROX. 69,000,000 B.C."
+        }
+      ],
+      "spriteAtlas": "/assets/generated/sprites/ENCYCLO/TKT.png",
+      "spriteMetadata": "/assets/generated/sprites/ENCYCLO/TKT.json",
+      "audio": "/assets/generated/media/audio/ENCYCLO/TKT.ogg"
+    },
+    {
+      "key": "MKT",
+      "title": "Maktor",
+      "category": "artifact",
+      "textSource": {
+        "path": "raw_cd/DC/ENCYCLO/MKT.TXT",
+        "sha256": "47d1d04dfb4f64acf47cd7683049a6832a38fa55839d3cc3bde8876d7b2e6bb2"
+      },
+      "tokens": [
+        {
+          "style": 1,
+          "text": "MATTER ATTRACTION DEVICE\n\n"
+        },
+        {
+          "style": 0,
+          "text": "NAME       : "
+        },
+        {
+          "style": 4,
+          "text": "MAKTOR\n"
+        },
+        {
+          "style": 0,
+          "text": "HEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "??m\n"
+        },
+        {
+          "style": 0,
+          "text": "WEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "??kg\n"
+        },
+        {
+          "style": 0,
+          "text": "MAIN WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "MATTER\n"
+        },
+        {
+          "style": 4,
+          "text": "             ATTRACTOR\n"
+        },
+        {
+          "style": 0,
+          "text": "ALT. WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "NONE\n"
+        },
+        {
+          "style": 0,
+          "text": "ARMOR      : "
+        },
+        {
+          "style": 4,
+          "text": "PROPERTIES \n"
+        },
+        {
+          "style": 4,
+          "text": "             UNKNOWN\n"
+        },
+        {
+          "style": 0,
+          "text": "FUNCTION   : "
+        },
+        {
+          "style": 4,
+          "text": "ANCIENT\n"
+        },
+        {
+          "style": 4,
+          "text": "             WASTE DISPOSAL\n"
+        },
+        {
+          "style": 4,
+          "text": "             DEVICE\n"
+        },
+        {
+          "style": 0,
+          "text": "WEAKNESS   : "
+        },
+        {
+          "style": 4,
+          "text": "INSUFFICIENT\n"
+        },
+        {
+          "style": 4,
+          "text": "             DATA FOR\n"
+        },
+        {
+          "style": 4,
+          "text": "             ANALYSIS \n\nIN IT'S DORMANT STATE, THE MAKTOR HOVERS 4.2 METERS FROM THE GROUND. WHEN THE MAKTOR IS ACTIVATED, ITS FIVE PETALS UNFOLD AND IT BURIES ITSELF ABOUT 0.3M METRES INTO THE GROUND. WHEN ANY TROOPS ENTER ITS RADIUS, THE MAKTOR SUCKS ALL THE TRESPASSING UNITS INTO ITS GRAVITY WELL, FUSING THEIR ATOMIC MASS WITH ITS OWN GRAVITATIONAL ENERGY.\n\nIT IS BELIEVED TO BE AN ANCIENT WASTE DISPOSAL DEVICE.\n\nCLASSIFICATION PENDING.\n\nCIRCA APPROX. 62,000,000 B.C."
+        }
+      ],
+      "spriteAtlas": "/assets/generated/sprites/ENCYCLO/MKT.png",
+      "spriteMetadata": "/assets/generated/sprites/ENCYCLO/MKT.json",
+      "audio": "/assets/generated/media/audio/ENCYCLO/MKT.ogg"
+    },
+    {
+      "key": "LNS",
+      "title": "Solaris",
+      "category": "artifact",
+      "textSource": {
+        "path": "raw_cd/DC/ENCYCLO/LNS.TXT",
+        "sha256": "5630619219706fc170cb9e5fcfc1c0d4b63f3aa60baa1628f2bf5ffa20a641cd"
+      },
+      "tokens": [
+        {
+          "style": 1,
+          "text": "SOLAR ENERGY FOCUSING DEVICE\n\n"
+        },
+        {
+          "style": 0,
+          "text": "NAME       : "
+        },
+        {
+          "style": 4,
+          "text": "SOLARIS\n"
+        },
+        {
+          "style": 0,
+          "text": "HEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "??m\n"
+        },
+        {
+          "style": 0,
+          "text": "WEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "??kg\n"
+        },
+        {
+          "style": 0,
+          "text": "MAIN WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "MAGNIFACATION\n"
+        },
+        {
+          "style": 4,
+          "text": "             MEMBRANE\n"
+        },
+        {
+          "style": 0,
+          "text": "ALT. WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "NONE\n"
+        },
+        {
+          "style": 0,
+          "text": "ARMOR      : "
+        },
+        {
+          "style": 4,
+          "text": "PROPERTIES \n"
+        },
+        {
+          "style": 4,
+          "text": "             UNKNOWN\n"
+        },
+        {
+          "style": 0,
+          "text": "FUNCTION   : "
+        },
+        {
+          "style": 4,
+          "text": "ANCIENT\n"
+        },
+        {
+          "style": 4,
+          "text": "             DEMOLITION\n"
+        },
+        {
+          "style": 4,
+          "text": "             DEVICE\n"
+        },
+        {
+          "style": 0,
+          "text": "WEAKNESS   : "
+        },
+        {
+          "style": 4,
+          "text": "INSUFFICIENT\n"
+        },
+        {
+          "style": 4,
+          "text": "             DATA FOR \n"
+        },
+        {
+          "style": 4,
+          "text": "             ANALYSIS\n \nIN IT'S DORMANT STATE, THE SOLARIS HOVERS 4.2 METERS FROM THE GROUND. WHEN THE SOLARIS IS ACTIVATED, IT BEGINS TO ABSORB ALL LIGHT WITHIN A 40 KM RADIUS AND THEN FOCUSES IT INTO A 2 METER WIDE BOLT OF ENERGY DESTROYING EVERYTHING IN ITS PATH.\n\nINITIAL EXPERIMENTATION RESULTED IN THE DEATHS OF 180 SCIENTISTS.\n\nIT IS BELIEVED TO BE AN ANCIENT DEMOLITION DEVICE.\n\nCLASSIFICATION PENDING.\n\nCIRCA APPROX. 62,000,000 B.C."
+        }
+      ],
+      "spriteAtlas": "/assets/generated/sprites/ENCYCLO/LNS.png",
+      "spriteMetadata": "/assets/generated/sprites/ENCYCLO/LNS.json",
+      "audio": "/assets/generated/media/audio/ENCYCLO/LNS.ogg"
+    },
+    {
+      "key": "LNA",
+      "title": "LunaTek",
+      "category": "artifact",
+      "textSource": {
+        "path": "raw_cd/DC/ENCYCLO/LNA.TXT",
+        "sha256": "4c6be4b05ad2495824eaf98700fbbd97befef5e5b8ca556b5041a771dbedb2cc"
+      },
+      "tokens": [
+        {
+          "style": 1,
+          "text": "ULTRASONIC BRAIN-WAVE DISRUPTOR\n\n"
+        },
+        {
+          "style": 0,
+          "text": "NAME       : "
+        },
+        {
+          "style": 4,
+          "text": "LUNATEK\n"
+        },
+        {
+          "style": 0,
+          "text": "HEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "??m\n"
+        },
+        {
+          "style": 0,
+          "text": "WEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "??kg\n"
+        },
+        {
+          "style": 0,
+          "text": "MAIN WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "ULTRASONIC\n"
+        },
+        {
+          "style": 4,
+          "text": "             WAVES\n"
+        },
+        {
+          "style": 0,
+          "text": "ALT. WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "NONE\n"
+        },
+        {
+          "style": 0,
+          "text": "ARMOR      : "
+        },
+        {
+          "style": 4,
+          "text": "PROPERTIES \n"
+        },
+        {
+          "style": 4,
+          "text": "             UNKNOWN\n"
+        },
+        {
+          "style": 0,
+          "text": "FUNCTION   : "
+        },
+        {
+          "style": 4,
+          "text": "ANCIENT\n"
+        },
+        {
+          "style": 4,
+          "text": "             PEST CONTROL \n"
+        },
+        {
+          "style": 4,
+          "text": "             DEVICE\n"
+        },
+        {
+          "style": 0,
+          "text": "WEAKNESS   : "
+        },
+        {
+          "style": 4,
+          "text": "INSUFFICIENT\n"
+        },
+        {
+          "style": 4,
+          "text": "             DATA FOR\n"
+        },
+        {
+          "style": 4,
+          "text": "             ANALYSIS \n\nTHE LUNATEK, IN IT'S DORMANT STATE HOVERS 4.2m FROM THE GROUND.\n\nWHEN DEPLOYED, THE LUNATEK EMITS ULTRASONIC WAVES THAT INDUCE A HALLUCINATORY STATE OF FEAR IN BOTH ORGANIC AND NON-ORGANIC UNITS WITHIN A 14 METER RADIUS.\n\nUNITS AFFECTED BY THE LUNATEK BECOME UNCONTROLLABLE AND HOSTILE.\n\nIT IS NOT YET DETERMINED WHAT ALLOWS THE LUNATEKS TO AFFECT NON-ORGANIC UNITS.\n\nIT IS BELIEVED TO BE AN ANCIENT PEST CONTROL DEVICE.  \n\nCLASSIFICATION PENDING.\n\nCIRCA APPROX. 69,000,000 B.C."
+        }
+      ],
+      "spriteAtlas": "/assets/generated/sprites/ENCYCLO/LNA.png",
+      "spriteMetadata": "/assets/generated/sprites/ENCYCLO/LNA.json",
+      "audio": "/assets/generated/media/audio/ENCYCLO/LNA.ogg"
+    },
+    {
+      "key": "HYK",
+      "title": "Kaox",
+      "category": "artifact",
+      "textSource": {
+        "path": "raw_cd/DC/ENCYCLO/HYK.TXT",
+        "sha256": "57c6798a81152fc2739652f38fbf0a6ced2d5c689e6a6af8b41c0d8e1e71afe0"
+      },
+      "tokens": [
+        {
+          "style": 1,
+          "text": "MOBILE MASS DESTRUCTION DEVICE\n\n"
+        },
+        {
+          "style": 0,
+          "text": "NAME       : "
+        },
+        {
+          "style": 4,
+          "text": "KAOX\n"
+        },
+        {
+          "style": 0,
+          "text": "HEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "??m\n"
+        },
+        {
+          "style": 0,
+          "text": "WEIGHT     : "
+        },
+        {
+          "style": 4,
+          "text": "??kg\n"
+        },
+        {
+          "style": 0,
+          "text": "MAIN WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "RADIAL\n"
+        },
+        {
+          "style": 4,
+          "text": "             MONO-MOLECULAR\n"
+        },
+        {
+          "style": 4,
+          "text": "             BLADES\n"
+        },
+        {
+          "style": 0,
+          "text": "ALT. WEAPON: "
+        },
+        {
+          "style": 4,
+          "text": "NONE\n"
+        },
+        {
+          "style": 0,
+          "text": "ARMOR      : "
+        },
+        {
+          "style": 4,
+          "text": "PROPERTIES \n"
+        },
+        {
+          "style": 4,
+          "text": "             UNKNOWN\n"
+        },
+        {
+          "style": 0,
+          "text": "FUNCTION   : "
+        },
+        {
+          "style": 4,
+          "text": "ANCIENT\n"
+        },
+        {
+          "style": 4,
+          "text": "             SLAUGHTERING\n"
+        },
+        {
+          "style": 4,
+          "text": "             DEVICE\n"
+        },
+        {
+          "style": 0,
+          "text": "WEAKNESS   : "
+        },
+        {
+          "style": 4,
+          "text": "INSUFFICIENT\n"
+        },
+        {
+          "style": 4,
+          "text": "             DATA FOR \n"
+        },
+        {
+          "style": 4,
+          "text": "             ANALYSIS \n\nTHIS SPHERICAL UNIT IS BELIEVED TO BE AN ANCIENT SLAUGHTERING DEVICE.\n\nWHEN ACTIVATED, THE KAOX DROPS TO .2m ABOVE THE GROUND AND OPENS UP TO REVEAL TWENTY-FIVE SPINNING CARBONIC BLADES THAT SHRED EVERTHING IN IT'S PATH.\n\nTHE KAOX'S MAIN DRAWBACK IS THAT IT MOVES IN A RANDOM PATTERN, AND ONCE ACTIVATED KILLS ANYTHING, EVEN FRIENDLY UNITS.\n\nCLASSIFICATION PENDING.\n\nCIRCA APPROX. 64,000,000 B.C."
+        }
+      ],
+      "spriteAtlas": "/assets/generated/sprites/ENCYCLO/HYK.png",
+      "spriteMetadata": "/assets/generated/sprites/ENCYCLO/HYK.json",
+      "audio": "/assets/generated/media/audio/ENCYCLO/HYK.ogg"
+    }
+  ]
+}

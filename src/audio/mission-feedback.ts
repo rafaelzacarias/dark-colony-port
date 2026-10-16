@@ -1,7 +1,10 @@
 import { resolveUnitCue, type AudioListener, type AudioPosition, type UnitAudioEvent } from "./cues";
+import { AmbientAudioScheduler, type AmbientScheduleInput, type ScheduledAmbientCue } from "./ambient";
 import { legacyCueCatalog } from "./legacy-cues";
 import type { AudioCue, AudioEngine } from "./index";
 import type { CombatEvent, DeathEvent } from "../engine/simulation";
+
+export { AmbientAudioScheduler, type AmbientScheduleInput, type ScheduledAmbientCue } from "./ambient";
 
 export interface FeedbackActor extends AudioPosition {
   readonly unitType: number;
@@ -17,6 +20,7 @@ export function createMissionAudioFeedback(audio: Pick<AudioEngine, "play"> | un
 
 export class MissionAudioFeedback {
   readonly #variants = new Map<string, number>();
+  readonly #ambient: AmbientAudioScheduler;
   #lifetime = new AbortController();
   #response: AbortController | undefined;
   #lastResponse = -Infinity;
@@ -24,7 +28,17 @@ export class MissionAudioFeedback {
   #disposed = false;
 
   constructor(private readonly audio: Pick<AudioEngine, "play">,
-    private readonly now: () => number = () => performance.now()) {}
+    private readonly now: () => number = () => performance.now(),
+    ambient: AmbientAudioScheduler = new AmbientAudioScheduler()) {
+    this.#ambient = ambient;
+  }
+
+  ambient(input: AmbientScheduleInput): ScheduledAmbientCue | undefined {
+    if (this.#disposed) return undefined;
+    const cue = this.#ambient.step(input);
+    if (cue) this.#play({ assetId: cue.assetId, priority: cue.priority, signal: this.#lifetime.signal });
+    return cue;
+  }
 
   #cue(event: UnitAudioEvent) {
     const first = resolveUnitCue(legacyCueCatalog, event);
@@ -99,6 +113,7 @@ export class MissionAudioFeedback {
     this.#lifetime = new AbortController();
     this.#nextEventTick = tick;
     this.#variants.clear();
+    this.#ambient.reset();
     this.#lastResponse = -Infinity;
   }
 

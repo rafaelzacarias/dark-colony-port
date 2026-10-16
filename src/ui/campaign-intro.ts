@@ -1,6 +1,7 @@
 import { assetUrl } from "../asset-url";
 import { createElement as createIcon, ArrowRight, SkipForward, X } from "lucide";
 
+export type CampaignFaction = "human" | "alien";
 export type CampaignLaunchReason = "fresh" | "continue" | "import" | "retry" | "next";
 export type IntroStage = "overview" | "briefing" | "deploy" | "cancel";
 export interface IntroState {
@@ -10,9 +11,21 @@ export interface IntroState {
 }
 export const INTRO_CHARACTERS_PER_SECOND = 35;
 
+export function campaignIntroDataPath(faction: CampaignFaction): string {
+  return `/assets/data/campaign-intro-${faction}.json`;
+}
+
+export function missionBriefingVoicePath(faction: CampaignFaction, missionNumber: number): string {
+  if (!Number.isInteger(missionNumber) || missionNumber < 1 || missionNumber > 15) {
+    throw new RangeError(`Invalid mission number for briefing voiceover: ${missionNumber}`);
+  }
+  return `/assets/generated/media/audio/MISSION/${faction === "human" ? "H" : "G"}${missionNumber}.ogg`;
+}
+
 export function shouldShowCampaignIntro(faction: string, missionNumber: number,
-  reason: CampaignLaunchReason, checkpoint?: unknown): boolean {
-  return faction === "human" && missionNumber === 1 && reason === "fresh" && checkpoint === undefined;
+  reason: CampaignLaunchReason, checkpoint?: unknown, options?: { readonly allowAlien?: boolean }): boolean {
+  const allowedFaction = faction === "human" || (options?.allowAlien === true && faction === "alien");
+  return allowedFaction && missionNumber === 1 && reason === "fresh" && checkpoint === undefined;
 }
 
 export function introVisibleCharacters(state: IntroState, now: number, length: number): number {
@@ -37,7 +50,7 @@ export interface CampaignIntroAsset {
   readonly schemaVersion: 1;
   readonly source: { readonly path: string; readonly sha256: string };
   readonly tokens: readonly IntroToken[];
-  readonly scene: { readonly title: string; readonly location: string };
+  readonly scene: { readonly title: string; readonly location: string; readonly speaker?: string };
 }
 
 export function campaignIntroTokens(rawText: string): IntroToken[] {
@@ -57,48 +70,73 @@ export function cancelCampaignIntro(): void {
 }
 
 export async function showCampaignIntro(options: {
+  readonly faction?: CampaignFaction;
+  readonly missionNumber?: number;
   readonly briefing: { readonly plainText: string; readonly rawText: string };
   readonly isCurrent: () => boolean;
 }): Promise<"deploy" | "cancel"> {
   cancelCampaignIntro();
+  const faction: CampaignFaction = options.faction ?? "human";
+  const missionNumber = options.missionNumber ?? 1;
+  const factionLabel = faction === "human" ? "Human" : "Alien";
   const controller = new AbortController();
   activeIntro = controller;
   const { signal } = controller;
   let frame = 0;
   let dialog: HTMLDialogElement | undefined;
+  let voiceAudio: HTMLAudioElement | undefined;
   let settle: ((result: "deploy" | "cancel") => void) | undefined;
+  const stopVoiceAudio = () => {
+    if (!voiceAudio) return;
+    const currentAudio = voiceAudio;
+    voiceAudio = undefined;
+    try {
+      currentAudio.pause?.();
+      currentAudio.removeAttribute?.("src");
+      currentAudio.src = "";
+      currentAudio.load?.();
+    } catch {
+      // Ignore cleanup errors in non-DOM test environments
+    }
+  };
   const previousFocus = document.activeElement;
   const pagehide = () => controller.abort();
   const monitor = () => {
     if (!options.isCurrent()) controller.abort();
     if (!signal.aborted) frame = requestAnimationFrame(monitor);
   };
-  signal.addEventListener("abort", () => settle?.("cancel"), { once: true });
+  signal.addEventListener("abort", () => {
+    stopVoiceAudio();
+    settle?.("cancel");
+  }, { once: true });
   window.addEventListener("pagehide", pagehide);
   frame = requestAnimationFrame(monitor);
   try {
-    const response = await fetch(assetUrl("/assets/data/campaign-intro-human.json"), { signal });
-    if (!response.ok) throw new Error(`Human overview unavailable (${response.status})`);
+    const response = await fetch(assetUrl(campaignIntroDataPath(faction)), { signal });
+    if (!response.ok) throw new Error(`${factionLabel} overview unavailable (${response.status})`);
     const asset = await response.json() as CampaignIntroAsset;
     if (signal.aborted || !options.isCurrent()) return "cancel";
     if (asset.schemaVersion !== 1 || !asset.tokens?.length || !asset.scene?.title) {
-      throw new Error("Invalid human overview asset");
+      throw new Error(`Invalid ${faction} overview asset`);
     }
     const briefingTokens = campaignIntroTokens(options.briefing.rawText);
     if (briefingTokens.map((token) => token.text).join("") !== options.briefing.plainText) {
       throw new Error("Briefing style tokens do not match full source text");
     }
+    const speaker = asset.scene.speaker || (faction === "human" ? "LEUT. Rutkoni" : "Commander");
+    const portraitLabel = faction === "human" ? "Leut. Rutkoni" : speaker;
     dialog = document.createElement("dialog");
     dialog.className = "campaign-intro";
-    dialog.setAttribute("aria-label", "Human campaign predeployment");
+    dialog.setAttribute("aria-label", `${factionLabel} campaign predeployment`);
     dialog.innerHTML = `
-      <div class="campaign-intro-scene" data-stage="overview">
+      <div class="campaign-intro-scene" data-stage="overview" data-faction="${faction}">
         <div class="campaign-intro-globe" role="img" aria-label="Mission globe"></div>
-        <div class="campaign-intro-portrait" role="img" aria-label="Leut. Rutkoni"></div>
-        <p class="campaign-intro-speaker">LEUT. Rutkoni</p>
+        <div class="campaign-intro-portrait" role="img" aria-label="${portraitLabel}"></div>
+        <div class="campaign-intro-strip" aria-hidden="true"></div>
+        <p class="campaign-intro-speaker">${speaker}</p>
         <h1 class="campaign-intro-title"></h1>
         <p class="campaign-intro-location"></p>
-        <div class="campaign-intro-text" tabindex="0" role="region" aria-label="Human overview">
+        <div class="campaign-intro-text" tabindex="0" role="region" aria-label="${factionLabel} overview">
           <div class="campaign-intro-typed" aria-hidden="true"></div>
           <div class="campaign-intro-readable"></div>
         </div>
@@ -109,9 +147,11 @@ export async function showCampaignIntro(options: {
         <button type="button" data-intro-action="advance"></button>
       </footer>`;
     const scene = dialog.querySelector<HTMLElement>(".campaign-intro-scene")!;
+    scene.dataset.faction = faction;
     const text = dialog.querySelector<HTMLElement>(".campaign-intro-text")!;
     const typed = dialog.querySelector<HTMLElement>(".campaign-intro-typed")!;
     const readable = dialog.querySelector<HTMLElement>(".campaign-intro-readable")!;
+    dialog.querySelector(".campaign-intro-speaker")!.textContent = speaker;
     dialog.querySelector(".campaign-intro-title")!.textContent = asset.scene.title;
     dialog.querySelector(".campaign-intro-location")!.textContent = asset.scene.location;
     const advance = dialog.querySelector<HTMLButtonElement>('[data-intro-action="advance"]')!;
@@ -126,11 +166,23 @@ export async function showCampaignIntro(options: {
     let length = 0;
     let lastVisible = -1;
     let spans: HTMLElement[] = [];
+    const playBriefingVoice = () => {
+      stopVoiceAudio();
+      const AudioCtor = (typeof window !== "undefined" && (window as unknown as { Audio?: new (src?: string) => HTMLAudioElement }).Audio)
+        ?? (globalThis as { Audio?: new (src?: string) => HTMLAudioElement }).Audio;
+      if (!AudioCtor) return;
+      try {
+        voiceAudio = new AudioCtor(assetUrl(missionBriefingVoicePath(faction, missionNumber)));
+        void Promise.resolve(voiceAudio.play?.()).catch(() => {});
+      } catch {
+        voiceAudio = undefined;
+      }
+    };
     const setStage = () => {
       tokens = state.stage === "overview" ? asset.tokens : briefingTokens;
       length = tokens.reduce((sum, token) => sum + token.text.length, 0);
       scene.dataset.stage = state.stage;
-      text.setAttribute("aria-label", state.stage === "overview" ? "Human overview" : "Full mission briefing");
+      text.setAttribute("aria-label", state.stage === "overview" ? `${factionLabel} overview` : "Full mission briefing");
       readable.textContent = tokens.map((token) => token.text).join("");
       spans = tokens.map((token) => {
         const span = document.createElement("span");
@@ -140,6 +192,7 @@ export async function showCampaignIntro(options: {
       typed.replaceChildren(...spans);
       text.scrollTop = 0;
       lastVisible = -1;
+      if (state.stage === "briefing") playBriefingVoice();
     };
     const paint = (now: number) => {
       const visible = introVisibleCharacters(state, now, length);
@@ -158,6 +211,7 @@ export async function showCampaignIntro(options: {
       const previousStage = state.stage;
       state = reduceCampaignIntro(state, action, performance.now(), length);
       if (state.stage === "deploy" || state.stage === "cancel") {
+        stopVoiceAudio();
         settle?.(state.stage);
         return;
       }
@@ -200,6 +254,7 @@ export async function showCampaignIntro(options: {
     if (signal.aborted) return "cancel";
     throw error;
   } finally {
+    stopVoiceAudio();
     controller.abort();
     cancelAnimationFrame(frame);
     window.removeEventListener("pagehide", pagehide);

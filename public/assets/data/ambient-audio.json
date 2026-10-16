@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "sources": {
+    "desert": {
+      "path": "raw_cd/DC/SOUND/DESERT.AMB",
+      "sha256": "d843e85db42c8a1dfbb413aafe49e762d76dacef56d5a85afd0ca9dfabc64462"
+    },
+    "jungle": {
+      "path": "raw_cd/DC/SOUND/JUNGLE.AMB",
+      "sha256": "6a8a29bbfb46a936dcd040297e0a0d603c7729db41a7983e4385a79b9f33f62f"
+    },
+    "atlantis": {
+      "path": "raw_cd/DC/SOUND/ATLANTIS.AMB",
+      "sha256": "6627ff056bc827ed25018363d985380e4b5ce44852e8aac4bcb7840f72472c4c"
+    },
+    "slist": {
+      "path": "raw_cd/DC/SOUND/SLIST.DAT",
+      "sha256": "8edca1e2e26e741a8d73a4e7987d51569d62a75d90038e59e19b155d240ec0cc"
+    }
+  },
+  "slistBindings": {
+    "98": [60, 58, 59, 57],
+    "99": [57, 58, 59]
+  },
+  "profiles": {
+    "desert": [
+      { "tod": 0, "btype": 3, "soundIds": [20, 23, 61, 61], "comment": "%day water sounds" },
+      { "tod": 0, "btype": 13, "soundIds": [20, 23, 61, 61], "comment": "%day water sounds" },
+      { "tod": 0, "btype": 14, "soundIds": [20, 23, 61, 61], "comment": "%day water sounds" },
+      { "tod": 0, "btype": 15, "soundIds": [20, 23, 61, 61], "comment": "%day water sounds" },
+      { "tod": 0, "btype": 16, "soundIds": [20, 23, 61, 61], "comment": "%day water sounds" },
+      { "tod": 0, "btype": 17, "soundIds": [20, 23, 61, 61], "comment": "%day water sounds" },
+      { "tod": 1, "btype": 3, "soundIds": [19, 170, 60, 61, 61, 61], "comment": "%night water" },
+      { "tod": 1, "btype": 13, "soundIds": [19, 170, 60, 61, 61, 61], "comment": "%night water" },
+      { "tod": 1, "btype": 14, "soundIds": [19, 170, 60, 61, 61, 61], "comment": "%night water" },
+      { "tod": 1, "btype": 15, "soundIds": [19, 170, 60, 61, 61, 61], "comment": "%night water" },
+      { "tod": 1, "btype": 16, "soundIds": [19, 170, 60, 61, 61, 61], "comment": "%night water" },
+      { "tod": 1, "btype": 17, "soundIds": [19, 170, 60, 61, 61, 61], "comment": "%night water" },
+      { "tod": 0, "btype": 7, "soundIds": [58, 59, 57], "comment": "%day buildings" },
+      { "tod": 1, "btype": 7, "soundIds": [58, 59, 57], "comment": "%night buildings" },
+      { "tod": 0, "btype": 1, "soundIds": [20, 23, 25, 170], "comment": "%day land" },
+      { "tod": 0, "btype": 10, "soundIds": [20, 23, 25, 170], "comment": "%day land" },
+      { "tod": 0, "btype": 11, "soundIds": [20, 23, 25, 170], "comment": "%day land" },
+      { "tod": 0, "btype": 12, "soundIds": [20, 23, 25, 170], "comment": "%day land" },
+      { "tod": 0, "btype": 18, "soundIds": [20, 23, 25, 170], "comment": "%day land" },
+      { "tod": 0, "btype": 19, "soundIds": [20, 23, 25, 170], "comment": "%day land" },
+      { "tod": 0, "btype": 20, "soundIds": [20, 23, 25, 170], "comment": "%day land" },
+      { "tod": 1, "btype": 1, "soundIds": [19, 60, 60, 60, 60, 60, 60], "comment": "%night land" },
+      { "tod": 1, "btype": 10, "soundIds": [19, 60, 60, 60, 60, 60, 60], "comment": "%night land" },
+      { "tod": 1, "btype": 11, "soundIds": [19, 60, 60, 60, 60, 60, 60], "comment": "%night land" },
+      { "tod": 1, "btype": 12, "soundIds": [19, 60, 60, 60, 60, 60, 60], "comment": "%night land" },
+      { "tod": 1, "btype": 18, "soundIds": [19, 60, 60, 60, 60, 60, 60], "comment": "%night land" },
+      { "tod": 1, "btype": 19, "soundIds": [19, 60, 60, 60, 60, 60, 60], "comment": "%night land" },
+      { "tod": 1, "btype": 20, "soundIds": [19, 60, 60, 60, 60, 60, 60], "comment": "%night land" },
+      { "tod": 0, "btype": 21, "soundIds": [20, 171, 172], "comment": "%day spider" },
+      { "tod": 0, "btype": 22, "soundIds": [20, 171, 172], "comment": "%day spider" },
+      { "tod": 0, "btype": 23, "soundIds": [20, 171, 172], "comment": "%day spider" },
+      { "tod": 1, "btype": 21, "soundIds": [60, 171, 172], "comment": "%day spider" },
+      { "tod": 1, "btype": 22, "soundIds": [60, 171, 172], "comment": "%day spider" },
+      { "tod": 1, "btype": 23, "soundIds": [60, 171, 172], "comment": "%day spider" }
+    ],
+    "jungle": [
+      { "tod": 0, "btype": 3, "soundIds": [26, 25, 23, 61, 61, 61], "comment": "%day water sounds" },
+      { "tod": 0, "btype": 13, "soundIds": [26, 25, 23, 61, 61, 61], "comment": "%day water sounds" },
+      { "tod": 0, "btype": 14, "soundIds": [26, 25, 23, 61, 61, 61], "comment": "%day water sounds" },
+      { "tod": 0, "btype": 15, "soundIds": [26, 25, 23, 61, 61, 61], "comment": "%day water sounds" },
+      { "tod": 0, "btype": 16, "soundIds": [26, 25, 23, 61, 61, 61], "comment": "%day water sounds" },
+      { "tod": 0, "btype": 17, "soundIds": [26, 25, 23, 61, 61, 61], "comment": "%day water sounds" },
+      { "tod": 1, "btype": 3, "soundIds": [178, 179, 180, 60, 61, 61, 61, 61, 61], "comment": "%night water" },
+      { "tod": 1, "btype": 13, "soundIds": [178, 179, 180, 60, 61, 61, 61, 61, 61], "comment": "%night water" },
+      { "tod": 1, "btype": 14, "soundIds": [178, 179, 180, 60, 61, 61, 61, 61, 61], "comment": "%night water" },
+      { "tod": 1, "btype": 15, "soundIds": [178, 179, 180, 60, 61, 61, 61, 61, 61], "comment": "%night water" },
+      { "tod": 1, "btype": 16, "soundIds": [178, 179, 180, 60, 61, 61, 61, 61, 61], "comment": "%night water" },
+      { "tod": 1, "btype": 17, "soundIds": [178, 179, 180, 60, 61, 61, 61, 61, 61], "comment": "%night water" },
+      { "tod": 0, "btype": 7, "soundIds": [58, 59, 57], "comment": "%day buildings" },
+      { "tod": 1, "btype": 7, "soundIds": [58, 59, 57], "comment": "%night buildings" },
+      { "tod": 0, "btype": 1, "soundIds": [26, 181, 23, 25, 178], "comment": "%day land" },
+      { "tod": 0, "btype": 10, "soundIds": [26, 181, 23, 25, 178], "comment": "%day land" },
+      { "tod": 0, "btype": 11, "soundIds": [26, 181, 23, 25, 178], "comment": "%day land" },
+      { "tod": 0, "btype": 12, "soundIds": [26, 181, 23, 25, 178], "comment": "%day land" },
+      { "tod": 0, "btype": 18, "soundIds": [26, 181, 23, 25, 178], "comment": "%day land" },
+      { "tod": 0, "btype": 19, "soundIds": [26, 181, 23, 25, 178], "comment": "%day land" },
+      { "tod": 0, "btype": 20, "soundIds": [26, 181, 23, 25, 178], "comment": "%day land" },
+      { "tod": 1, "btype": 1, "soundIds": [180, 60, 181], "comment": "%night land" },
+      { "tod": 1, "btype": 10, "soundIds": [180, 60, 181], "comment": "%night land" },
+      { "tod": 1, "btype": 11, "soundIds": [180, 60, 181], "comment": "%night land" },
+      { "tod": 1, "btype": 12, "soundIds": [180, 60, 181], "comment": "%night land" },
+      { "tod": 1, "btype": 18, "soundIds": [180, 60, 181], "comment": "%night land" },
+      { "tod": 1, "btype": 19, "soundIds": [180, 60, 181], "comment": "%night land" },
+      { "tod": 1, "btype": 20, "soundIds": [180, 60, 181], "comment": "%night land" },
+      { "tod": 0, "btype": 21, "soundIds": [26, 181, 23, 25, 178, 179, 178, 179], "comment": "%day spider" },
+      { "tod": 0, "btype": 22, "soundIds": [26, 181, 23, 25, 178, 179, 178, 179], "comment": "%day spider" },
+      { "tod": 0, "btype": 23, "soundIds": [26, 181, 23, 25, 178, 179, 178, 179], "comment": "%day spider" },
+      { "tod": 1, "btype": 21, "soundIds": [180, 60, 181, 178, 179, 178, 179], "comment": "%night spider" },
+      { "tod": 1, "btype": 22, "soundIds": [180, 60, 181, 178, 179, 178, 179], "comment": "%night spider" },
+      { "tod": 1, "btype": 23, "soundIds": [180, 60, 181, 178, 179, 178, 179], "comment": "%night spider" }
+    ],
+    "atlantis": [
+      { "tod": 0, "btype": 1, "soundIds": [77, 41, 39, 77, 76, 76, 76], "comment": "%day crypt" },
+      { "tod": 0, "btype": 3, "soundIds": [77, 41, 39, 77, 76, 76, 76], "comment": "%day crypt" },
+      { "tod": 0, "btype": 18, "soundIds": [77, 41, 39, 77, 76, 76, 76], "comment": "%day crypt" },
+      { "tod": 0, "btype": 19, "soundIds": [77, 41, 39, 77, 76, 76, 76], "comment": "%day crypt" },
+      { "tod": 0, "btype": 20, "soundIds": [77, 41, 39, 77, 76, 76, 76], "comment": "%day crypt" },
+      { "tod": 0, "btype": 21, "soundIds": [77, 41, 39, 77, 76, 76, 76], "comment": "%day crypt" },
+      { "tod": 0, "btype": 7, "soundIds": [77, 133, 41, 77, 76, 27, 31], "comment": "%day walls" },
+      { "tod": 0, "btype": 10, "soundIds": [77, 133, 41, 77, 76, 27, 31], "comment": "%day walls" },
+      { "tod": 0, "btype": 11, "soundIds": [77, 133, 41, 77, 76, 27, 31], "comment": "%day walls" },
+      { "tod": 0, "btype": 12, "soundIds": [77, 133, 41, 77, 76, 27, 31], "comment": "%day walls" },
+      { "tod": 0, "btype": 13, "soundIds": [77, 133, 41, 77, 76, 27, 31], "comment": "%day walls" },
+      { "tod": 0, "btype": 17, "soundIds": [77, 133, 41, 77, 76, 27, 31], "comment": "%day walls" },
+      { "tod": 0, "btype": 15, "soundIds": [77, 133, 41, 77, 76, 27, 31], "comment": "%day ground prob most popular" },
+      { "tod": 0, "btype": 14, "soundIds": [77, 133, 41, 77, 62, 62, 133, 133], "comment": "%day Secret" },
+      { "tod": 0, "btype": 16, "soundIds": [77, 133, 41, 77], "comment": "%day final" }
+    ]
+  }
+}

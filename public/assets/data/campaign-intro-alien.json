@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "path": "raw_cd/DC/INTRFACE/ASTORY.TXT",
+    "sha256": "6080c1d13c4b698d9b4d52a76a85ab5a9ea605bb2150434794452ffab01a7616"
+  },
+  "publication": {
+    "method": "Manual structured transcription; normalized text verified by parseMissionBriefing",
+    "typing": "Adapted wall-clock presentation at 35 characters per second; not native timing",
+    "audio": "Mission briefing narration from /assets/generated/media/audio/MISSION/G1.ogg"
+  },
+  "tokens": [
+    { "style": 2, "text": "GRAY OVERVIEW:\n\n" },
+    { "style": 4, "text": "Nebres Warship-T had spent the past 500 years searching for a new home before settling on the outskirts of a suitable solar system. A contingent of four ships were dispatched to investigate the blue-green planet, third from the sun, to determine if it proved suitable for coloization.\n\nThe fleet of saucers arrived in the summer of 1947 and despite losing one member of their team somewhere in the New Mexico desert, they have since remained undetected while continuing their medical and technological research on mankind and their planet.\n\nThe colonization of Earth was not a practical solution, due to mankind's wonderful job of plundering all natural resources and poisoning the environment beyond repair.\n\nMars, however, was another story.\n\nUndamaged, undefended, and with plenty of natural resources, the red planet would make an ideal new home, if it only were habitable. It took the human discovery of Petra-7, a Martian universal energy source, to make the terra-forming of this planet feasible. Mankind's most ambitious project was underway. The aliens watched and waited...\n\nIt is now 2137. Mars has been transformed into a lush, vibrant planet that could sustain life, and the humans have commenced their colonization plans. The time was ready for the TAAR to move into their new home..." }
+  ],
+  "scene": {
+    "source": "raw_cd/DC/GAMESTAT/GSCENE.TXT",
+    "sha256": "6924a69e14be0148cbee2e88f8a3c3b9c6af3fad0c751928a0068134babd87fc",
+    "title": "FIRST STRIKE",
+    "location": "CYDONIA REGION",
+    "speaker": "SUPREME OVERLORD",
+    "briefing": "/assets/generated/data/briefings/ALIEN/ALIEN01.json",
+    "briefingSourceSha256": "e05dd7cbe6795aac568c351724fd12e9725d70a3268a3e8b4f1e436b5e8a26be"
+  },
+  "art": {
+    "overview": "/assets/generated/interface/STORY.GIF",
+    "briefing": "/assets/generated/interface/STORY.GIF",
+    "portrait": {
+      "atlas": "/assets/generated/sprites/INTRFACE/ACOM.png",
+      "metadata": "/assets/generated/sprites/INTRFACE/ACOM.json",
+      "frame": 0,
+      "frameIndex": 0,
+      "crop": [0, 0, 80, 120]
+    },
+    "globe": {
+      "atlas": "/assets/generated/sprites/INTRFACE/GLOBEG.png",
+      "metadata": "/assets/generated/sprites/INTRFACE/GLOBEG.json",
+      "frame": 0,
+      "frameIndex": 0,
+      "crop": [0, 0, 250, 250],
+      "presentation": "Static verified frame"
+    },
+    "strip": {
+      "atlas": "/assets/generated/sprites/INTRFACE/SGREYE.png",
+      "metadata": "/assets/generated/sprites/INTRFACE/SGREYE.json",
+      "frame": 0,
+      "frameIndex": 0,
+      "crop": [0, 0, 276, 44]
+    }
+  }
+}

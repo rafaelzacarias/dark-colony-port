@@ -2,6 +2,7 @@ import { resolveAudioCandidates, spatialAudio, type AudioListener, type AudioPos
 
 export * from "./cues";
 export * from "./soundtrack";
+export * from "./ambient";
 export { legacyCueCatalog } from "./legacy-cues";
 
 export interface AudioCue {

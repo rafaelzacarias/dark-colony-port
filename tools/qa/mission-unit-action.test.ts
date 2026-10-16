@@ -5,6 +5,9 @@ import { MissionView, missionUnitAction } from "../../src/mission-view";
 import { DeterministicSimulation, type UnitSnapshot } from "../../src/engine/simulation";
 import { NavigationGrid } from "../../src/engine/grid";
 import { loadCampaignMission } from "../../src/game-data";
+import { composeFinSample, createFinSelector, createFinSourceSampler, TRSC_GRAY_VISUAL_DIRECTIONS,
+  type FinAnimationData, type FinAtlasFrame } from "../../src/render";
+import { nativePaletteImage } from "../../src/render/mode1-canvas";
 import { installSourceRender } from "./fixtures/source-render";
 
 const attacker: UnitSnapshot = {
@@ -28,6 +31,7 @@ test("generic FIN: stationary attack and reload use Attack, renewed pursuit retu
 
 test("generic FIN: death takes precedence over displacement; idle and move retain their actions", () => {
   assert.equal(missionUnitAction({ ...attacker, activity: "die", xSubcells: 1600 }, attacker), "Die");
+  assert.equal(missionUnitAction({ ...attacker, health: 0, xSubcells: 1600 }, attacker), "Die");
   assert.equal(missionUnitAction({ ...attacker, activity: "idle" }, attacker), "Stand");
   assert.equal(missionUnitAction({ ...attacker, activity: "move" }, attacker), "Move");
 });
@@ -137,6 +141,69 @@ test("MissionView generic FIN: motion facing, pending legs and phase resets use 
     current = { ...current, tick: 226, units: [{ ...current.units[0], xSubcells: owned.xSubcells - 64 }, target] };
     assert.deepEqual(present(), { id: owned.id, action: "Move", facing: "W", since: 226 });
     assert.ok(rendering.evidence().spriteDraws > 0, "exercise real FIN composition through the Canvas stub");
+
+    const animation: FinAnimationData = JSON.parse(readFileSync(new URL("assets/generated/animations/GRAY.json", publicRoot), "utf8"));
+    const atlas: { frames: FinAtlasFrame[] } = JSON.parse(readFileSync(new URL("assets/generated/sprites/SPRITES/GRAY.json", publicRoot), "utf8"));
+    const indexed = JSON.parse(readFileSync(new URL("assets/generated/indexed/sprites/SPRITES/GRAY.json", publicRoot), "utf8"));
+    const indices = readFileSync(new URL(`assets/generated/indexed/${indexed.indices.path}`, publicRoot));
+    const coverage = readFileSync(new URL(`assets/generated/indexed/${indexed.coverage.path}`, publicRoot));
+    const drawing = rendering.canvas().getContext("2d")!;
+    const drawnFrames: number[] = [];
+    const originalDrawImage = drawing.drawImage;
+    drawing.drawImage = ((image: CanvasImageSource, ...coordinates: number[]) => {
+      const palette = nativePaletteImage(image);
+      const [left, top, width, height] = coordinates;
+      const isGray = (palette && indices.equals(palette.indices) && coverage.equals(palette.coverage))
+        || (image !== view!.terrainImage && coordinates[4] === 0 && coordinates[5] === 0);
+      if (isGray) {
+        const frame = atlas.frames.find(entry => entry.x === left && entry.y === top && entry.width === width && entry.height === height);
+        assert.ok(frame);
+        drawnFrames.push(frame.index);
+      }
+      return (originalDrawImage as (...args: unknown[]) => unknown).call(drawing, image, ...coordinates);
+    }) as CanvasRenderingContext2D["drawImage"];
+
+    const selection = createFinSelector(animation, { prefix: "GRAY", directions: TRSC_GRAY_VISUAL_DIRECTIONS,
+      layerOrder: "source" }).select("Die", "W")!;
+    assert.ok(selection && selection.action === "Die");
+    const sampler = createFinSourceSampler(animation);
+    const deathTick = 227;
+    const dyingUnit = { ...current.units[0], activity: "die" as const, health: 0, facing: 64 };
+    const seenTimelineIndices = new Set<number>();
+    let elapsed = 0;
+    for (; elapsed < 500; elapsed += 1) {
+      const sample = sampler(selection, elapsed);
+      current = { ...current, tick: deathTick + elapsed, units: [dyingUnit] };
+      drawnFrames.length = 0;
+      const readsBeforeRender = checkpointReads;
+      view.render();
+      assert.equal(view.missionDiagnostic, undefined);
+      assert.equal(checkpointReads, readsBeforeRender, "death rendering must not call simulation.checkpoint()");
+      if (!seenTimelineIndices.has(sample.timelineIndex) || sample.finished) {
+        assert.deepEqual(view.checkpoint().state.animationStates.find(state => state.id === owned.id),
+          { id: owned.id, action: "Die", facing: "W", since: deathTick });
+      }
+      const expectedFrames = composeFinSample(sample, (sprite, frame) =>
+        sprite.toUpperCase() === "GRAY" ? atlas.frames.find(entry => entry.index === frame) : undefined)
+        .filter(part => part.child.sprite.toUpperCase() === "GRAY" && part.frame).map(part => part.frame!.index);
+      assert.deepEqual(drawnFrames, expectedFrames, `tick +${elapsed} must draw Die FIN frames`);
+      seenTimelineIndices.add(sample.timelineIndex);
+      if (sample.finished && elapsed > 0) break;
+    }
+    assert.ok(elapsed > 0 && elapsed < 500, "Die FIN timeline must complete in bounded ticks");
+    assert.ok(seenTimelineIndices.size > 1, "Die FIN timeline must advance across multiple frames");
+    for (const extra of [1, 2, 10]) {
+      current = { ...current, tick: deathTick + elapsed + extra, units: [dyingUnit] };
+      drawnFrames.length = 0;
+      const readsBeforeRender = checkpointReads;
+      view.render();
+      assert.equal(checkpointReads, readsBeforeRender);
+      assert.deepEqual(drawnFrames, [], "dead unit must stop drawing after Die FIN timeline completes");
+      assert.deepEqual(view.checkpoint().state.animationStates.find(state => state.id === owned.id),
+        { id: owned.id, action: "Die", facing: "W", since: deathTick });
+    }
+    Reflect.deleteProperty(view.simulation, "checkpoint");
+    assert.deepEqual(view.simulation.checkpoint(), saved);
   } finally {
     if (view) {
       Reflect.deleteProperty(view.simulation, "snapshot");

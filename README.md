@@ -78,8 +78,17 @@ window or touchscreen.
 
 The opening cinematic does not play on startup. **Options > Watch introduction**
 plays it on demand; campaign briefings and outcome movies keep their existing
-behavior. The menu and phone controls share charcoal, beveled steel, and warm
-red accents inspired by the original interface.
+behavior. Both the Human (`HSTORY.TXT` / `SHUMAN.GIF`) and Alien (`ASTORY.TXT` /
+`SGREY.GIF`) campaign introductions and all 30 mission briefings (`H1–H15` and
+`G1–G15`) stream their original `.ogg` voiceover narrations (`HINTRO.ogg`,
+`GINTRO.ogg`, `H1.ogg`–`H15.ogg`, and `G1.ogg`–`G15.ogg`) alongside the typed
+text. The **Encyclopedia** button on the main menu and in-mission options panel
+opens the authentic 25-entry Dark Colony Encyclopedia (`ENCY.GIF`) with
+category filters (`All`, `Human`, `Taar / Alien`, `Corporations & Artifacts`),
+320x200 3D rotating turntable unit/artifact renders, styled `ENCYCLO/*.TXT`
+specifications, and `.ogg` voice narrations. The menu and phone controls share
+charcoal, beveled steel, and warm red accents inspired by the original
+interface.
 
 Saving is **manual only**, with three independent slots. In a mission, choose
 **Save game** from the original options panel or the phone's **Options** menu,
@@ -190,6 +199,14 @@ Rocket exhaust and flame effects use the mission's original effect blend table
 rather than the gray preview atlases. Native-verified effect paths remain intact;
 the browser fallback handles mirrored/elevated effects and RGB fog/overlays with
 screen-space blending, without claiming exact native terrain-mask parity.
+
+Killed campaign units play their original `.FIN` death animations (choosing the
+matching directional or energy/explosion death state before settling on their
+corpse frame), and medical/healing units (`BEON` Medi-Craft and `ZISP`) perform
+authentic `DC.EXE` (`0x413C20`) proximity healing of wounded allied ground units
+on a 16-tick scan cadence. Mission audio also includes the `.AMB` terrain and
+day/night ambient soundscape scheduler (`DESERT.AMB`, `JUNGLE.AMB`,
+`ATLANTIS.AMB`, and `SLIST.DAT` carrier bindings).
 
 See `ARCHITECTURE.md` for disc geometry, discovered formats, ownership rules,
 and phase gates.

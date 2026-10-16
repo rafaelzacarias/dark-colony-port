@@ -205,7 +205,7 @@ const INTERCEPTOR_TYPES: ReadonlySet<number> = new Set([4, 12]);
 const SPRITE_ALIASES: Readonly<Record<string, string>> = { BEEK: "BEAC" };
 
 export function missionUnitAction(unit: UnitSnapshot, previous: UnitSnapshot, pendingPath = false): FinAction {
-  if (unit.activity === "die") return "Die";
+  if (unit.activity === "die" || unit.health <= 0) return "Die";
   if (unit.activity === "move" || pendingPath || unit.xSubcells !== previous.xSubcells || unit.ySubcells !== previous.ySubcells) return "Move";
   return unit.activity === "attack" ? "Attack" : "Stand";
 }
@@ -646,6 +646,7 @@ export class MissionView {
   readonly #audio?: WebAudioManager;
   readonly #audioFeedback?: MissionAudioFeedback;
   readonly #animationStates = new Map<number, { action: FinAction; facing: CompassDirection; since: number }>();
+  readonly #completedDeathAnimations = new Set<number>();
   // Presentation only: DC.EXE 0x4193cc plays a random BLOOD bank on the free overlay channel after a hit.
   readonly #buildingReactions = new Map<number, { pending: boolean; state?: FinStateData; since: number }>();
   readonly #namedFinStates = new Map<string, FinStateData | null>();
@@ -2694,6 +2695,7 @@ export class MissionView {
 
   resetClock(): void {
     this.#lastTime = null;
+    this.#completedDeathAnimations.clear();
     this.clock.reset();
   }
 
@@ -2864,7 +2866,7 @@ export class MissionView {
     copyMap(this.#animationStates, candidate.#animationStates, true);
     copyMap(this.#combatReveals, candidate.#combatReveals, true);
     for (const [target, source] of [[this.#selectedIds, candidate.#selectedIds], [this.#detachedIds, candidate.#detachedIds],
-      [this.#recordedDeaths, candidate.#recordedDeaths]]) { target.clear(); source.forEach(value => target.add(value)); }
+      [this.#recordedDeaths, candidate.#recordedDeaths], [this.#completedDeathAnimations, candidate.#completedDeathAnimations]]) { target.clear(); source.forEach(value => target.add(value)); }
     this.#staticObjects.splice(0, this.#staticObjects.length, ...candidate.#staticObjects);
     this.#pendingReservations.splice(0, this.#pendingReservations.length, ...candidate.#pendingReservations);
     this.#pendingProduction = candidate.#pendingProduction;
@@ -3186,7 +3188,9 @@ export class MissionView {
       if (!this.isOwnedUnit(unit.id) && !visibility[unit.cellY * this.grid.width + unit.cellX]) continue;
       const previous = previousById.get(unit.id) ?? unit;
       const oldAnimation = this.#animationStates.get(unit.id);
-      let action = missionUnitAction(unit, previous);
+      const dying = unit.health <= 0 || unit.activity === "die" || oldAnimation?.action === "Die";
+      if (!dying) this.#completedDeathAnimations.delete(unit.id);
+      let action = dying ? "Die" : missionUnitAction(unit, previous);
       if (action === "Attack" && !this.mission.sourceNativeCombat) {
         if (this.#genericPendingPaths?.simulation !== this.simulation || this.#genericPendingPaths.tick !== snapshot.tick) {
           this.#genericPendingPaths = { simulation: this.simulation, tick: snapshot.tick,
@@ -3198,17 +3202,20 @@ export class MissionView {
       const target = action === "Attack" ? currentById.get(unit.targetId ?? -1) ??
         staticStates.get(unit.targetId ?? -1) : undefined;
       // Steered units carry the simulation's 256-step facing (0 = +x, 64 = +y); attackers still face their target.
-      const facing = !target && unit.facing !== undefined
-        ? COMPASS_BY_OCTANT[(((unit.facing + 80) & 255) >> 5) & 7]
-        : directionFromMotion(
-          target ? target.xSubcells - unit.xSubcells : unit.xSubcells - previous.xSubcells,
-          target ? unit.ySubcells - target.ySubcells : previous.ySubcells - unit.ySubcells,
-          oldAnimation?.facing ?? "S",
-        );
+      const facing = dying && oldAnimation ? oldAnimation.facing
+        : !target && unit.facing !== undefined
+          ? COMPASS_BY_OCTANT[(((unit.facing + 80) & 255) >> 5) & 7]
+          : directionFromMotion(
+            target ? target.xSubcells - unit.xSubcells : unit.xSubcells - previous.xSubcells,
+            target ? unit.ySubcells - target.ySubcells : previous.ySubcells - unit.ySubcells,
+            oldAnimation?.facing ?? "S",
+          );
       this.#animationStates.set(unit.id, {
         action, facing,
-        since: oldAnimation?.action === action && oldAnimation.facing === facing ? oldAnimation.since : snapshot.tick,
+        since: oldAnimation?.action === "Die" || (oldAnimation?.action === action && oldAnimation.facing === facing)
+          ? oldAnimation.since : snapshot.tick,
       });
+      if (this.#completedDeathAnimations.has(unit.id)) continue;
       const xSubcells = previous.xSubcells + (unit.xSubcells - previous.xSubcells) * this.#interpolation;
       const ySubcells = previous.ySubcells + (unit.ySubcells - previous.ySubcells) * this.#interpolation;
       const screenX = this.#screenX(xSubcells / SUBCELLS_PER_CELL, width);
@@ -3372,6 +3379,7 @@ export class MissionView {
     for (const event of this.simulation.deathEvents) {
       const previous = this.#animationStates.get(event.targetId);
       this.#animationStates.set(event.targetId, { action: "Die", facing: previous?.facing ?? "S", since: event.tick });
+      this.#completedDeathAnimations.delete(event.targetId);
       this.#buildingReactions.delete(event.targetId);
     }
     for (const event of this.simulation.combatEvents) {
@@ -3447,15 +3455,22 @@ export class MissionView {
 
   #drawUnit(context: CanvasRenderingContext2D, unit: UnitSnapshot, screenX: number, screenY: number, tick: number,
     scene?: Pick<MissionSceneEntity, "rawSlot" | "xSubcells" | "ySubcells" | "heightSubcells">): void {
+    if (this.#completedDeathAnimations.has(unit.id)) return;
     const stat = this.#unitStats.get(unit.id);
-    const deployed = this.#browserEconomy?.deployedInterceptors.includes(unit.id);
-    const miningType = stat && (stat.index === 6 || stat.index === 14)
+    const dying = unit.activity === "die" || unit.health <= 0 || this.#animationStates.get(unit.id)?.action === "Die";
+    const deployed = !dying && this.#browserEconomy?.deployedInterceptors.includes(unit.id);
+    const miningType = !dying && stat && (stat.index === 6 || stat.index === 14)
       ? missionMiningVisualType(unit, stat.index, this.#browserEconomy?.checkpoint()) : undefined;
     const miningSprite = miningType === undefined ? undefined : this.mission.units.find(entry => entry.index === miningType)?.sprite;
     if (!stat) return;
     const sprite = deployed ? this.#interceptorTypes.deployedSprite : miningSprite ?? stat.sprite;
-    this.#drawVisual(context, sprite, unit.activity === "move" && !deployed ? "move" : "idle", screenX, screenY, tick, unit.id, scene);
-    if (unit.activity !== "die") this.#drawBuildingReaction(context, { id: unit.id, stat }, unit, screenX, screenY, tick, scene, sprite);
+    const finished = this.#drawVisual(context, sprite, unit.activity === "move" && !deployed ? "move" : "idle", screenX, screenY, tick, unit.id, scene);
+    if (dying && finished && tick > (this.#animationStates.get(unit.id)?.since ?? tick)) {
+      this.#completedDeathAnimations.add(unit.id);
+      this.#visualBounds.delete(unit.id);
+      return;
+    }
+    if (!dying) this.#drawBuildingReaction(context, { id: unit.id, stat }, unit, screenX, screenY, tick, scene, sprite);
   }
 
   #drawUnitOverlay(context: CanvasRenderingContext2D, unit: UnitSnapshot, screenX: number, screenY: number): void {

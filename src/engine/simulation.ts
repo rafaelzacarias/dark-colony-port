@@ -20,6 +20,17 @@ import { DeterministicRandom } from "./random";
 import { validateNativeMovement, type ResourceHostEntityState } from "./transport-host";
 import { advanceSourceDayNight, sourceDayNightFromHeader, type SourceDayNight } from "./source-day-night";
 import {
+  HEALER_INITIAL_CHARGE,
+  HEALER_MAX_CHARGE,
+  rechargeHealer,
+  resolveHealerUnitType,
+  stepBrowserHealer,
+  type BrowserHealerCheckpoint,
+  type BrowserHealerHealEvent,
+  type BrowserHealerState,
+  type BrowserHealerUnitType,
+} from "./browser-healers";
+import {
   completeLegacyInspireTask13, getLegacyInspireChargeGates, getLegacyInspireProfile,
   LEGACY_INSPIRE_NATIVE_RANDOM_TABLE, resolveLegacyInspireMultiplierQ8, scanLegacyInspireEffect,
   updateLegacyInspireCounters, verifiedLegacyInspireDeployFin,
@@ -426,6 +437,7 @@ export interface SimulationCheckpoint {
   readonly resourceActors?: readonly ResourceActorOwnership[];
   readonly resourceActorEvents?: readonly ResourceActorEvent[];
   readonly adaptedInspire?: AdaptedInspireCheckpoint;
+  readonly browserHealers?: BrowserHealerCheckpoint;
   readonly projectiles?: readonly ProjectileState[];
   readonly nextProjectileId?: number;
 }
@@ -667,6 +679,18 @@ function validateSimulationCheckpoint(input: unknown): asserts input is Simulati
       casters: checkpointArray(checkpointObject({ unitId: positive, typeId: checkpointInteger(69, 76), charge: checkpointInteger(0, 255) })),
       targets: checkpointArray(checkpointObject({ unitId: positive, timer: checkpointInteger(1, 255), casterId: positive,
         multiplierQ8: checkpointChoice(332, 358, 384, 409) })) }),
+    browserHealers: checkpointObject({
+      healers: checkpointArray(checkpointObject({
+        unitId: positive,
+        unitType: checkpointChoice(49, 50),
+        charge: checkpointInteger(0, HEALER_MAX_CHARGE),
+      })),
+    }, {
+      unitCosts: checkpointArray(checkpointObject({ unitId: positive }, {
+        unitType: checkpointInteger(0, 255),
+        unitCost: positive,
+      })),
+    }),
   })(input);
   const saved = input as SimulationCheckpoint;
   const area = saved.grid.width * saved.grid.height;
@@ -689,6 +713,15 @@ function validateSimulationCheckpoint(input: unknown): asserts input is Simulati
       checkpointRequire(new Set(ids).size === ids.length && ids.every((id) => alive.has(id)));
     }
     for (const target of saved.adaptedInspire.targets) historicalId(target.casterId);
+  }
+  if (saved.browserHealers) {
+    const alive = new Set(saved.units.filter((unit) => unit.health > 0).map((unit) => unit.id));
+    const healerIds = saved.browserHealers.healers.map((record) => record.unitId);
+    checkpointRequire(new Set(healerIds).size === healerIds.length && healerIds.every((id) => alive.has(id)));
+    if (saved.browserHealers.unitCosts) {
+      const costIds = saved.browserHealers.unitCosts.map((record) => record.unitId);
+      checkpointRequire(new Set(costIds).size === costIds.length && costIds.every((id) => alive.has(id)));
+    }
   }
   const actorIds = new Set<number>();
   const actorSlots = new Set<number>();
@@ -923,6 +956,10 @@ export interface AddUnitOptions {
   readonly sourceDefense?: LegacyDefenseProfile;
   readonly vision?: UnitVisionStats;
   readonly harvester?: HarvesterStats;
+  readonly unitType?: number;
+  readonly sprite?: string;
+  readonly unitCost?: number;
+  readonly healerCharge?: number;
 }
 
 export interface AddResourceNodeOptions {
@@ -1029,6 +1066,9 @@ export class DeterministicSimulation implements Simulation {
   readonly #adaptedInspireCasters = new Map<number, { typeId: number; charge: number }>();
   readonly #adaptedInspireTargets = new Map<number, { timer: number; casterId: number; multiplierQ8: number }>();
   #adaptedInspireRandomIndex = 0;
+  readonly #healers = new Map<number, { unitType: BrowserHealerUnitType; charge: number }>();
+  readonly #unitHealCosts = new Map<number, { unitType?: number; unitCost?: number }>();
+  readonly #healerEvents: BrowserHealerHealEvent[] = [];
 
   constructor(grid: NavigationGrid, options: SimulationOptions = {}) {
     if (options.groundMovement !== undefined && options.groundMovement !== "eight-way-v1") {
@@ -1103,6 +1143,7 @@ export class DeterministicSimulation implements Simulation {
       movementFinishedEvents: this.#movementFinishedEvents,
       resourceActors: [...this.#resourceActors.values()], resourceActorEvents: this.#resourceActorEvents,
       ...this.#adaptedInspireCheckpoint(),
+      ...this.#browserHealersCheckpoint(),
       ...(this.#projectiles.length ? { projectiles: this.#projectiles } : {}),
       ...(this.#nextProjectileId > 1 ? { nextProjectileId: this.#nextProjectileId } : {}),
     });
@@ -1117,6 +1158,20 @@ export class DeterministicSimulation implements Simulation {
       .map(([unitId, { timer, casterId, multiplierQ8 }]) => ({ unitId, timer, casterId, multiplierQ8 }));
     if (!casters.length && !targets.length && this.#adaptedInspireRandomIndex === 0) return {};
     return { adaptedInspire: { randomIndex: this.#adaptedInspireRandomIndex, casters, targets } };
+  }
+
+  #browserHealersCheckpoint(): { browserHealers?: BrowserHealerCheckpoint } {
+    const live = (id: number) => this.#adaptedInspireLive(id);
+    const healers = [...this.#healers].filter(([id]) => live(id))
+      .map(([unitId, { unitType, charge }]) => ({ unitId, unitType, charge }));
+    if (!healers.length) return {};
+    const unitCosts = [...this.#unitHealCosts].filter(([id]) => live(id))
+      .map(([unitId, { unitType, unitCost }]) => ({
+        unitId,
+        ...(unitType !== undefined ? { unitType } : {}),
+        ...(unitCost !== undefined ? { unitCost } : {}),
+      }));
+    return { browserHealers: { healers, ...(unitCosts.length ? { unitCosts } : {}) } };
   }
 
   #adaptedInspireLive(id: number): boolean {
@@ -1172,6 +1227,17 @@ export class DeterministicSimulation implements Simulation {
       for (const { unitId, typeId, charge } of saved.adaptedInspire.casters) simulation.#adaptedInspireCasters.set(unitId, { typeId, charge });
       for (const { unitId, timer, casterId, multiplierQ8 } of saved.adaptedInspire.targets) {
         simulation.#adaptedInspireTargets.set(unitId, { timer, casterId, multiplierQ8 });
+      }
+    }
+    if (saved.browserHealers) {
+      for (const { unitId, unitType, charge } of saved.browserHealers.healers) {
+        simulation.#healers.set(unitId, { unitType, charge });
+      }
+      for (const { unitId, unitType, unitCost } of saved.browserHealers.unitCosts ?? []) {
+        simulation.#unitHealCosts.set(unitId, {
+          ...(unitType !== undefined ? { unitType } : {}),
+          ...(unitCost !== undefined ? { unitCost } : {}),
+        });
       }
     }
     return simulation;
@@ -1358,6 +1424,100 @@ export class DeterministicSimulation implements Simulation {
 
   get inspireEvents(): readonly NativeInspireEvent[] {
     return this.#inspireEvents.map((event) => structuredClone(event));
+  }
+
+  get healerEvents(): readonly BrowserHealerHealEvent[] {
+    return this.#healerEvents.map((event) => structuredClone(event));
+  }
+
+  registerBrowserHealer(
+    unitId: number,
+    unitTypeOrSprite: number | string = 49,
+    initialCharge?: number,
+  ): boolean {
+    const unitType = typeof unitTypeOrSprite === "number"
+      ? resolveHealerUnitType(unitTypeOrSprite)
+      : resolveHealerUnitType(undefined, unitTypeOrSprite);
+    if (!unitType) throw new RangeError(`unsupported healer type or sprite: ${String(unitTypeOrSprite)}`);
+    if (!this.#adaptedInspireLive(unitId) || this.#resourceActors.has(unitId)) return false;
+    const existing = this.#healers.get(unitId);
+    const charge = initialCharge !== undefined
+      ? Math.max(0, Math.min(HEALER_MAX_CHARGE, Math.trunc(initialCharge)))
+      : (existing?.charge ?? HEALER_INITIAL_CHARGE);
+    this.#healers.set(unitId, { unitType, charge });
+    return true;
+  }
+
+  browserHealerState(unitId: number): BrowserHealerState | null {
+    const healer = this.#healers.get(unitId);
+    if (!healer || !this.#adaptedInspireLive(unitId)) return null;
+    return Object.freeze({ unitId, unitType: healer.unitType, charge: healer.charge });
+  }
+
+  setUnitHealCost(unitId: number, options: { readonly unitType?: number; readonly unitCost?: number } | number): void {
+    if (!this.#adaptedInspireLive(unitId)) return;
+    if (typeof options === "number") {
+      this.#unitHealCosts.set(unitId, { unitCost: Math.trunc(options) });
+    } else {
+      this.#unitHealCosts.set(unitId, {
+        ...(options.unitType !== undefined ? { unitType: Math.trunc(options.unitType) } : {}),
+        ...(options.unitCost !== undefined ? { unitCost: Math.trunc(options.unitCost) } : {}),
+      });
+    }
+  }
+
+  #advanceBrowserHealer(unit: UnitState): void {
+    const healer = this.#healers.get(unit.id);
+    if (!healer || unit.health <= 0 || unit.activity === "die") return;
+    if (unit.activity !== "idle") {
+      healer.charge = rechargeHealer(healer.charge, 1);
+      return;
+    }
+    const sourceX = Math.floor(unit.xSubcells / SUBCELLS_PER_CELL);
+    const sourceY = Math.floor(unit.ySubcells / SUBCELLS_PER_CELL);
+    const ownerOf = (actor: UnitState): number => actor.team ?? (actor.faction === "human" ? -1 : -2);
+    const healerOwner = ownerOf(unit);
+    const candidates = [];
+    for (const other of [...this.#units.values()].sort((left, right) => left.id - right.id)) {
+      if (other.id === unit.id || other.health <= 0 || other.activity === "die") continue;
+      if (this.#resourceOwned(other.id) || this.#dormantUnits.has(other.id)) continue;
+      const cellX = Math.floor(other.xSubcells / SUBCELLS_PER_CELL);
+      const cellY = Math.floor(other.ySubcells / SUBCELLS_PER_CELL);
+      if (Math.abs(cellX - sourceX) > 7 || Math.abs(cellY - sourceY) > 7) continue;
+      const meta = this.#unitHealCosts.get(other.id);
+      const otherHealer = this.#healers.get(other.id);
+      const unitType = meta?.unitType ?? otherHealer?.unitType ?? other.sourceDefense?.sourceTypeIndex;
+      candidates.push({
+        id: other.id,
+        ...(unitType !== undefined ? { unitType } : {}),
+        ...(meta?.unitCost !== undefined ? { unitCost: meta.unitCost } : {}),
+        owner: ownerOf(other),
+        cellX,
+        cellY,
+        health: other.health,
+        maxHealth: other.maxHealth,
+        movementPlane: other.movementPlane ?? "ground",
+        activity: other.activity,
+      });
+    }
+    const scan = stepBrowserHealer({
+      healerId: unit.id,
+      owner: healerOwner,
+      sourceX,
+      sourceY,
+      charge: healer.charge,
+      width: this.grid.width,
+      height: this.grid.height,
+      candidates,
+    });
+    healer.charge = scan.finalCharge;
+    for (const event of scan.healed) {
+      const target = this.#units.get(event.targetId);
+      if (target && target.health > 0 && target.activity !== "die") {
+        target.health = Math.min(target.maxHealth, event.newHealth);
+      }
+      this.#healerEvents.push(event);
+    }
   }
 
   registerNativeInspireEntity(registration: NativeInspireRegistration): void {
@@ -1699,6 +1859,20 @@ export class DeterministicSimulation implements Simulation {
       dropoff: null,
       harvestPhase: null,
     });
+    const resolvedUnitType = options.unitType ?? options.sourceDefense?.sourceTypeIndex;
+    if (resolvedUnitType !== undefined || options.unitCost !== undefined) {
+      this.#unitHealCosts.set(id, {
+        ...(resolvedUnitType !== undefined ? { unitType: resolvedUnitType } : {}),
+        ...(options.unitCost !== undefined ? { unitCost: options.unitCost } : {}),
+      });
+    }
+    const healerType = resolveHealerUnitType(options.unitType, options.sprite, options.sourceDefense?.sourceTypeIndex);
+    if (healerType !== null) {
+      const charge = options.healerCharge !== undefined
+        ? Math.max(0, Math.min(HEALER_MAX_CHARGE, Math.trunc(options.healerCharge)))
+        : HEALER_INITIAL_CHARGE;
+      this.#healers.set(id, { unitType: healerType, charge });
+    }
     return id;
   }
 
@@ -1714,6 +1888,8 @@ export class DeterministicSimulation implements Simulation {
     }
     this.#adaptedInspireCasters.delete(id);
     this.#adaptedInspireTargets.delete(id);
+    this.#healers.delete(id);
+    this.#unitHealCosts.delete(id);
     return this.#units.delete(id);
   }
 
@@ -1915,6 +2091,7 @@ export class DeterministicSimulation implements Simulation {
     const nativeOrder = this.#nativeInspireOrder();
     if (this.#sourceDayNight) this.#sourceDayNight = advanceSourceDayNight(this.#sourceDayNight);
     this.#inspireEvents.length = 0;
+    this.#healerEvents.length = 0;
     this.#combatEvents.length = 0;
     this.#launchEvents.length = 0;
     this.#impactEvents.length = 0;
@@ -1960,6 +2137,9 @@ export class DeterministicSimulation implements Simulation {
           this.#advanceHarvest(unit);
         } else if (unit.activity === "idle" && unit.displacement !== undefined) {
           this.#stepAside(unit);
+        }
+        if (this.#healers.has(unit.id)) {
+          this.#advanceBrowserHealer(unit);
         }
       }
       if (native) this.#nativeInspire!.afterEntityUpdate(native.registration);
@@ -2021,6 +2201,8 @@ export class DeterministicSimulation implements Simulation {
           if (native) { native.animationMode = 0; native.pendingOrder = 0; }
           this.#adaptedInspireCasters.delete(target.id);
           this.#adaptedInspireTargets.delete(target.id);
+          this.#healers.delete(target.id);
+          this.#unitHealCosts.delete(target.id);
         } else {
           if (target.weapon) target.attackTargetId = null;
           for (const index of target.footprint) {
