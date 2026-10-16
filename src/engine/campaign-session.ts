@@ -1003,7 +1003,7 @@ const checkpointProductionProfile = checkpointObject({ id: checkpointString, dir
 const checkpointAdaptedCollectorProfile = checkpointObject({ runtimeProfile: checkpointChoice("browser-adapted"),
   unitType: checkpointChoice(6, 14), completionVisits: checkpointInteger(1, 65535) });
 const checkpointAdaptedUnitProfile = checkpointObject({ runtimeProfile: checkpointChoice("browser-adapted"),
-  unitType: checkpointChoice(2, 3, 4, 5, 10, 11, 12, 13), completionVisits: checkpointInteger(1, 65535) });
+  unitType: checkpointChoice(1, 2, 3, 4, 5, 9, 10, 11, 12, 13, 43, 44, 49, 50), completionVisits: checkpointInteger(1, 65535) });
 const checkpointConstructionSource: CheckpointCheck = value => { createNativeConstructionHost(value as NativeConstructionConfiguration); };
 const checkpointConstructionHost: CheckpointCheck = value => {
   const host = value as NativeConstructionHost;
