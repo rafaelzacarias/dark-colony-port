@@ -137,6 +137,7 @@ export interface UnitSnapshot {
   readonly targetId: number | null;
   /** 256-step facing (0 = +x, 64 = +y) for units with turn-speed steering. */
   readonly facing?: number;
+  readonly moveWait?: number;
   readonly resourceActor?: ResourceActorOwnership;
 }
 
@@ -1789,6 +1790,7 @@ export class DeterministicSimulation implements Simulation {
       snapshot.cargoCapacity = unit.harvester?.cargoCapacity ?? 0;
       snapshot.targetId = unit.attackTargetId ?? unit.resourceTargetId;
       if (unit.facing !== undefined) snapshot.facing = unit.facing;
+      if (unit.moveWait !== undefined) snapshot.moveWait = unit.moveWait;
       const actor = this.#resourceActors.get(unit.id);
       if (actor) snapshot.resourceActor = copyResourceActor(actor);
       units.push(Object.freeze(snapshot) as UnitSnapshot);
@@ -3101,10 +3103,20 @@ export class DeterministicSimulation implements Simulation {
             unit.path = unit.path.slice(0, unit.pathIndex);
             break;
           }
+          if (unit.pathIndex > 1) {
+            unit.path = unit.path.slice(unit.pathIndex - 1);
+            unit.pathIndex = 1;
+          }
           unit.moveWait = SOURCE_BLOCKED_WAIT_TICKS;
           return false;
         }
-        if (!path) return false;
+        if (!path) {
+          if (unit.pathIndex > 1) {
+            unit.path = unit.path.slice(unit.pathIndex - 1);
+            unit.pathIndex = 1;
+          }
+          return false;
+        }
         this.#setPath(unit, path);
         continue;
       }
@@ -3118,12 +3130,25 @@ export class DeterministicSimulation implements Simulation {
       // DC.EXE route legs push turn task 4 above move task 5: the turn runs first, at most turnSpeed per update,
       // and the leg starts (in the same update) only once facing equals the leg direction (0x4120fc).
       if (unit.turnSpeed !== undefined && unit.xSubcells === cellCenter(origin.x) && unit.ySubcells === cellCenter(origin.y)) {
+        const currentFacing = unit.facing ?? SOURCE_INITIAL_FACING;
         const wanted = nativeDirection(targetX - unit.xSubcells, targetY - unit.ySubcells);
-        if (unit.facing !== wanted) {
-          if (turned) break;
-          turned = true;
-          unit.facing = legacyHarvesterTurnDirection(unit.facing ?? SOURCE_INITIAL_FACING, wanted, unit.turnSpeed);
-          if (unit.facing !== wanted) break;
+        if (currentFacing !== wanted) {
+          const rawDelta = Math.abs(wanted - currentFacing) & 255;
+          const angleDelta = rawDelta > 128 ? 256 - rawDelta : rawDelta;
+          const previousOrigin = unit.pathIndex > 1 ? unit.path[unit.pathIndex - 2] : undefined;
+          const incoming = previousOrigin
+            ? nativeDirection(cellCenter(origin.x) - cellCenter(previousOrigin.x), cellCenter(origin.y) - cellCenter(previousOrigin.y))
+            : currentFacing;
+          const rawBend = Math.abs(wanted - incoming) & 255;
+          const bendDelta = rawBend > 128 ? 256 - rawBend : rawBend;
+          if (unit.pathIndex > 1 && angleDelta <= 32 && bendDelta <= 32) {
+            unit.facing = wanted;
+          } else {
+            if (turned) break;
+            turned = true;
+            unit.facing = legacyHarvesterTurnDirection(currentFacing, wanted, unit.turnSpeed);
+            if (unit.facing !== wanted) break;
+          }
         }
       }
       const deltaX = targetX - unit.xSubcells;

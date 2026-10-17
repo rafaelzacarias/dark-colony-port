@@ -39,6 +39,19 @@ test("generic FIN: death takes precedence over displacement; idle and move retai
 test("generic FIN: an undisplaced attack with a pending leg uses Move", () => {
   assert.equal(missionUnitAction(attacker, attacker, true), "Move");
   assert.equal(missionUnitAction({ ...attacker, activity: "die" }, attacker, true), "Die");
+  // Stationary turning in place or moveWait uses Stand instead of treadmill Move.
+  assert.equal(
+    missionUnitAction({ ...attacker, activity: "move", facing: 54 }, { ...attacker, activity: "move", facing: 64 }, true),
+    "Stand",
+  );
+  assert.equal(
+    missionUnitAction({ ...attacker, activity: "move", facing: 64, moveWait: 2 }, { ...attacker, activity: "move", facing: 64 }, true),
+    "Stand",
+  );
+  assert.equal(
+    missionUnitAction({ ...attacker, activity: "move", facing: 32, xSubcells: attacker.xSubcells + 64 }, { ...attacker, activity: "move", facing: 64 }, true),
+    "Move",
+  );
 });
 
 test("generic FIN: real chase, stationary shots and same-command renewed pursuit", () => {
@@ -175,6 +188,16 @@ test("MissionView generic FIN: motion facing, pending legs and phase resets use 
       assert.equal(present().facing, compass, `motion (dx=${dx}, dy=${dy}) must map to ${compass}`);
       assert.equal(moveSelector.select("Move", compass)?.state.name, moveState);
     }
+    // Stationary turn in place renders Stand at the steered facing.
+    current = { ...current, tick: 224, units: [{ ...owned, activity: "move" as const, targetId: null, facing: 32, xSubcells: previous.xSubcells, ySubcells: previous.ySubcells }] };
+    assert.deepEqual(present(), { id: owned.id, action: "Stand", facing: "NE", since: 224 });
+    // Smooth 45° turn (NW -> W) preserves walk cycle stride `since`, while sharp >= 90° turn (N -> W) resets `since`.
+    current = { ...current, tick: 225, units: [{ ...owned, activity: "move" as const, targetId: null, facing: 96, xSubcells: owned.xSubcells - 64, ySubcells: owned.ySubcells + 64 }] };
+    assert.deepEqual(present(), { id: owned.id, action: "Move", facing: "NW", since: 225 });
+    current = { ...current, tick: 226, units: [{ ...owned, activity: "move" as const, targetId: null, facing: 128, xSubcells: owned.xSubcells - 64, ySubcells: owned.ySubcells }] };
+    assert.deepEqual(present(), { id: owned.id, action: "Move", facing: "W", since: 225 });
+    current = { ...current, tick: 225, units: [{ ...owned, activity: "move" as const, targetId: null, facing: 64, xSubcells: owned.xSubcells, ySubcells: owned.ySubcells + 64 }] };
+    assert.deepEqual(present(), { id: owned.id, action: "Move", facing: "N", since: 225 });
     current = { ...current, tick: 226, units: [{ ...owned, activity: "attack" as const, targetId: target.id, xSubcells: owned.xSubcells - 64 }, target] };
     assert.deepEqual(present(), { id: owned.id, action: "Move", facing: "W", since: 226 });
 

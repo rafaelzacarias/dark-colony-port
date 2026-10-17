@@ -213,7 +213,12 @@ const SPRITE_ALIASES: Readonly<Record<string, string>> = { BEEK: "BEAC" };
 
 export function missionUnitAction(unit: UnitSnapshot, previous: UnitSnapshot, pendingPath = false): FinAction {
   if (unit.activity === "die" || unit.health <= 0) return "Die";
-  if (unit.activity === "move" || pendingPath || unit.xSubcells !== previous.xSubcells || unit.ySubcells !== previous.ySubcells) return "Move";
+  const displaced = unit.xSubcells !== previous.xSubcells || unit.ySubcells !== previous.ySubcells;
+  if (!displaced && ((unit.facing !== undefined && previous.facing !== undefined && unit.facing !== previous.facing)
+    || (unit.moveWait ?? previous.moveWait ?? 0) > 0)) {
+    return "Stand";
+  }
+  if (unit.activity === "move" || pendingPath || displaced) return "Move";
   return unit.activity === "attack" ? "Attack" : "Stand";
 }
 
@@ -3472,9 +3477,16 @@ export class MissionView {
             target ? unit.ySubcells - target.ySubcells : previous.ySubcells - unit.ySubcells,
             oldAnimation?.facing ?? "S",
           );
+      const octantDistance = oldAnimation
+        ? Math.min(
+          Math.abs(COMPASS_BY_OCTANT.indexOf(oldAnimation.facing) - COMPASS_BY_OCTANT.indexOf(facing)),
+          8 - Math.abs(COMPASS_BY_OCTANT.indexOf(oldAnimation.facing) - COMPASS_BY_OCTANT.indexOf(facing)),
+        )
+        : 8;
       this.#animationStates.set(unit.id, {
         action, facing,
-        since: oldAnimation?.action === "Die" || (oldAnimation?.action === action && oldAnimation.facing === facing)
+        since: oldAnimation?.action === "Die"
+          || (oldAnimation?.action === action && (oldAnimation.facing === facing || (action === "Move" && octantDistance <= 1)))
           ? oldAnimation.since : snapshot.tick,
       });
       if (this.#completedDeathAnimations.has(unit.id)) continue;
